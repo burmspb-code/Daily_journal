@@ -1,0 +1,13 @@
+{
+  "name": "Daily Journal & Poetry",
+  "postCreateCommand": "pip install --user 'poetry>=2.0.0' && poetry config virtualenvs.in-project true && poetry init --no-interaction --name=daily-journal && poetry add django psycopg2-binary && poetry install --no-root && echo 'source /workspaces/Daily_journal/.venv/bin/activate' >> ~/.bashrc",
+  
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/workspaces/Daily_journal/.venv/bin/python",
+        "python.terminal.activateEnvInSelectedTerminal": true
+      }
+    }
+  }
+}
