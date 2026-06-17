@@ -7,7 +7,13 @@
       "settings": {
         "python.defaultInterpreterPath": "/workspaces/Daily_journal/.venv/bin/python",
         "python.terminal.activateEnvInSelectedTerminal": true
-      }
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "donjayamanne.githistory"
+      ]
     }
   }
 }
