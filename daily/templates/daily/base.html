@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru" class="h-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Daily Journal{% endblock %}</title>
+    
+    <!-- Подключение локального Bootstrap CSS из вашей папки static/daily/css -->
+    <link href="{% static 'daily/css/bootstrap.min.css' %}" rel="stylesheet">
+</head>
+<body class="d-flex flex-column h-100 bg-light">
+
+    <!-- Верхняя навигационная панель (Navbar) -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{% url 'task_list' %}">📒 Daily Journal</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'task_list' %}">Список задач</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Основной контент страницы -->
+    <main class="flex-shrink-0 my-5">
+        <div class="container">
+            <!-- Динамический блок, куда вставляется контент из других шаблонов (например, task_list.html) -->
+            {% block content %}
+            {% endblock %}
+        </div>
+    </main>
+
+    <!-- Подвал сайта (Footer) -->
+    <footer class="footer mt-auto py-3 bg-white border-top text-center text-muted">
+        <div class="container">
+            <span>© 2026 Daily Journal — Локальная сборка</span>
+        </div>
+    </footer>
+
+    <!-- Подключение локального Bootstrap JS из вашей папки static/daily/js -->
+    <script src="{% static 'daily/js/bootstrap.bundle.min.js' %}"></script>
+</body>
+</html>

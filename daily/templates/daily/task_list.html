@@ -1,0 +1,75 @@
+{% extends 'daily/base.html' %}
+
+<!-- Меняем заголовок вкладки в браузере -->
+{% block title %}Список задач | Daily Journal{% endblock %}
+
+<!-- Вставляем контент в блок основного содержимого -->
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2 fw-bold text-dark mb-0">Daily Journal & Tasks</h1>
+    <span class="badge bg-primary fs-6 py-2 px-3">
+        Всего задач: {{ tasks|length }}
+    </span>
+</div>
+
+<!-- Контейнер для таблицы Bootstrap -->
+<div class="card shadow-sm border-0 rounded-3 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover table-striped align-middle mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th scope="col" class="ps-4" style="width: 70px;">№</th>
+                    <th scope="col">Наименование</th>
+                    <th scope="col">Время создания</th>
+                    <th scope="col">Время напоминания</th>
+                    <th scope="col">Комментарий</th>
+                    <th scope="col" class="text-center" style="width: 100px;">Флаг</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr>
+                    <!-- Столбец A: Порядковый номер (ID) -->
+                    <td class="ps-4 text-muted font-monospace">{{ task.id }}</td>
+                    
+                    <!-- Столбец B: Наименование -->
+                    <td class="fw-bold text-secondary">{{ task.name }}</td>
+                    
+                    <!-- Столбец C: Время создания -->
+                    <td class="text-muted">{{ task.created_at|date:"d.m.Y H:i" }}</td>
+                    
+                    <!-- Столбец D: Время напоминания -->
+                    <td class="text-muted">
+                        {% if task.reminder_at %}
+                            {{ task.reminder_at|date:"d.m.Y H:i" }}
+                        {% else %}
+                            <span class="text-danger fw-bold">*</span>
+                        {% endif %}
+                    </td>
+                    
+                    <!-- Столбец E: Комментарий -->
+                    <td class="text-wrap" style="max-width: 300px;">{{ task.comment|default:"" }}</td>
+                    
+                    <!-- Столбец F: Признак управления (Разноцветные значки в зависимости от цифры) -->
+                    <td class="text-center">
+                        <span class="badge rounded-pill 
+                            {% if task.status_flag == 1 %} bg-success
+                            {% elif task.status_flag == 2 %} bg-warning text-dark
+                            {% elif task.status_flag == 3 %} bg-info text-dark
+                            {% else %} bg-secondary {% endif %}">
+                            {{ task.status_flag }}
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center py-5 text-muted">
+                        Задачи не найдены в базе данных VPS.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
