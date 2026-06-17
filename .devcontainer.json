@@ -5,7 +5,7 @@
   "customizations": {
     "vscode": {
       "settings": {
-        "python.defaultInterpreterPath": "/workspaces/Daily_journal/.venv/bin/python",
+        "python.defaultInterpreterPath": "/workspaces/daily_journal/.venv/bin/python",
         "python.terminal.activateEnvInSelectedTerminal": true
       },
       "extensions": [
