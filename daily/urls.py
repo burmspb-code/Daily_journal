@@ -1,7 +1,7 @@
 from django.urls import path
-from .views import task_list
+from .views import TaskListView  # Импортируем наш новый класс
 
 urlpatterns = [
-    # Пустая строка означает, что это главная страница приложения
-    path('', task_list, name='task_list'),
+    # Заменяем функцию на класс
+    path('', TaskListView.as_view(), name='task_list'),
 ]
