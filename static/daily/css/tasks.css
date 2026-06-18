@@ -1,0 +1,76 @@
+/* static/daily/css/tasks.css */
+
+.filter-icon {
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.filter-icon:hover, .filter-icon.active {
+    opacity: 1;
+    color: #ffc107 !important;
+}
+
+/* Разрешаем ячейкам th и thead выпускать попапы наружу */
+thead.sticky-top, th.position-relative {
+    overflow: visible !important;
+}
+
+/* Контейнер table-responsive не режет попапы по вертикали */
+.table-responsive {
+    overflow-y: visible !important;
+}
+
+/* Кастомное всплывающее окно */
+.header-filter-popup {
+    display: none;
+    position: absolute;
+    background: #212529;
+    border: 1px solid #495057;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 2050; /* Выше sticky-top заголовка */
+    min-width: 240px;
+    max-height: 280px;
+    overflow-y: auto;
+    margin-top: 5px;
+    top: 100%; /* Четко под нижней границей ячейки th */
+}
+
+/* Для правого фильтра смещаем окно влево */
+th:last-child .header-filter-popup {
+    right: 0;
+    left: auto;
+}
+
+th:not(:last-child) .header-filter-popup {
+    left: 0;
+    right: auto;
+}
+
+/* Стили для элементов внутри выпадающего списка */
+.filter-popup-item {
+    display: block;
+    width: 100%;
+    padding: 0.25rem 1rem;
+    clear: both;
+    font-weight: 400;
+    color: #fff;
+    text-align: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+    background-color: transparent;
+    border: 0;
+    font-size: 0.875rem;
+    border-radius: 4px;
+}
+
+.filter-popup-item:hover {
+    background-color: #495057;
+    color: #fff;
+}
+
+.filter-popup-item.active {
+    background-color: #0d6efd;
+    color: #fff;
+}

@@ -1,6 +1,6 @@
 import json
 from django.http import JsonResponse
-from django.views.generic import ListView, CreateView, UpdateView
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
 from .models import Task
 from .forms import TaskForm
@@ -54,65 +54,99 @@ class TaskCreateView(CreateView):
 
 class TaskUpdateApiView(UpdateView):
     model = Task
-    # Указываем поля модели, которые разрешено редактировать через форму
-    fields = ['name', 'comment'] 
+    fields = ['name', 'comment']
 
-    def get_form_kwargs(self):
+    def _get_json_data(self):
         """
-        Переопределяем сбор данных для формы.
-        Вместо стандартного request.POST читаем данные из JSON-тела Fetch-запроса.
+        Вспомогательный метод для безопасного чтения JSON из тела запроса.
+        Кэширует данные в self.json_data, чтобы избежать повторного чтения request.body.
         """
-        kwargs = super().get_form_kwargs()
-        try:
-            # Читаем JSON-пакет из тела запроса
-            data = json.loads(self.request.body)
-            
-            # Подменяем стандартный QueryDict на наш словарь из JSON
-            kwargs['data'] = data
-        except Exception:
-            kwargs['data'] = {}
-        return kwargs
+        if not hasattr(self, 'json_data'):
+            try:
+                self.json_data = json.loads(self.request.body)
+            except (json.JSONDecodeError, TypeError):
+                self.json_data = {}
+        return self.json_data
 
     def get_object(self, queryset=None):
         """
-        Переопределяем поиск объекта.
-        Обычно UpdateView ищет pk в URL-адресе, но у нас pk прилетает внутри JSON-тела.
+        Ищем объект по ID, который прилетел внутри JSON-тела.
         """
+        data = self._get_json_data()
+        task_id = data.get('id')
         try:
-            data = json.loads(self.request.body)
-            task_id = data.get('id')
             return self.get_queryset().get(id=task_id)
-        except (json.JSONDecodeError, self.model.DoesNotExist):
+        except (self.model.DoesNotExist, ValueError):
             return None
+
+    def get_form_kwargs(self):
+        """
+        Передаем данные из JSON-словаря напрямую в форму.
+        """
+        kwargs = super().get_form_kwargs()
+        kwargs['data'] = self._get_json_data()
+        return kwargs
 
     def post(self, request, *args, **kwargs):
         """
-        Переопределяем точку входа POST.
-        Делаем проверку, нашли ли мы объект перед тем, как валидировать форму.
+        Точка входа POST-запроса. Проверяем существование объекта
+        до запуска стандартной валидации форм.
         """
         self.object = self.get_object()
         if self.object is None:
-            return JsonResponse({'status': 'error', 'message': 'Задача не найдена'}, status=404)
-        
-        # Запускаем стандартную валидацию формы UpdateView
+            return JsonResponse({'status': 'error', 'message': 'Задача не найдена или ID не передан'}, status=404)
+
         return super().post(request, *args, **kwargs)
 
     def form_valid(self, form):
         """
-        Если форма успешно валидирована, сохраняем объект 
-        и вместо редиректа возвращаем JsonResponse для нашего JS.
+        При успешной валидации сохраняем задачу и возвращаем JSON.
         """
         self.object = form.save()
         return JsonResponse({'status': 'success'})
 
     def form_invalid(self, form):
         """
-        Если в форме есть ошибки (например, пустое имя), 
-        возвращаем JSON со списком ошибок и статус-кодом 400.
+        При ошибке валидации возвращаем понятную структуру ошибок.
         """
         return JsonResponse({
-            'status': 'error', 
-            'message': 'Ошибка валидации полей', 
+            'status': 'error',
+            'message': 'Ошибка валидации полей',
             'errors': form.errors.get_json_data()
         }, status=400)
-    
+
+
+class TaskDeleteApiView(DeleteView):
+    model = Task
+
+    def get_object(self, queryset=None):
+        """
+        Стандартный DeleteView ищет один объект.
+        Мы переопределяем этот метод, чтобы он не выдавал ошибку из-за отсутствия pk в URL.
+        """
+        return None
+
+    def post(self, request, *args, **kwargs):
+        """
+        Переопределяем точку входа POST-запроса для обработки списка ID.
+        """
+        try:
+            # Читаем наш JSON из тела запроса
+            data = json.loads(request.body)
+            task_ids = data.get('ids', [])
+
+            if not task_ids:
+                return JsonResponse({'status': 'error', 'message': 'Не выбрано ни одной задачи'}, status=400)
+
+            # Выполняем удаление через queryset
+            queryset = self.get_queryset().filter(id__in=task_ids)
+            deleted_count, _ = queryset.delete()
+
+            return JsonResponse({
+                'status': 'success',
+                'message': f'Успешно удалено задач: {deleted_count}'
+            })
+
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+

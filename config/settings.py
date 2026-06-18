@@ -113,5 +113,5 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 STATICFILES_DIRS = [
-    BASE_DIR / 'daily' / 'static',  # ИСПРАВЛЕНО: Указали точный путь к статике внутри приложения daily
+    BASE_DIR / 'static',
 ]

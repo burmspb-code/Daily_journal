@@ -1,13 +1,16 @@
-{% load static %}
 <!DOCTYPE html>
 <html lang="ru" class="h-100">
 <head>
+    {% load static %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Daily Journal{% endblock %}</title>
     
     <!-- Подключение локального Bootstrap CSS из вашей папки static/daily/css -->
     <link href="{% static 'daily/css/bootstrap.min.css' %}" rel="stylesheet">
+
+    <!-- БЛОК ДЛЯ СТИЛЕЙ СТРАНИЦ-НАСЛЕДНИКОВ -->
+    {% block extra_css %}{% endblock %}
 </head>
 <body class="d-flex flex-column h-100 bg-light">
 
@@ -31,5 +34,8 @@
 
     <!-- Подключение локального Bootstrap JS из вашей папки static/daily/js -->
     <script src="{% static 'daily/js/bootstrap.bundle.min.js' %}"></script>
+
+    <!-- ДОБАВЛЕН БЛОК ДЛЯ СКРИПТОВ СТРАНИЦ-НАСЛЕДНИКОВ -->
+    {% block extra_js %}{% endblock %}
 </body>
 </html>
