@@ -104,7 +104,7 @@
                     
                     <!-- Столбец: Наименование -->
                     <th scope="col" class="position-relative">
-                        <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2">
                             <span>Наименование</span>
                             <span class="filter-icon px-2 {% if current_name %}active{% endif %}" onclick="toggleFilterPopup(event, 'name-popup')">▼</span>
                         </div>
@@ -112,7 +112,7 @@
                     
                     <!-- Столбец: Время создания -->
                     <th scope="col" style="cursor: pointer;" onclick="toggleDateSort()">
-                        <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center justify-content-gap-2">
                             <span>Время создания</span>
                             <span class="filter-icon px-2 {% if current_sort %}active{% endif %}">
                                 {% if current_sort == 'newest' %}▲{% elif current_sort == 'oldest' %}▼{% else %}⇅{% endif %}
