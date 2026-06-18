@@ -43,7 +43,8 @@ class TaskListView(ListView):
         context['current_flag'] = self.request.GET.get('flag', '')
         context['current_sort'] = self.request.GET.get('sort', '')
         return context
-    
+
+
 class TaskCreateView(CreateView):
     model = Task
     context_object_name = "task"
@@ -54,24 +55,21 @@ class TaskCreateView(CreateView):
 
 class TaskUpdateApiView(UpdateView):
     model = Task
-    fields = ['name', 'comment']
+    # Указываем поля, которые РАЗРЕШЕНО редактировать пользователю
+    fields = ['name', 'comment', 'reminder_at']
 
     def _get_json_data(self):
-        """
-        Вспомогательный метод для безопасного чтения JSON из тела запроса.
-        Кэширует данные в self.json_data, чтобы избежать повторного чтения request.body.
-        """
         if not hasattr(self, 'json_data'):
             try:
                 self.json_data = json.loads(self.request.body)
+                # Корректируем формат даты из HTML5 (YYYY-MM-DDTHH:mm) в формат Django (YYYY-MM-DD HH:mm)
+                if self.json_data.get('reminder_at'):
+                    self.json_data['reminder_at'] = self.json_data['reminder_at'].replace('T', ' ')
             except (json.JSONDecodeError, TypeError):
                 self.json_data = {}
         return self.json_data
 
     def get_object(self, queryset=None):
-        """
-        Ищем объект по ID, который прилетел внутри JSON-тела.
-        """
         data = self._get_json_data()
         task_id = data.get('id')
         try:
@@ -80,35 +78,30 @@ class TaskUpdateApiView(UpdateView):
             return None
 
     def get_form_kwargs(self):
-        """
-        Передаем данные из JSON-словаря напрямую в форму.
-        """
         kwargs = super().get_form_kwargs()
         kwargs['data'] = self._get_json_data()
         return kwargs
 
     def post(self, request, *args, **kwargs):
-        """
-        Точка входа POST-запроса. Проверяем существование объекта
-        до запуска стандартной валидации форм.
-        """
         self.object = self.get_object()
         if self.object is None:
-            return JsonResponse({'status': 'error', 'message': 'Задача не найдена или ID не передан'}, status=404)
-
+            return JsonResponse({'status': 'error', 'message': 'Задача не найдена'}, status=404)
         return super().post(request, *args, **kwargs)
 
     def form_valid(self, form):
-        """
-        При успешной валидации сохраняем задачу и возвращаем JSON.
-        """
+        # Сохраняем измененные name, comment и reminder_at
         self.object = form.save()
-        return JsonResponse({'status': 'success'})
+
+        # Перезагружаем объект из базы, чтобы сработал ваш автоматический расчет флага (если он прописан в методе save() модели)
+        self.object.refresh_from_db()
+
+        # Возвращаем статус успеха и автоматически пересчитанный флаг обратно на фронтенд
+        return JsonResponse({
+            'status': 'success',
+            'new_flag': self.object.status_flag  # Передаем обновленный статус для динамической перекраски
+        })
 
     def form_invalid(self, form):
-        """
-        При ошибке валидации возвращаем понятную структуру ошибок.
-        """
         return JsonResponse({
             'status': 'error',
             'message': 'Ошибка валидации полей',

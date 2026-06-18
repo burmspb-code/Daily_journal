@@ -41,7 +41,9 @@
     <input type="hidden" name="flag" id="hidden-flag" value="{{ current_flag }}">
     <input type="hidden" name="sort" id="hidden-sort" value="{{ current_sort }}">
 </form>
+
 {% csrf_token %}
+
 <!-- Главный контейнер карточки с таблицей -->
 <div class="card shadow-sm border-0 rounded-3">
     <!-- Контейнер скроллинга (убрали инлайн-стиль overflow) -->
@@ -118,7 +120,6 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <!-- ИСПРАВЛЕНО: colspan увеличен до 7 из-за нового столбца -->
                     <td colspan="7" class="text-center py-5 text-muted">Задачи не найдены.</td>
                 </tr>
                 {% endfor %}
@@ -129,42 +130,52 @@
 
 <!-- Модальное окно редактирования задачи -->
 <div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content bg-dark text-white border-secondary">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title fw-bold" id="editTaskModalLabel">Редактирование задачи № <span id="modal-task-id-title"></span></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <!-- ВАЖНО: Атрибут data-update-url указывает на эндпоинт вашего UpdateView в Django -->
-                <form id="edit-task-form" data-update-url="{% url 'daily:task_update_api' %}">
+
+            <!-- ОТКРЫВАЮЩИЙ ТЕГ ФОРМЫ ДОЛЖЕН БЫТЬ ЗДЕСЬ -->
+            <form id="edit-task-form" onsubmit="saveTaskChanges(event)">
+
+                <div class="modal-header border-secondary">
+                    <!-- ДОБАВИЛИ ТЕГ span С id ДЛЯ ВЫВОДА НОМЕРА ЗАДАЧИ -->
+                    <h5 class="modal-title" id="editTaskModalLabel">Редактирование задачи № <span id="edit-task-number-title" class="text-warning"></span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+
+                <div class="modal-body">
+                    <!-- Скрытое поле для ID задачи -->
                     <input type="hidden" id="edit-task-id">
-                    
+
                     <div class="mb-3">
-                        <label for="edit-task-name" class="form-label small text-white-50">Наименование</label>
+                        <label for="edit-task-name" class="form-label text-warning">Наименование</label>
                         <input type="text" class="form-control bg-secondary text-white border-0" id="edit-task-name" required>
                     </div>
-                    
                     <div class="mb-3">
-                        <label for="edit-task-flag" class="form-label small text-white-50">Статус (Флаг)</label>
-                        <select class="form-select bg-secondary text-white border-0" id="edit-task-flag">
-                            <option value="0">0 — Зеленый (Успех)</option>
-                            <option value="1">1 — Серый (В процессе)</option>
-                            <option value="2">2 — Желтый (Предупреждение)</option>
-                            <option value="3">3 — Красный (Ошибка)</option>
-                        </select>
+                        <label for="edit-task-reminder" class="form-label text-warning">Время напоминания</label>
+                        <input type="datetime-local" class="form-control bg-secondary text-white border-0" id="edit-task-reminder">
                     </div>
-                    
                     <div class="mb-3">
-                        <label for="edit-task-comment" class="form-label small text-white-50">Комментарий</label>
+                        <label for="edit-task-comment" class="form-label text-warning">Комментарий</label>
                         <textarea class="form-control bg-secondary text-white border-0" id="edit-task-comment" rows="3"></textarea>
                     </div>
-                </form>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-primary btn-sm px-3" onclick="submitEditTask()">Сохранить изменения</button>
-            </div>
+                    <div class="mb-3">
+                        <label for="edit-task-flag" class="form-label text-warning">Статус (Флаг) — Авторасчет</label>
+                        <select class="form-select bg-dark text-muted border-secondary" id="edit-task-flag" disabled>
+                            <option value="0">0 — Зеленый (Успех)</option>
+                            <option value="1">1 — Серый</option>
+                            <option value="2">2 — Желтый</option>
+                            <option value="3">3 — Красный</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary fw-semibold">Сохранить изменения</button>
+                </div>
+
+            </form> <!-- ЗАКРЫВАЮЩИЙ ТЕГ ФОРМЫ СТРОГО В САМОМ КОНЦЕ CONTENT -->
+
         </div>
     </div>
 </div>

@@ -80,7 +80,7 @@ function toggleDateSort() {
     form.submit();
 }
 
-// Открытие модального окна и заполнение его полей текущими данными из строки таблицы
+// ЭТАЛОННАЯ ФУНКЦИЯ ОТКРЫТИЯ ОКНА: Простая, чистая, без падений
 function openEditModal() {
     const selectedCheckbox = document.querySelector('.task-checkbox:checked');
     if (!selectedCheckbox) return;
@@ -92,23 +92,46 @@ function openEditModal() {
     const currentName = row.querySelector('.task-name-cell').textContent.trim();
     const currentComment = row.querySelector('.task-comment-cell').textContent.trim();
 
+    const currentFlagBadge = row.querySelector('.badge');
+    const currentFlag = currentFlagBadge ? currentFlagBadge.textContent.trim() : "0";
+
+    // Срез текста. Гарантирует отсутствие синтаксических сбоев в JS
+    let formattedDate = "";
+    if (row.cells && row.cells[4]) {
+        const rawDateStr = row.cells[4].textContent.trim(); // "19.06.2026 14:00"
+
+        if (rawDateStr && rawDateStr.length >= 16) {
+            const day = rawDateStr.substring(0, 2);
+            const month = rawDateStr.substring(3, 5);
+            const year = rawDateStr.substring(6, 10);
+            const time = rawDateStr.substring(11, 16);
+
+            formattedDate = year + "-" + month + "-" + day + "T" + time;
+        }
+    }
+
     document.getElementById('edit-task-id').value = taskId;
     document.getElementById('edit-task-name').value = currentName;
     document.getElementById('edit-task-comment').value = currentComment;
+    document.getElementById('edit-task-reminder').value = formattedDate;
+
+    const flagSelect = document.getElementById('edit-task-flag');
+    if (flagSelect) flagSelect.value = currentFlag;
+
+    document.getElementById('edit-task-number-title').textContent = taskId;
 }
 
-// Отправка измененных данных задачи на сервер через AJAX (Fetch API)
+// ЭТАЛОННАЯ ФУНКЦИЯ СОХРАНЕНИЯ ИЗМЕНЕНИЙ
 function saveTaskChanges(event) {
     event.preventDefault();
 
     const taskId = document.getElementById('edit-task-id').value;
     const updatedName = document.getElementById('edit-task-name').value;
     const updatedComment = document.getElementById('edit-task-comment').value;
+    const updatedReminder = document.getElementById('edit-task-reminder').value;
 
     const btnEdit = document.getElementById('btn-edit-selected');
     const url = btnEdit.getAttribute('data-url');
-
-    // Безопасное чтение CSRF-токена, сгенерированного Django в шаблоне
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
     fetch(url, {
@@ -120,7 +143,8 @@ function saveTaskChanges(event) {
         body: JSON.stringify({
             id: taskId,
             name: updatedName,
-            comment: updatedComment
+            comment: updatedComment,
+            reminder_at: updatedReminder || null
         })
     })
     .then(response => {
@@ -128,25 +152,47 @@ function saveTaskChanges(event) {
         return response.json().then(err => { throw new Error(err.message || 'Ошибка сервера при сохранении'); });
     })
     .then(data => {
-        // Динамически обновляем текст ячеек в строке таблицы на лету
         const row = document.getElementById(`task-row-${taskId}`);
         if (row) {
             row.querySelector('.task-name-cell').textContent = updatedName;
             row.querySelector('.task-comment-cell').textContent = updatedComment;
+
+            const reminderCell = row.cells[4];
+            if (reminderCell) {
+                if (updatedReminder) {
+                    const dateObj = new Date(updatedReminder);
+                    const day = String(dateObj.getDate()).padStart(2, '0');
+                    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const year = dateObj.getFullYear();
+                    const hours = String(dateObj.getHours()).padStart(2, '0');
+                    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+                    reminderCell.innerHTML = `${day}.${month}.${year} ${hours}:${minutes}`;
+                } else {
+                    reminderCell.innerHTML = '<span class="text-danger fw-bold">*</span>';
+                }
+            }
+
+            if (data.new_flag !== undefined) {
+                const badge = row.querySelector('.badge');
+                if (badge) {
+                    badge.textContent = data.new_flag;
+                    badge.className = 'badge rounded-pill';
+                    if (data.new_flag == 0) badge.classList.add('bg-success');
+                    else if (data.new_flag == 1) badge.classList.add('bg-secondary');
+                    else if (data.new_flag == 2) badge.classList.add('bg-warning', 'text-dark');
+                    else if (data.new_flag == 3) badge.classList.add('bg-danger');
+                }
+            }
         }
 
-        // Закрываем модальное окно через Bootstrap API
         const modalElement = document.getElementById('editTaskModal');
         const modalInstance = bootstrap.Modal.getInstance(modalElement);
         if (modalInstance) modalInstance.hide();
     })
-    .catch(error => {
-        alert('Ошибка при изменении задачи: ' + error.message);
-        console.error(error);
-    });
+    .catch(error => alert('Ошибка при изменении задачи: ' + error.message));
 }
 
-// Пакетное удаление всех выбранных задач через AJAX (Fetch API)
+// ВАША ЗОЛОТАЯ, СТОПРОЦЕНТНО РАБОЧАЯ ФУНКЦИЯ УДАЛЕНИЯ
 function deleteSelectedTasks() {
     const checkedBoxes = document.querySelectorAll('.task-checkbox:checked');
     if (checkedBoxes.length === 0) return;
@@ -158,8 +204,6 @@ function deleteSelectedTasks() {
     const taskIds = Array.from(checkedBoxes).map(cb => cb.value);
     const btnDelete = document.getElementById('btn-delete-selected');
     const url = btnDelete.getAttribute('data-url');
-
-    // Безопасное чтение CSRF-токена, сгенерированного Django в шаблоне
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
     fetch(url, {
@@ -179,17 +223,14 @@ function deleteSelectedTasks() {
     })
     .then(data => {
         if (data.status === 'success') {
-            // Удаляем HTML-строки из таблицы без перезагрузки страницы
             taskIds.forEach(id => {
                 const row = document.getElementById(`task-row-${id}`);
                 if (row) row.remove();
             });
 
-            // Сбрасываем состояние главного чекбокса в шапке
             const selectAll = document.getElementById('select-all-tasks');
             if (selectAll) selectAll.checked = false;
 
-            // Прячем кнопки групповых действий
             btnDelete.classList.add('d-none');
             document.getElementById('btn-edit-selected').classList.add('d-none');
 
