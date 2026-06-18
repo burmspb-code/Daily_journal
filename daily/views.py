@@ -1,5 +1,8 @@
-from django.views.generic import ListView
+from django.views.generic import ListView, CreateView
+from django.urls import reverse_lazy
 from .models import Task
+from .forms import TaskForm
+
 
 class TaskListView(ListView):
     model = Task
@@ -39,5 +42,9 @@ class TaskListView(ListView):
         context['current_sort'] = self.request.GET.get('sort', '')
         return context
     
-
-
+class TaskCreateView(CreateView):
+    model = Task
+    context_object_name = "task"
+    form_class = TaskForm
+    success_url = reverse_lazy("daily:task_list")
+    success_message = "Новыя задача успешно создана!"

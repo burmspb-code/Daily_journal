@@ -1,0 +1,26 @@
+<!-- Верхняя навигационная панель (Navbar) -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="{% url 'daily:task_list' %}">📒 Daily Journal</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto align-items-center gap-2">
+                <li class="nav-item">
+                    <a class="nav-link active" href="{% url 'daily:task_list' %}">Список задач</a>
+                </li>
+                <!-- Кнопка создания задачи с красивой векторной иконкой -->
+                <li class="nav-item ms-lg-2">
+                    <a class="btn btn-warning btn-sm fw-bold px-3 text-dark rounded-pill d-flex align-items-center gap-1.5" href="{% url 'daily:task_create' %}">
+                        <!-- Векторная SVG-иконка плюса вместо текстового значка -->
+                        <svg xmlns="http://w3.org" width="16" height="16" fill="currentColor" class="me-1" viewBox="0 0 16 16" style="vertical-align: middle;">
+                            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                        </svg>
+                        <span>Создать задачу</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>

@@ -81,7 +81,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 fw-bold text-dark mb-0">Daily Journal & Tasks</h1>
     <div class="d-flex gap-2">
-        <a href="{% url 'task_list' %}" class="btn btn-outline-secondary btn-sm fw-semibold">Сбросить все фильтры</a>
+        <a href="{% url 'daily:task_list' %}" class="btn btn-outline-secondary btn-sm fw-semibold">Сбросить все фильтры</a>
         <span class="badge bg-primary fs-6 py-1.5 px-3">Найдено задач: {{ tasks|length }}</span>
     </div>
 </div>
