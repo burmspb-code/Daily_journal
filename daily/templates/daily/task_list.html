@@ -14,7 +14,17 @@
         opacity: 1;
         color: #ffc107 !important;
     }
-    /* Кастомное всплывающее окно, которое не режется свойством overflow-y у таблицы */
+    
+    /* Важнейшее исправление: разрешаем ячейкам th и thead выпускать попапы наружу */
+    thead.sticky-top, th.position-relative {
+        overflow: visible !important;
+    }
+    /* Делаем так, чтобы сам контейнер table-responsive не резал попапы по вертикали */
+    .table-responsive {
+        overflow-y: visible !important; 
+    }
+
+    /* Кастомное всплывающее окно */
     .header-filter-popup {
         display: none;
         position: absolute;
@@ -22,12 +32,24 @@
         border: 1px solid #495057;
         border-radius: 6px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 2000;
+        z-index: 2050; /* Поднимаем выше sticky-top заголовка */
         min-width: 240px;
         max-height: 280px;
         overflow-y: auto;
         margin-top: 5px;
+        top: 100%; /* Четко под нижней границей ячейки th */
     }
+    
+    /* Для правого фильтра смещаем окно влево, чтобы оно не уезжало за правый край экрана */
+    th:last-child .header-filter-popup {
+        right: 0;
+        left: auto;
+    }
+    th:not(:last-child) .header-filter-popup {
+        left: 0;
+        right: auto;
+    }
+
     /* Стили для элементов внутри выпадающего списка */
     .filter-popup-item {
         display: block;
@@ -54,6 +76,7 @@
     }
 </style>
 
+
 <!-- Заголовок страницы -->
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 fw-bold text-dark mb-0">Daily Journal & Tasks</h1>
@@ -71,9 +94,9 @@
 </form>
 
 <!-- Главный контейнер карточки с таблицей -->
-<div class="card shadow-sm border-0 rounded-3 overflow-hidden">
-    <!-- Контейнер скроллинга -->
-    <div class="table-responsive" style="max-height: 540px; overflow-y: auto;">
+<div class="card shadow-sm border-0 rounded-3">
+    <!-- Контейнер скроллинга (убрали инлайн-стиль overflow) -->
+    <div class="table-responsive" style="max-height: 540px;">
         <table class="table table-hover table-striped align-middle mb-0" id="tasks-table">
             <thead class="table-dark sticky-top" style="z-index: 100;">
                 <tr>
@@ -84,13 +107,6 @@
                         <div class="d-flex align-items-center justify-content-between">
                             <span>Наименование</span>
                             <span class="filter-icon px-2 {% if current_name %}active{% endif %}" onclick="toggleFilterPopup(event, 'name-popup')">▼</span>
-                        </div>
-                        <!-- Всплывающее окно фильтра по именам -->
-                        <div id="name-popup" class="header-filter-popup p-2 text-start">
-                            <div class="text-white-50 small fw-bold px-2 py-1 text-uppercase" style="font-size: 0.75rem;">Фильтр по имени</div>
-                            <hr class="my-1 border-secondary">
-                            <a class="filter-popup-item {% if current_name == '' %}active{% endif %}" href="#" onclick="applyHeaderFilter('name', '')">Все компании</a>
-                            <div id="name-unique-options"></div>
                         </div>
                     </th>
                     
@@ -112,16 +128,6 @@
                         <div class="d-flex align-items-center justify-content-center gap-2">
                             <span>Флаг</span>
                             <span class="filter-icon px-2 {% if current_flag %}active{% endif %}" onclick="toggleFilterPopup(event, 'flag-popup')">▼</span>
-                        </div>
-                        <!-- Всплывающее окно фильтра по флагам -->
-                        <div id="flag-popup" class="header-filter-popup p-2 text-start">
-                            <div class="text-white-50 small fw-bold px-2 py-1 text-uppercase" style="font-size: 0.75rem;">Выбрать статус</div>
-                            <hr class="my-1 border-secondary">
-                            <a class="filter-popup-item {% if current_flag == '' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '')">Все флаги</a>
-                            <a class="filter-popup-item {% if current_flag == '0' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '0')"><span class="badge bg-success me-2">0</span> Зеленый</a>
-                            <a class="filter-popup-item {% if current_flag == '1' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '1')"><span class="badge bg-secondary me-2">1</span> Серый</a>
-                            <a class="filter-popup-item {% if current_flag == '2' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '2')"><span class="badge bg-warning text-dark me-2">2</span> Желтый</a>
-                            <a class="filter-popup-item {% if current_flag == '3' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '3')"><span class="badge bg-danger me-2">3</span> Красный</a>
                         </div>
                     </th>
                 </tr>
@@ -162,28 +168,56 @@
     </div>
 </div>
 
-<!-- Исправленная изолированная JS-логика -->
+<!-- JS-логика -->
 <script>
-    // Показ и скрытие мини-окон фильтрации
+    // Показ и скрытие мини-окон фильтрации с динамическим расчетом координат
     function toggleFilterPopup(event, popupId) {
-        event.stopPropagation(); // Останавливаем всплытие, чтобы клик не закрывал сам себя
+        event.stopPropagation(); // Предотвращаем закрытие
         
-        // Закрываем другие открытые окна, если они есть
+        const popup = document.getElementById(popupId);
+        const icon = event.currentTarget; // Иконка, по которой кликнули
+
+        // Закрываем другие открытые окна
         document.querySelectorAll('.header-filter-popup').forEach(p => {
             if(p.id !== popupId) p.style.display = 'none';
-        });
+    });
 
-        const popup = document.getElementById(popupId);
-        if (popup.style.display === 'block') {
-            popup.style.display = 'none';
+    if (popup.style.display === 'block') {
+        popup.style.display = 'none';
+    } else {
+        popup.style.display = 'block';
+
+        // Получаем абсолютные координаты иконки на экране с учетом прокрутки страницы
+        const rect = icon.getBoundingClientRect();
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+        // Позиционируем окно ровно под иконкой
+        popup.style.position = 'absolute';
+        popup.style.top = (rect.bottom + scrollTop + 5) + 'px';
+        
+        // Корректируем по горизонтали, чтобы правый фильтр не вылезал за экран
+        if (popupId === 'flag-popup') {
+            popup.style.left = 'auto';
+            popup.style.right = (document.documentElement.clientWidth - rect.right - scrollLeft) + 'px';
         } else {
-            popup.style.display = 'block';
+            popup.style.right = 'auto';
+            popup.style.left = (rect.left + scrollLeft) + 'px';
         }
     }
+}
 
-    // Закрытие окон фильтров при клике в любое свободное место экрана
-    document.addEventListener('click', function() {
-        document.querySelectorAll('.header-filter-popup').forEach(p => p.style.display = 'none');
+    // Закрытие окон фильтров при клике вне их области
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.header-filter-popup') && !e.target.classList.contains('filter-icon')) {
+            document.querySelectorAll('.header-filter-popup').forEach(p => p.style.display = 'none');
+        }
+    });
+    // Новое: Остановка закрытия при клике внутри самих попапов (важно для работы внутреннего скролла)
+    document.querySelectorAll('.header-filter-popup').forEach(popup => {
+        popup.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
     });
 
     // Запись фильтров в форму и отправка запроса в Django
@@ -204,7 +238,7 @@
         document.getElementById('hidden-filter-form').submit();
     }
 
-    // Сбор уникальных имён из ячеек таблицы
+    // Исправлено: Сбор уникальных имён без inline-строк и багов с кавычками
     document.addEventListener("DOMContentLoaded", function() {
         const nameCells = document.querySelectorAll('.task-name-cell');
         const uniqueNames = new Set();
@@ -219,20 +253,39 @@
 
         sortedNames.forEach(name => {
             const isActive = (name === activeName) ? 'active' : '';
-            const safeName = name.replace(/'/g, "\\'");
 
             const a = document.createElement('a');
-            // Исправлено: добавлены обратные кавычки для шаблонной строки класса
             a.className = `filter-popup-item ${isActive}`;
             a.href = '#';
             a.textContent = name;
-            a.onclick = function(e) {
+            
+            // Используем addEventListener вместо записи строки в onclick
+            a.addEventListener('click', function(e) {
                 e.preventDefault();
-                applyHeaderFilter('name', safeName);
-            };
+                applyHeaderFilter('name', name);
+            });
 
             container.appendChild(a);
         });
     });
 </script>
+
+<!-- Переносим окна фильтров в самый низ страницы, чтобы их ничего не зажимало -->
+<div id="name-popup" class="header-filter-popup p-2 text-start">
+    <div class="text-white-50 small fw-bold px-2 py-1 text-uppercase" style="font-size: 0.75rem;">Фильтр по имени</div>
+    <hr class="my-1 border-secondary">
+    <a class="filter-popup-item {% if current_name == '' %}active{% endif %}" href="#" onclick="applyHeaderFilter('name', '')">Все компании</a>
+    <div id="name-unique-options"></div>
+</div>
+
+<div id="flag-popup" class="header-filter-popup p-2 text-start">
+    <div class="text-white-50 small fw-bold px-2 py-1 text-uppercase" style="font-size: 0.75rem;">Выбрать статус</div>
+    <hr class="my-1 border-secondary">
+    <a class="filter-popup-item {% if current_flag == '' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '')">Все флаги</a>
+    <a class="filter-popup-item {% if current_flag == '0' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '0')"><span class="badge bg-success me-2">0</span> Зеленый</a>
+    <a class="filter-popup-item {% if current_flag == '1' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '1')"><span class="badge bg-secondary me-2">1</span> Серый</a>
+    <a class="filter-popup-item {% if current_flag == '2' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '2')"><span class="badge bg-warning text-dark me-2">2</span> Желтый</a>
+    <a class="filter-popup-item {% if current_flag == '3' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '3')"><span class="badge bg-danger me-2">3</span> Красный</a>
+</div>
+
 {% endblock %}
