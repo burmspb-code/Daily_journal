@@ -79,7 +79,20 @@
 
 <!-- Заголовок страницы -->
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 fw-bold text-dark mb-0">Daily Journal & Tasks</h1>
+    <div class="d-flex align-items-center gap-3">
+        <h1 class="h3 fw-bold text-dark mb-0">Daily Journal & Tasks</h1>
+        <button id="btn-delete-selected" class="btn btn-danger btn-sm fw-semibold d-none" onclick="deleteSelectedTasks()">
+            Удалить выбранные (<span id="selected-count">0</span>)
+        </button>
+        
+        <!-- КНОПКА ДОЛЖНА БЫТЬ ЗДЕСЬ -->
+        <button id="btn-edit-selected" class="btn btn-warning btn-sm fw-semibold d-none" 
+                onclick="openEditModal()" 
+                data-bs-toggle="modal" 
+                data-bs-target="#editTaskModal">
+            Редактировать
+        </button>
+    </div>
     <div class="d-flex gap-2">
         <a href="{% url 'daily:task_list' %}" class="btn btn-outline-secondary btn-sm fw-semibold">Сбросить все фильтры</a>
         <span class="badge bg-primary fs-6 py-1.5 px-3">Найдено задач: {{ tasks|length }}</span>
@@ -100,21 +113,25 @@
         <table class="table table-hover table-striped align-middle mb-0" id="tasks-table">
             <thead class="table-dark sticky-top" style="z-index: 100;">
                 <tr>
-                    <th scope="col" class="ps-4" style="width: 80px;">№</th>
+                    <!-- ДОБАВЛЕНО: Главный чекбокс "Выбрать все" -->
+                    <th scope="col" class="ps-4" style="width: 40px;">
+                        <input class="form-check-input" type="checkbox" id="select-all-tasks">
+                    </th>
+                    <th scope="col" style="width: 80px;">№</th>
                     
                     <!-- Столбец: Наименование -->
                     <th scope="col" class="position-relative">
                         <div class="d-flex align-items-center gap-2">
                             <span>Наименование</span>
-                            <span class="filter-icon px-2 {% if current_name %}active{% endif %}" onclick="toggleFilterPopup(event, 'name-popup')">▼</span>
+                            <span class="filter-icon {% if current_name %}active{% endif %}" onclick="toggleFilterPopup(event, 'name-popup')">▼</span>
                         </div>
                     </th>
                     
                     <!-- Столбец: Время создания -->
                     <th scope="col" style="cursor: pointer;" onclick="toggleDateSort()">
-                        <div class="d-flex align-items-center justify-content-gap-2">
+                        <div class="d-flex align-items-center gap-2">
                             <span>Время создания</span>
-                            <span class="filter-icon px-2 {% if current_sort %}active{% endif %}">
+                            <span class="filter-icon {% if current_sort %}active{% endif %}">
                                 {% if current_sort == 'newest' %}▲{% elif current_sort == 'oldest' %}▼{% else %}⇅{% endif %}
                             </span>
                         </div>
@@ -127,14 +144,19 @@
                     <th scope="col" class="text-center position-relative" style="width: 140px;">
                         <div class="d-flex align-items-center justify-content-center gap-2">
                             <span>Флаг</span>
-                            <span class="filter-icon px-2 {% if current_flag %}active{% endif %}" onclick="toggleFilterPopup(event, 'flag-popup')">▼</span>
+                            <span class="filter-icon {% if current_flag %}active{% endif %}" onclick="toggleFilterPopup(event, 'flag-popup')">▼</span>
                         </div>
                     </th>
                 </tr>
             </thead>
             <tbody>
                 {% for task in tasks %}
-                <tr>
+                <!-- ДОБАВЛЕНО: id строки для динамического обновления через JS -->
+                <tr id="task-row-{{ task.id }}">
+                    <!-- ДОБАВЛЕНО: Индивидуальный чекбокс задачи -->
+                    <td class="ps-4">
+                        <input class="form-check-input task-checkbox" type="checkbox" value="{{ task.id }}">
+                    </td>
                     <td class="ps-4 text-muted font-monospace">{{ task.id }}</td>
                     <td class="fw-bold text-secondary task-name-cell">{{ task.name }}</td>
                     <td class="text-muted">{{ task.created_at|date:"d.m.Y H:i" }}</td>
@@ -145,9 +167,9 @@
                             <span class="text-danger fw-bold">*</span>
                         {% endif %}
                     </td>
-                    <td class="text-wrap" style="max-width: 300px;">{{ task.comment|default:"" }}</td>
+                    <!-- ДОБАВЛЕНО: класс task-comment-cell, чтобы JS мог считывать комментарий -->
+                    <td class="text-wrap task-comment-cell" style="max-width: 300px;">{{ task.comment|default:"" }}</td>
                     <td class="text-center">
-                        <!-- Полностью исправленный блок badge с правильным закрытием кавычек -->
                         <span class="badge rounded-pill 
                             {% if task.status_flag == 0 %} bg-success
                             {% elif task.status_flag == 1 %} bg-secondary
@@ -160,7 +182,8 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center py-5 text-muted">Задачи не найдены.</td>
+                    <!-- ИСПРАВЛЕНО: colspan увеличен до 7 из-за нового столбца -->
+                    <td colspan="7" class="text-center py-5 text-muted">Задачи не найдены.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -170,122 +193,355 @@
 
 <!-- JS-логика -->
 <script>
+    // Safe-функция получения токена Django CSRF из Cookie
+    function getCsrfToken() {
+        const cookieValue = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrftoken='))
+            ?.split('=')[1];
+        return cookieValue || "";
+    }
+
     // Показ и скрытие мини-окон фильтрации с динамическим расчетом координат
     function toggleFilterPopup(event, popupId) {
-        event.stopPropagation(); // Предотвращаем закрытие
+        event.stopPropagation(); // Предотвращаем немедленное закрытие
         
         const popup = document.getElementById(popupId);
         const icon = event.currentTarget; // Иконка, по которой кликнули
 
+        if (!popup) return;
+
         // Закрываем другие открытые окна
         document.querySelectorAll('.header-filter-popup').forEach(p => {
-            if(p.id !== popupId) p.style.display = 'none';
-    });
+            if (p.id !== popupId) p.style.display = 'none';
+        });
 
-    if (popup.style.display === 'block') {
-        popup.style.display = 'none';
-    } else {
-        popup.style.display = 'block';
-
-        // Получаем абсолютные координаты иконки на экране с учетом прокрутки страницы
-        const rect = icon.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-        // Позиционируем окно ровно под иконкой
-        popup.style.position = 'absolute';
-        popup.style.top = (rect.bottom + scrollTop + 5) + 'px';
-        
-        // Корректируем по горизонтали, чтобы правый фильтр не вылезал за экран
-        if (popupId === 'flag-popup') {
-            popup.style.left = 'auto';
-            popup.style.right = (document.documentElement.clientWidth - rect.right - scrollLeft) + 'px';
+        if (popup.style.display === 'block') {
+            popup.style.display = 'none';
         } else {
-            popup.style.right = 'auto';
-            popup.style.left = (rect.left + scrollLeft) + 'px';
+            popup.style.display = 'block';
+
+            // Получаем абсолютные координаты иконки на экране
+            const rect = icon.getBoundingClientRect();
+
+            // Используем FIXED позиционирование для исключения багов с относительными контейнерами
+            popup.style.position = 'fixed';
+            popup.style.top = (rect.bottom + 5) + 'px';
+            
+            // Корректируем по горизонтали, чтобы правый фильтр не вылезал за экран
+            if (popupId === 'flag-popup') {
+                popup.style.left = 'auto';
+                popup.style.right = (window.innerWidth - rect.right) + 'px';
+            } else {
+                popup.style.right = 'auto';
+                popup.style.left = rect.left + 'px';
+            }
         }
     }
-}
-
-    // Закрытие окон фильтров при клике вне их области
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('.header-filter-popup') && !e.target.classList.contains('filter-icon')) {
-            document.querySelectorAll('.header-filter-popup').forEach(p => p.style.display = 'none');
-        }
-    });
-    // Новое: Остановка закрытия при клике внутри самих попапов (важно для работы внутреннего скролла)
-    document.querySelectorAll('.header-filter-popup').forEach(popup => {
-        popup.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-    });
 
     // Запись фильтров в форму и отправка запроса в Django
     function applyHeaderFilter(type, value) {
-        if (type === 'name') document.getElementById('hidden-name').value = value;
-        if (type === 'flag') document.getElementById('hidden-flag').value = value;
-        document.getElementById('hidden-filter-form').submit();
+        const inputName = document.getElementById('hidden-name');
+        const inputFlag = document.getElementById('hidden-flag');
+        const form = document.getElementById('hidden-filter-form');
+
+        if (type === 'name' && inputName) inputName.value = value;
+        if (type === 'flag' && inputFlag) inputFlag.value = value;
+        
+        if (form) form.submit();
     }
 
     // Логика сортировки по датам при клике на столбец
     function toggleDateSort() {
-        const currentSort = document.getElementById('hidden-sort').value;
+        const sortInput = document.getElementById('hidden-sort');
+        const form = document.getElementById('hidden-filter-form');
+        if (!sortInput || !form) return;
+
+        const currentSort = sortInput.value;
         let newSort = 'newest';
+        
         if (currentSort === 'newest') newSort = 'oldest';
         else if (currentSort === 'oldest') newSort = '';
         
-        document.getElementById('hidden-sort').value = newSort;
-        document.getElementById('hidden-filter-form').submit();
+        sortInput.value = newSort;
+        form.submit();
     }
 
-    // Исправлено: Сбор уникальных имён без inline-строк и багов с кавычками
+    // ==========================================
+    // ЛОГИКА ДЛЯ ЧЕКБОКСОВ, УДАЛЕНИЯ И РЕДАКТИРОВАНИЯ
+    // ==========================================
+
     document.addEventListener("DOMContentLoaded", function() {
-        const nameCells = document.querySelectorAll('.task-name-cell');
-        const uniqueNames = new Set();
+        const selectAllCheckbox = document.getElementById('select-all-tasks');
+        const deleteBtn = document.getElementById('btn-delete-selected');
+        const editBtn = document.getElementById('btn-edit-selected');
+        const selectedCountSpan = document.getElementById('selected-count');
 
-        nameCells.forEach(cell => {
-            if(cell.textContent.trim()) uniqueNames.add(cell.textContent.trim());
-        });
-
-        const sortedNames = Array.from(uniqueNames).sort();
-        const container = document.getElementById('name-unique-options');
-        const activeName = document.getElementById('hidden-name').value;
-
-        sortedNames.forEach(name => {
-            const isActive = (name === activeName) ? 'active' : '';
-
-            const a = document.createElement('a');
-            a.className = `filter-popup-item ${isActive}`;
-            a.href = '#';
-            a.textContent = name;
+        // Функция обновления состояния кнопок управления
+        function updateActionButtonsState() {
+            const taskCheckboxes = document.querySelectorAll('.task-checkbox');
+            const checkedCheckboxes = document.querySelectorAll('.task-checkbox:checked');
+            const checkedCount = checkedCheckboxes.length;
             
-            // Используем addEventListener вместо записи строки в onclick
-            a.addEventListener('click', function(e) {
-                e.preventDefault();
-                applyHeaderFilter('name', name);
-            });
+            if (deleteBtn) {
+                if (checkedCount > 0) {
+                    deleteBtn.classList.remove('d-none');
+                    if (selectedCountSpan) selectedCountSpan.textContent = checkedCount;
+                } else {
+                    deleteBtn.classList.add('d-none');
+                }
+            }
 
-            container.appendChild(a);
+            if (editBtn) {
+                if (checkedCount === 1) {
+                    editBtn.classList.remove('d-none');
+                } else {
+                    editBtn.classList.add('d-none');
+                }
+            }
+
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = (checkedCount === taskCheckboxes.length && taskCheckboxes.length > 0);
+            }
+        }
+
+        // Логика главного чекбокса "Выбрать все"
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                const taskCheckboxes = document.querySelectorAll('.task-checkbox');
+                taskCheckboxes.forEach(cb => cb.checked = selectAllCheckbox.checked);
+                updateActionButtonsState();
+            });
+        }
+
+        // Делегированное слушание чекбоксов (не ломается при изменении таблицы)
+        document.addEventListener('change', function(event) {
+            if (event.target && event.target.classList.contains('task-checkbox')) {
+                updateActionButtonsState();
+            }
         });
+
+        // Закрытие окон фильтров при клике вне их области
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.header-filter-popup') && !e.target.classList.contains('filter-icon')) {
+                document.querySelectorAll('.header-filter-popup').forEach(p => p.style.display = 'none');
+            }
+        });
+
+        // Остановка закрытия при клике внутри самих попапов (скролл, инпуты внутри фильтра)
+        document.querySelectorAll('.header-filter-popup').forEach(popup => {
+            popup.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        });
+
+        // Экспорт функции в глобальную область для использования в Fetch-методах
+        window.updateActionButtonsState = updateActionButtonsState;
     });
+
+    // Функция сбора данных из строки и подстановки в форму модалки
+    function openEditModal() {
+        const checkedCheckbox = document.querySelector('.task-checkbox:checked');
+        if (!checkedCheckbox) return;
+
+        const taskId = checkedCheckbox.value;
+        const row = document.getElementById(`task-row-${taskId}`);
+        if (!row) return;
+        
+        const taskName = row.querySelector('.task-name-cell')?.textContent.trim() || '';
+        const commentCell = row.querySelector('.task-comment-cell');
+        const taskComment = commentCell ? commentCell.textContent.trim() : '';
+        
+        const badgeCell = row.querySelector('.badge');
+        let currentFlag = '0';
+        if (badgeCell) {
+            const match = badgeCell.textContent.match(/\d+/);
+            if (match) currentFlag = match[0];
+        }
+
+        document.getElementById('edit-task-id').value = taskId;
+        document.getElementById('modal-task-id-title').textContent = taskId;
+        document.getElementById('edit-task-name').value = taskName;
+        document.getElementById('edit-task-comment').value = taskComment;
+        document.getElementById('edit-task-flag').value = currentFlag;
+    }
+    // Функция отправки измененных данных на Django UpdateView через Fetch
+    function submitEditTask() {
+        const taskId = document.getElementById('edit-task-id').value;
+        const name = document.getElementById('edit-task-name').value;
+        const comment = document.getElementById('edit-task-comment').value;
+        const flag = document.getElementById('edit-task-flag').value;
+
+        if (!name.trim()) {
+            alert("Наименование не может быть пустым.");
+            return;
+        }
+
+        const updateUrl = document.getElementById('edit-task-form').dataset.updateUrl;
+
+        fetch(updateUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCsrfToken()
+            },
+            body: JSON.stringify({
+                id: taskId,
+                name: name,
+                comment: comment,
+                status_flag: flag
+            })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Ошибка сети');
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                const row = document.getElementById(`task-row-${taskId}`);
+                if (row) {
+                    row.querySelector('.task-name-cell').textContent = name;
+                    
+                    const commentCell = row.querySelector('.task-comment-cell');
+                    if (commentCell) commentCell.textContent = comment;
+
+                    const badge = row.querySelector('.badge');
+                    if (badge) {
+                        badge.textContent = flag;
+                        badge.className = "badge rounded-pill";
+                        if (flag === '0') badge.classList.add('bg-success', 'text-white');
+                        else if (flag === '1') badge.classList.add('bg-secondary', 'text-white');
+                        else if (flag === '2') badge.classList.add('bg-warning', 'text-dark');
+                        else if (flag === '3') badge.classList.add('bg-danger', 'text-white');
+                        else badge.classList.add('bg-light', 'text-dark');
+                    }
+
+                    // Снимаем выделение чекбокса с отредактированной строки
+                    const checkedCheckbox = row.querySelector('.task-checkbox');
+                    if (checkedCheckbox) checkedCheckbox.checked = false;
+                }
+
+                // Скрытие модального окна Bootstrap
+                const modalElement = document.getElementById('editTaskModal');
+                const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                if (modalInstance) modalInstance.hide();
+                                
+                // Безопасный пересчет кнопок управления на панели
+                if (typeof window.updateActionButtonsState === 'function') {
+                    window.updateActionButtonsState();
+                }
+            } else {
+                // Теперь блок else находится строго внутри обработки данных data
+                alert("Ошибка сохранения: " + (data.message || "Неизвестная ошибка"));
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Не удалось связаться с сервером.");
+        });
+    }
+
+    // Функция массового удаления выбранных задач
+    function deleteSelectedTasks() {
+        const selectedCheckboxes = document.querySelectorAll('.task-checkbox:checked');
+        const taskIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+
+        if (taskIds.length === 0) return;
+        if (!confirm(`Вы уверены, что хотите удалить выбранные задачи (${taskIds.length} шт.)?`)) return;
+
+        const deleteUrl = document.getElementById('hidden-filter-form').dataset.deleteUrl;
+
+        fetch(deleteUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCsrfToken()
+            },
+            body: JSON.stringify({ ids: taskIds })
+        })
+        .then(response => {
+            if (response.ok) {
+                taskIds.forEach(id => {
+                    const row = document.getElementById(`task-row-${id}`);
+                    if (row) row.remove();
+                });
+                                
+                if (typeof window.updateActionButtonsState === 'function') {
+                    window.updateActionButtonsState();
+                }
+                                
+                if (document.querySelectorAll('.task-checkbox').length === 0) {
+                    location.reload();
+                }
+            } else {
+                alert("Произошла ошибка при удалении задач.");
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Не удалось связаться с сервером.");
+        });
+    }
 </script>
 
-<!-- Переносим окна фильтров в самый низ страницы, чтобы их ничего не зажимало -->
+<!-- Модальное окно редактирования задачи -->
+<div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold" id="editTaskModalLabel">Редактирование задачи № <span id="modal-task-id-title"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- ВАЖНО: Атрибут data-update-url указывает на эндпоинт вашего UpdateView в Django -->
+                <form id="edit-task-form" data-update-url="{% url 'daily:task_update_api' %}">
+                    <input type="hidden" id="edit-task-id">
+                    
+                    <div class="mb-3">
+                        <label for="edit-task-name" class="form-label small text-white-50">Наименование</label>
+                        <input type="text" class="form-control bg-secondary text-white border-0" id="edit-task-name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-task-flag" class="form-label small text-white-50">Статус (Флаг)</label>
+                        <select class="form-select bg-secondary text-white border-0" id="edit-task-flag">
+                            <option value="0">0 — Зеленый (Успех)</option>
+                            <option value="1">1 — Серый (В процессе)</option>
+                            <option value="2">2 — Желтый (Предупреждение)</option>
+                            <option value="3">3 — Красный (Ошибка)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-task-comment" class="form-label small text-white-50">Комментарий</label>
+                        <textarea class="form-control bg-secondary text-white border-0" id="edit-task-comment" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary btn-sm px-3" onclick="submitEditTask()">Сохранить изменения</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Окна выпадающих фильтров заголовков -->
 <div id="name-popup" class="header-filter-popup p-2 text-start">
     <div class="text-white-50 small fw-bold px-2 py-1 text-uppercase" style="font-size: 0.75rem;">Фильтр по имени</div>
     <hr class="my-1 border-secondary">
-    <a class="filter-popup-item {% if current_name == '' %}active{% endif %}" href="#" onclick="applyHeaderFilter('name', '')">Все компании</a>
+    <button type="button" class="filter-popup-item {% if current_name == '' or current_name == None %}active{% endif %}" onclick="applyHeaderFilter('name', '')">Все компании</button>
     <div id="name-unique-options"></div>
 </div>
 
 <div id="flag-popup" class="header-filter-popup p-2 text-start">
     <div class="text-white-50 small fw-bold px-2 py-1 text-uppercase" style="font-size: 0.75rem;">Выбрать статус</div>
     <hr class="my-1 border-secondary">
-    <a class="filter-popup-item {% if current_flag == '' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '')">Все флаги</a>
-    <a class="filter-popup-item {% if current_flag == '0' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '0')"><span class="badge bg-success me-2">0</span> Зеленый</a>
-    <a class="filter-popup-item {% if current_flag == '1' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '1')"><span class="badge bg-secondary me-2">1</span> Серый</a>
-    <a class="filter-popup-item {% if current_flag == '2' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '2')"><span class="badge bg-warning text-dark me-2">2</span> Желтый</a>
-    <a class="filter-popup-item {% if current_flag == '3' %}active{% endif %}" href="#" onclick="applyHeaderFilter('flag', '3')"><span class="badge bg-danger me-2">3</span> Красный</a>
+    <button type="button" class="filter-popup-item {% if current_flag == '' or current_flag == None %}active{% endif %}" onclick="applyHeaderFilter('flag', '')">Все флаги</button>
+    <button type="button" class="filter-popup-item {% if current_flag == '0' %}active{% endif %}" onclick="applyHeaderFilter('flag', '0')"><span class="badge bg-success me-2">0</span> Зеленый</button>
+    <button type="button" class="filter-popup-item {% if current_flag == '1' %}active{% endif %}" onclick="applyHeaderFilter('flag', '1')"><span class="badge bg-secondary me-2">1</span> Серый</button>
+    <button type="button" class="filter-popup-item {% if current_flag == '2' %}active{% endif %}" onclick="applyHeaderFilter('flag', '2')"><span class="badge bg-warning text-dark me-2">2</span> Желтый</button>
+    <button type="button" class="filter-popup-item {% if current_flag == '3' %}active{% endif %}" onclick="applyHeaderFilter('flag', '3')"><span class="badge bg-danger me-2">3</span> Красный</button>
 </div>
 
 {% endblock %}

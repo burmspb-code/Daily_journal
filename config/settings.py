@@ -113,5 +113,5 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 STATICFILES_DIRS = [
-    BASE_DIR / 'static',  # Если папка static лежит в корне проекта
+    BASE_DIR / 'daily' / 'static',  # ИСПРАВЛЕНО: Указали точный путь к статике внутри приложения daily
 ]

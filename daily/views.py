@@ -1,4 +1,6 @@
-from django.views.generic import ListView, CreateView
+import json
+from django.http import JsonResponse
+from django.views.generic import ListView, CreateView, UpdateView
 from django.urls import reverse_lazy
 from .models import Task
 from .forms import TaskForm
@@ -48,3 +50,69 @@ class TaskCreateView(CreateView):
     form_class = TaskForm
     success_url = reverse_lazy("daily:task_list")
     success_message = "Новыя задача успешно создана!"
+
+
+class TaskUpdateApiView(UpdateView):
+    model = Task
+    # Указываем поля модели, которые разрешено редактировать через форму
+    fields = ['name', 'comment'] 
+
+    def get_form_kwargs(self):
+        """
+        Переопределяем сбор данных для формы.
+        Вместо стандартного request.POST читаем данные из JSON-тела Fetch-запроса.
+        """
+        kwargs = super().get_form_kwargs()
+        try:
+            # Читаем JSON-пакет из тела запроса
+            data = json.loads(self.request.body)
+            
+            # Подменяем стандартный QueryDict на наш словарь из JSON
+            kwargs['data'] = data
+        except Exception:
+            kwargs['data'] = {}
+        return kwargs
+
+    def get_object(self, queryset=None):
+        """
+        Переопределяем поиск объекта.
+        Обычно UpdateView ищет pk в URL-адресе, но у нас pk прилетает внутри JSON-тела.
+        """
+        try:
+            data = json.loads(self.request.body)
+            task_id = data.get('id')
+            return self.get_queryset().get(id=task_id)
+        except (json.JSONDecodeError, self.model.DoesNotExist):
+            return None
+
+    def post(self, request, *args, **kwargs):
+        """
+        Переопределяем точку входа POST.
+        Делаем проверку, нашли ли мы объект перед тем, как валидировать форму.
+        """
+        self.object = self.get_object()
+        if self.object is None:
+            return JsonResponse({'status': 'error', 'message': 'Задача не найдена'}, status=404)
+        
+        # Запускаем стандартную валидацию формы UpdateView
+        return super().post(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        """
+        Если форма успешно валидирована, сохраняем объект 
+        и вместо редиректа возвращаем JsonResponse для нашего JS.
+        """
+        self.object = form.save()
+        return JsonResponse({'status': 'success'})
+
+    def form_invalid(self, form):
+        """
+        Если в форме есть ошибки (например, пустое имя), 
+        возвращаем JSON со списком ошибок и статус-кодом 400.
+        """
+        return JsonResponse({
+            'status': 'error', 
+            'message': 'Ошибка валидации полей', 
+            'errors': form.errors.get_json_data()
+        }, status=400)
+    
