@@ -11,17 +11,26 @@
     color: #ffc107 !important;
 }
 
-/* Разрешаем ячейкам th и thead выпускать попапы наружу */
-thead.sticky-top, th.position-relative {
-    overflow: visible !important;
+/* Разрешаем элементам шапки выпускать попапы наружу */
+thead.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
-/* Контейнер table-responsive не режет попапы по вертикали */
+th.position-relative {
+    position: relative;
+}
+
+/* Чистый стандартный скролл таблицы */
 .table-responsive {
-    overflow-y: visible !important;
+    max-height: 540px;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
 }
 
-/* Кастомное всплывающее окно */
+
+/* Базовый попап (абсолютное позиционирование) */
 .header-filter-popup {
     display: none;
     position: absolute;
@@ -29,21 +38,14 @@ thead.sticky-top, th.position-relative {
     border: 1px solid #495057;
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    z-index: 2050; /* Выше sticky-top заголовка */
+    z-index: 2050;
     min-width: 240px;
-    max-height: 280px;
-    overflow-y: auto;
     margin-top: 5px;
-    top: 100%; /* Четко под нижней границей ячейки th */
+    top: 100%;
 }
 
-/* Для правого фильтра смещаем окно влево */
-th:last-child .header-filter-popup {
-    right: 0;
-    left: auto;
-}
-
-th:not(:last-child) .header-filter-popup {
+/* Левый попап (Наименование) выравниваем по левому краю */
+.header-filter-popup:not(.popup-right) {
     left: 0;
     right: auto;
 }

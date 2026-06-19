@@ -42,6 +42,10 @@ class TaskListView(ListView):
         context['current_name'] = self.request.GET.get('name', '').strip()
         context['current_flag'] = self.request.GET.get('flag', '')
         context['current_sort'] = self.request.GET.get('sort', '')
+        
+        # Собираем уникальные, непустые имена компаний в алфавитном порядке
+        context['unique_companies'] = Task.objects.exclude(name="").values_list('name', flat=True).distinct().order_by('name')
+        
         return context
 
 

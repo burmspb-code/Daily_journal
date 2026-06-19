@@ -61,10 +61,10 @@ function toggleFilterPopup(event, popupId) {
     event.stopPropagation();
     const popup = document.getElementById(popupId);
     if (!popup) return;
-
+    
     const isOpen = popup.style.display === 'block';
     document.querySelectorAll('.header-filter-popup').forEach(p => p.style.display = 'none');
-
+    
     if (!isOpen) {
         popup.style.display = 'block';
     }
@@ -192,7 +192,7 @@ function saveTaskChanges(event) {
     .catch(error => alert('Ошибка при изменении задачи: ' + error.message));
 }
 
-// ВАША ЗОЛОТАЯ, СТОПРОЦЕНТНО РАБОЧАЯ ФУНКЦИЯ УДАЛЕНИЯ
+// ФУНКЦИЯ УДАЛЕНИЯ
 function deleteSelectedTasks() {
     const checkedBoxes = document.querySelectorAll('.task-checkbox:checked');
     if (checkedBoxes.length === 0) return;
@@ -233,6 +233,10 @@ function deleteSelectedTasks() {
 
             btnDelete.classList.add('d-none');
             document.getElementById('btn-edit-selected').classList.add('d-none');
+            
+            // Сбрасываем текстовый счётчик выделенных задач в 0
+            const selectedCountSpan = document.getElementById('selected-count');
+            if (selectedCountSpan) selectedCountSpan.textContent = '0';
 
             alert(data.message);
         } else {
