@@ -61,10 +61,10 @@ function toggleFilterPopup(event, popupId) {
     event.stopPropagation();
     const popup = document.getElementById(popupId);
     if (!popup) return;
-    
+
     const isOpen = popup.style.display === 'block';
     document.querySelectorAll('.header-filter-popup').forEach(p => p.style.display = 'none');
-    
+
     if (!isOpen) {
         popup.style.display = 'block';
     }

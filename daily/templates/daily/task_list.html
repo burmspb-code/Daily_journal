@@ -56,37 +56,37 @@
                         <input class="form-check-input" type="checkbox" id="select-all-tasks" aria-label="Выбрать все задачи">
                     </th>
                     <th scope="col" style="width: 80px;">№</th>
-                    
+
                     <!-- Столбец: Наименование -->
                     <th scope="col" class="position-relative">
                         <div class="d-flex align-items-center gap-2">
                             <span>Наименование</span>
                             <span class="filter-icon {% if current_name %}active{% endif %}" onclick="toggleFilterPopup(event, 'name-popup')">▼</span>
                         </div>
-                        
+
                         <!-- Окно фильтра наименования -->
                         <div id="name-popup" class="header-filter-popup p-0">
                             <!-- ИСПРАВЛЕНО: Изменен фон на bg-secondary для контраста, убраны лишние отступы -->
                             <div class="p-2 text-white small fw-bold text-uppercase border-bottom border-secondary bg-secondary">
                                 Фильтр по имени
                             </div>
-                            
+
                             <!-- Внутренний контейнер для прокрутки списка компаний -->
                             <div style="max-height: 230px; overflow-y: auto;" class="p-1">
-                                <a href="?name=" class="filter-popup-item {% if not current_name %}active{% endif %} mb-1">Все компании</a>
-                                
+                                <a href="?name=" class="filter-popup-item {% if not current_name %}active{% endif %} mb-1">Все задачи</a>
+
                                 <!-- Цикл вывода компаний -->
                                 {% for company_name in unique_companies %}
                                     <a href="?name={{ company_name|urlencode }}" class="filter-popup-item {% if current_name == company_name %}active{% endif %} mb-1">
                                         {{ company_name }}
                                     </a>
                                 {% empty %}
-                                    <div class="p-2 text-muted small">Компании не найдены</div>
+                                    <div class="p-2 text-muted small">Задачи не найдены</div>
                                 {% endfor %}
                             </div>
                         </div>
                     </th>
-                    
+
                     <!-- Столбец: Время создания -->
                     <th scope="col" style="cursor: pointer;" onclick="toggleDateSort()">
                         <div class="d-flex align-items-center gap-2">
@@ -96,17 +96,17 @@
                             </span>
                         </div>
                     </th>
-                    
+
                     <th scope="col">Время напоминания</th>
                     <th scope="col">Комментарий</th>
-                    
+
                     <!-- Столбец: Флаг -->
                     <th scope="col" class="text-center position-relative" style="width: 140px;">
                         <div class="d-flex align-items-center justify-content-center gap-2">
                             <span>Flag</span>
                             <span class="filter-icon {% if current_flag %}active{% endif %}" onclick="toggleFilterPopup(event, 'flag-popup')">▼</span>
                         </div>
-                        
+
                         <!-- ВСТАВИТЬ СЮДА: Окно фильтра флагов -->
                         <div id="flag-popup" class="header-filter-popup popup-right p-0" style="right: 30px !important; left: auto !important;">
                             <div class="p-2 text-white small fw-bold text-uppercase border-bottom border-secondary bg-secondary">

@@ -18,7 +18,7 @@ class TaskListView(ListView):
         # Фильтрация по наименованию контрагента
         name_query = self.request.GET.get('name', '').strip()
         if name_query:
-            queryset = queryset.filter(name__icontains=name_query)
+            queryset = queryset.filter(name=name_query)
             
         # Фильтрация по флагу управления
         flag_query = self.request.GET.get('flag', '')
