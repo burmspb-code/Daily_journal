@@ -1,0 +1,78 @@
+/* static/daily/css/tasks.css */
+
+.filter-icon {
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.filter-icon:hover, .filter-icon.active {
+    opacity: 1;
+    color: #ffc107 !important;
+}
+
+/* Разрешаем элементам шапки выпускать попапы наружу */
+thead.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+th.position-relative {
+    position: relative;
+}
+
+/* Чистый стандартный скролл таблицы */
+.table-responsive {
+    max-height: 540px;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+
+/* Базовый попап (абсолютное позиционирование) */
+.header-filter-popup {
+    display: none;
+    position: absolute;
+    background: #212529;
+    border: 1px solid #495057;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 2050;
+    min-width: 240px;
+    margin-top: 5px;
+    top: 100%;
+}
+
+/* Левый попап (Наименование) выравниваем по левому краю */
+.header-filter-popup:not(.popup-right) {
+    left: 0;
+    right: auto;
+}
+
+/* Стили для элементов внутри выпадающего списка */
+.filter-popup-item {
+    display: block;
+    width: 100%;
+    padding: 0.25rem 1rem;
+    clear: both;
+    font-weight: 400;
+    color: #fff;
+    text-align: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+    background-color: transparent;
+    border: 0;
+    font-size: 0.875rem;
+    border-radius: 4px;
+}
+
+.filter-popup-item:hover {
+    background-color: #495057;
+    color: #fff;
+}
+
+.filter-popup-item.active {
+    background-color: #0d6efd;
+    color: #fff;
+}

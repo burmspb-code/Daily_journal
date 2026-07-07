@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-100">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Daily Journal{% endblock %}</title>
+    
+    <!-- Подключение локального Bootstrap CSS из вашей папки static/daily/css -->
+    <link href="{% static 'daily/css/bootstrap.min.css' %}" rel="stylesheet">
+
+    <!-- БЛОК ДЛЯ СТИЛЕЙ СТРАНИЦ-НАСЛЕДНИКОВ -->
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="d-flex flex-column h-100 bg-light">
+
+    <!-- Подключение компонента навигационной панели -->
+    {% include 'daily/includes/navbar.html' %}
+    <!-- Основной контент страницы -->
+    <main class="flex-shrink-0 my-5">
+        <div class="container">
+            <!-- Динамический блок, куда вставляется контент из других шаблонов (например, task_list.html) -->
+            {% block content %}
+            {% endblock %}
+        </div>
+    </main>
+
+    <!-- Подвал сайта (Footer) с мягким графитовым оттенком -->
+    <footer class="footer mt-auto py-4 text-center text-white-50" style="background-color: #1e293b !important;">
+        <div class="container">
+            <!-- Текст сделан полупрозрачным (text-white-50), чтобы не отвлекать внимание от основного контента -->
+            <span class="small">© 2026 Daily Journal — Локальная сборка</span>
+        </div>
+    </footer>
+
+    <!-- Подключение локального Bootstrap JS из вашей папки static/daily/js -->
+    <script src="{% static 'daily/js/bootstrap.bundle.min.js' %}"></script>
+
+    <!-- ДОБАВЛЕН БЛОК ДЛЯ СКРИПТОВ СТРАНИЦ-НАСЛЕДНИКОВ -->
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

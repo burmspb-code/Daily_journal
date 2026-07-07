@@ -12,6 +12,8 @@ dependencies = [
     "psycopg2-binary (>=2.9.12,<3.0.0)"
 ]
 
+[tool.poetry]
+package-mode = false  # <-- ТЕПЕРЬ ОНО НА СВОЕМ МЕСТЕ
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -1,0 +1,74 @@
+{% extends 'daily/base.html' %}
+
+{% block title %}Создать задачу | Daily Journal{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <!-- Карточка формы -->
+        <div class="card shadow-sm border-0 rounded-3">
+            <div class="card-body p-4">
+                <h2 class="h4 fw-bold text-dark mb-3 d-flex align-items-center gap-2">
+                    <!-- Современная SVG-иконка плюса вместо старого эмодзи -->
+                    <svg xmlns="http://w3.org" width="22" height="22" fill="currentColor" class="text-primary" viewBox="0 0 16 16">
+                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                    </svg>
+                    <span>Новая задача</span>
+                </h2>
+                <p class="text-muted small mb-4">Заполните поля ниже, чтобы добавить задачу в журнал.</p>
+
+                <!-- Форма отправки данных в Django -->
+                <form method="POST" action="">
+                    {% csrf_token %}
+                    
+                    <!-- Рендеринг полей формы с автоматическими Bootstrap классами -->
+                    {% for field in form %}
+                        <div class="mb-3">
+                            <label for="{{ field.id_for_label }}" class="form-label fw-semibold small text-secondary">
+                                {{ field.label }}
+                            </label>
+                            
+                            <!-- Добавляем Bootstrap-класс form-control динамически -->
+                            {{ field }}
+                            
+                            {% if field.help_text %}
+                                <div class="form-text small">{{ field.help_text }}</div>
+                            {% endif %}
+                            
+                            {% for error in field.errors %}
+                                <div class="text-danger small mt-1">⚠️ {{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+
+                    <hr class="my-4 text-muted opacity-25">
+
+                    <!-- Кнопки управления -->
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a href="{% url 'daily:task_list' %}" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
+                            Отмена
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-sm px-4 fw-semibold shadow-sm">
+                            Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Профессиональный штрих: автоматически добавляем Bootstrap-класс для всех инпутов формы
+    document.addEventListener("DOMContentLoaded", function() {
+        const formInputs = document.querySelectorAll('form input, form textarea, form select');
+        formInputs.forEach(input => {
+            if (input.type !== 'checkbox' && input.type !== 'radio') {
+                input.classList.add('form-control', 'form-control-sm');
+            } else {
+                input.classList.add('form-check-input');
+            }
+        });
+    });
+</script>
+{% endblock %}
