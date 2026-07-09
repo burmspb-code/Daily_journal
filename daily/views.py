@@ -2,7 +2,7 @@ import json
 from django.http import JsonResponse
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
-from .models import Task
+from .models import Task, Bookmark
 from .forms import TaskForm
 
 
@@ -15,7 +15,7 @@ class TaskListView(ListView):
         # Получаем базовый набор всех записей из PostgreSQL
         queryset = super().get_queryset()
         
-        # Фильтрация по наименованию контрагента
+        # Фильтрация по наименованию задачи
         name_query = self.request.GET.get('name', '').strip()
         if name_query:
             queryset = queryset.filter(name=name_query)
@@ -42,10 +42,20 @@ class TaskListView(ListView):
         context['current_name'] = self.request.GET.get('name', '').strip()
         context['current_flag'] = self.request.GET.get('flag', '')
         context['current_sort'] = self.request.GET.get('sort', '')
-        
+
+        # 1. Извлекаем ID закладки из GET-параметров (если он передан в URL)
+        bookmark_id = self.request.GET.get('bookmark')
+        if bookmark_id:
+            # Находим нужную закладку, чтобы отобразить её имя вместо слова "Закладки"
+            context['current_bookmark'] = Bookmark.objects.filter(id=bookmark_id).first()
+
+        # 2. Передаем список абсолютно всех закладок для рендеринга пунктов меню
+        context['bookmarks'] = Bookmark.objects.all()
+
         # Собираем уникальные, непустые имена компаний в алфавитном порядке
-        context['unique_companies'] = Task.objects.exclude(name="").values_list('name', flat=True).distinct().order_by('name')
-        
+        context['unique_companies'] = Task.objects.exclude(name="").values_list('name', flat=True).distinct().order_by(
+            'name')
+
         return context
 
 

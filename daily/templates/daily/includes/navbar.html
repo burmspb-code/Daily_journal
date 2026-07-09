@@ -1,3 +1,7 @@
+{% load static %}
+<!-- Подключаем обновленный файл со стилями для задач и навбара -->
+<link rel="stylesheet" href="{% static 'daily/css/tasks.css' %}">
+
 <!-- Верхняя навигационная панель (Navbar) в едином стиле -->
 <nav class="navbar navbar-expand-lg navbar-dark shadow-sm" style="background-color: #1e293b !important;">
     <div class="container">
@@ -24,15 +28,39 @@
                 </li>
             </ul>
 
-            <!-- Правый блок: Навигация по задачам -->
+            <!-- Правый блок: Навигация по закладкам и кнопка создания -->
             <ul class="navbar-nav align-items-center gap-4 ms-auto">
-                <li class="nav-item">
-                    <a class="nav-link text-white opacity-75 custom-hover py-1" href="{% url 'daily:task_list' %}">Список задач</a>
+                <!-- Выпадающее меню закладок -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle-custom text-white opacity-75 custom-hover py-1 d-flex align-items-center gap-1"
+                       href="#"
+                       id="bookmarksDropdown"
+                       role="button"
+                       data-bs-toggle="dropdown"
+                       aria-expanded="false">
+                        Закладки
+                        <svg xmlns="http://w3.org" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" style="margin-left: 2px; opacity: 0.8;">
+                            <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                        </svg>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-lg custom-dropdown-menu" aria-labelledby="bookmarksDropdown">
+                        {% if bookmarks %}
+                            {% for bookmark in bookmarks %}
+                                <li>
+                                    <a class="dropdown-item py-2 px-3" href="{% url 'daily:task_list' %}?bookmark={{ bookmark.id }}">
+                                        {{ bookmark.name }}
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        {% else %}
+                            <li><span class="dropdown-item-text text-white-50 small py-2 px-3">Нет закладок</span></li>
+                        {% endif %}
+                    </ul>
                 </li>
+                <!-- Вернули кнопку создания задачи -->
                 <li class="nav-item">
-                    <!-- Кнопка создания, работающая по общему правилу яркости -->
-                    <a class="nav-link text-warning opacity-75 custom-hover py-1 d-flex align-items-center gap-1.5" href="{% url 'daily:task_create' %}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle;">
+                    <a class="nav-link text-warning opacity-75 custom-hover py-1 d-flex align-items-center gap-2" href="{% url 'daily:task_create' %}">
+                        <svg xmlns="http://w3.org" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle;">
                             <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
                         </svg>
                         <span class="fw-bold">Создать задачу</span>
@@ -43,13 +71,3 @@
         </div>
     </div>
 </nav>
-
-<!-- Маленький блок стилей для реализации плавного изменения яркости -->
-<style>
-    .custom-hover {
-        transition: opacity 0.2s ease-in-out, color 0.2s ease-in-out;
-    }
-    .custom-hover:hover {
-        opacity: 1 !important;
-    }
-</style>

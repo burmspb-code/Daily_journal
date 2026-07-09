@@ -12,7 +12,17 @@
 <!-- Заголовок страницы -->
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div class="d-flex align-items-center gap-3">
-        <h1 class="h3 fw-bold text-dark mb-0">Daily Journal & Tasks</h1>
+       <!-- Установили точный цвет #2F4F4F и рамку в тон. Отступы py-2 px-3 и размер fs-6 -->
+        <div class="badge fs-6 py-2 px-3 rounded text-start d-inline-flex align-items-center shadow-sm"
+             style="background-color: #2F4F4F; border: 1px solid #3d6363;">
+            <h3 class="fw-bold mb-0 fs-6 text-white" style="font-family: inherit;">
+                {% if current_bookmark %}
+                    <span class="text-white-50 small fw-normal me-1"></span> {{ current_bookmark.name }}
+                {% else %}
+                    Daily Journal & Tasks
+                {% endif %}
+            </h3>
+        </div>
         <button id="btn-delete-selected"
                 class="btn btn-danger btn-sm fw-semibold d-none"
                 onclick="deleteSelectedTasks()"

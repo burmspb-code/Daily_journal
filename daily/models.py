@@ -4,9 +4,7 @@ from django.db import models
 class Bookmark(models.Model):
     """
     Модель для закладки.
-
     Используется для консолидации задач по определенному смысловому признаку.
-
     Attributes:
         name (str): Уникальное или смысловое наименование закладки.
         description (str): Подробное описание назначения данной закладки.
@@ -24,7 +22,7 @@ class Bookmark(models.Model):
 
     class Meta:
         verbose_name = "Закладка"
-        verbose_name_plural = "Заклады"
+        verbose_name_plural = "Закладки"
         ordering = ['name']
 
     def __str__(self):
@@ -34,10 +32,8 @@ class Bookmark(models.Model):
 class Task(models.Model):
     """
     Модель для представления задачи.
-
     Используется для хранения и управления данными задач, импортированных
     или синхронизированных со структурой внешней таблицы (например, Excel).
-
     Attributes:
         name (str): Наименование задачи или контрагента (Столбец B).
         created_at (datetime): Дата и время автоматического создания записи (Столбец C).

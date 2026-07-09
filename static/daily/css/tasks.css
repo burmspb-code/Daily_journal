@@ -76,3 +76,49 @@ th.position-relative {
     background-color: #0d6efd;
     color: #fff;
 }
+
+/* Эффект плавного изменения для ссылок в навбаре */
+.custom-hover {
+    transition: opacity 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+.custom-hover:hover {
+    opacity: 1 !important;
+}
+
+/* Скрываем стандартную стрелку Bootstrap */
+.dropdown-toggle-custom::after {
+    display: none !important;
+}
+
+/* Строгое выпадающее меню закладок */
+.custom-dropdown-menu {
+    background-color: #1e293b !important; /* Глубокий темно-синий */
+    border: 1px solid #334155 !important; /* Тонкая рамка */
+    border-radius: 4px !important;        /* Минимальное классическое скругление */
+    min-width: 180px;
+    margin-top: 0px !important;           /* Меню прижато к навбару */
+    padding: 0 !important;                /* Полное отсутствие внутренних отступов */
+
+    /* Плавное проявление */
+    animation: fadeInDropdown 0.15s ease-out;
+}
+
+/* Пункты меню от края до края */
+.custom-dropdown-menu .dropdown-item {
+    color: rgba(255, 255, 255, 0.8) !important;
+    font-size: 0.95rem;
+    border-radius: 0 !important;          /* Квадратные края для заполнения всей ширины */
+    transition: all 0.1s ease-in-out;
+}
+
+/* Подсветка при наведении */
+.custom-dropdown-menu .dropdown-item:hover {
+    color: #ffffff !important;
+    background-color: #334155 !important; /* Сплошная заливка элемента */
+}
+
+/* Чистая анимация появления без движения */
+@keyframes fadeInDropdown {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
