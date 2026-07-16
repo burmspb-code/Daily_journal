@@ -17,7 +17,12 @@
              style="background-color: #2F4F4F; border: 1px solid #3d6363;">
             <h3 class="fw-bold mb-0 fs-6 text-white" style="font-family: inherit;">
                 {% if current_bookmark %}
-                    <span class="text-white-50 small fw-normal me-1"></span> {{ current_bookmark.name }}
+                    <span class="text-white-50 small fw-normal me-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle; margin-top: -3px;">
+                            <path d="M2 2v13.5a.5.5 0 0 0 .74.439L8 13.069l5.26 2.87A.5.5 0 0 0 14 15.5V2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/>
+                        </svg>
+                    </span>
+                    {{ current_bookmark.name }}
                 {% else %}
                     Daily Journal & Tasks
                 {% endif %}

@@ -43,13 +43,16 @@ class TaskListView(ListView):
         context['current_flag'] = self.request.GET.get('flag', '')
         context['current_sort'] = self.request.GET.get('sort', '')
 
-        # 1. Извлекаем ID закладки из GET-параметров (если он передан в URL)
+        # Извлекаем ID закладки из GET-параметров (если он передан в URL)
         bookmark_id = self.request.GET.get('bookmark')
         if bookmark_id:
-            # Находим нужную закладку, чтобы отобразить её имя вместо слова "Закладки"
+            # Если ID передан, ищем конкретную закладку
             context['current_bookmark'] = Bookmark.objects.filter(id=bookmark_id).first()
+        else:
+            # Если старт страницы (параметра нет), берем самую первую закладку из базы
+            context['current_bookmark'] = Bookmark.objects.order_by('id').first()
 
-        # 2. Передаем список абсолютно всех закладок для рендеринга пунктов меню
+        # Передаем список абсолютно всех закладок для рендеринга пунктов меню
         context['bookmarks'] = Bookmark.objects.all()
 
         # Собираем уникальные, непустые имена компаний в алфавитном порядке
