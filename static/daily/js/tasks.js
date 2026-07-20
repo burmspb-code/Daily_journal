@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const checkedBoxes = document.querySelectorAll('.task-checkbox:checked');
         const count = checkedBoxes.length;
 
-        // Управление кнопкой пакетного удаления
         if (count > 0) {
             if (btnDelete) btnDelete.classList.remove('d-none');
             if (selectedCountSpan) selectedCountSpan.textContent = count;
@@ -20,7 +19,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (btnDelete) btnDelete.classList.add('d-none');
         }
 
-        // Управление кнопкой редактирования (только для 1 выбранной задачи)
         if (count === 1) {
             if (btnEdit) btnEdit.classList.remove('d-none');
         } else {
@@ -28,7 +26,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Слушатель для главного чекбокса "Выбрать все"
     if (selectAllCheckbox) {
         selectAllCheckbox.addEventListener('change', function () {
             taskCheckboxes.forEach(cb => cb.checked = this.checked);
@@ -36,7 +33,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Слушатели для индивидуальных чекбоксов задач
     taskCheckboxes.forEach(cb => {
         cb.addEventListener('change', function () {
             if (!this.checked && selectAllCheckbox) {
@@ -46,15 +42,42 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Закрытие выпадающих окон фильтрации при клике вне их области
-    document.addEventListener('click', function (e) {
-        if (!e.target.closest('.position-relative')) {
-            document.querySelectorAll('.header-filter-popup').forEach(popup => {
-                popup.style.display = 'none';
-            });
-        }
+    // === УНИВЕРСАЛЬНОЕ И СТАБИЛЬНОЕ АВТОЗАКРЫТИЕ ДЛЯ ВСЕХ МЕНЮ (БЕЗ БАГОВ) ===
+    // Находим абсолютно все контейнеры дропдаунов на странице (и в навигации, и в шапке таблицы)
+    const allDropdowns = document.querySelectorAll('.dropdown');
+
+    allDropdowns.forEach(dropdownWrapper => {
+        let closeTimeout = null;
+
+        // Когда мышь покидает всю область дропдауна (кнопку + само меню целиком)
+        dropdownWrapper.addEventListener('mouseleave', function () {
+            if (!closeTimeout) {
+                closeTimeout = setTimeout(() => {
+                    // Ищем кнопку активации дропдауна внутри этого контейнера
+                    const toggleBtn = dropdownWrapper.querySelector('[data-bs-toggle="dropdown"]');
+
+                    if (toggleBtn) {
+                        // Закрываем меню через официальный экземпляр Bootstrap Dropdown
+                        const bsDropdown = bootstrap.Dropdown.getOrCreateInstance(toggleBtn);
+                        if (bsDropdown) {
+                            bsDropdown.hide();
+                        }
+                    }
+                }, 500); // Комфортные 0.5 секунды задержки перед закрытием
+            }
+        });
+
+        // Если мышь вернулась обратно в зону контроля — сбрасываем таймер, меню не закроется
+        dropdownWrapper.addEventListener('mouseenter', function () {
+            if (closeTimeout) {
+                clearTimeout(closeTimeout);
+                closeTimeout = null;
+            }
+        });
     });
+    // =====================================================================
 });
+
 
 // Управление показом кастомных окон фильтрации в шапке таблицы
 function toggleFilterPopup(event, popupId) {

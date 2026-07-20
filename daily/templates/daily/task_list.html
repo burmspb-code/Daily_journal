@@ -32,8 +32,7 @@
         <!-- Кнопка создания задачи -->
         <a class="btn btn-primary btn-sm fw-semibold d-inline-flex align-items-center gap-1.5"
            href="{% url 'daily:task_create' %}{% if current_bookmark %}?bookmark={{ current_bookmark.id }}{% endif %}">
-            <!-- Исправлен xmlns на корректный и уменьшен размер до 16 -->
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle;">
                 <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
             </svg>
             <span>Создать задачу</span>
@@ -57,7 +56,10 @@
         </button>
     </div>
         <div class="d-flex gap-2">
-            <a href="{% url 'daily:task_list' %}" class="btn btn-outline-secondary btn-sm fw-semibold">Сбросить все фильтры</a>
+            <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}{% endif %}"
+               class="btn btn-outline-secondary btn-sm fw-semibold">
+                Сбросить все фильтры
+            </a>
             <span class="badge bg-info text-dark fs-6 py-2 px-3 shadow-sm fw-semibold">Найдено задач: {{ tasks|length }}</span>
         </div>
     </div>
@@ -78,44 +80,48 @@
         <table class="table table-hover table-striped align-middle mb-0" id="tasks-table">
             <thead class="table-primary sticky-top" style="z-index: 100;">
                 <tr>
-                    <!-- ДОБАВЛЕНО: Главный чекбокс "Выбрать все" -->
-                    <th scope="col" class="ps-4" style="width: 40px;">
+                    <!-- Чекбокс — фиксированная ширина -->
+                    <th scope="col" class="ps-4 text-nowrap" style="width: 40px;">
                         <input class="form-check-input" type="checkbox" id="select-all-tasks" aria-label="Выбрать все задачи">
                     </th>
-                    <th scope="col" style="width: 80px;">№</th>
+                    <!-- Номер — запрет переноса, точная ширина -->
+                    <th scope="col" class="text-nowrap" style="width: 70px;">№</th>
 
                     <!-- Столбец: Наименование -->
-                    <th scope="col" class="position-relative">
-                        <div class="d-flex align-items-center gap-2">
+                    <!-- Класс dropdown позволяет меню позиционироваться ровно относительно ячейки -->
+                    <th scope="col" class="dropdown">
+                        <div class="d-flex align-items-center gap-2 cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false" style="user-select: none;">
                             <span>Наименование</span>
-                            <span class="filter-icon {% if current_name %}active{% endif %}" onclick="toggleFilterPopup(event, 'name-popup')">▼</span>
+                            <span class="filter-icon {% if current_name %}active{% endif %}">▼</span>
                         </div>
 
-                        <!-- Окно фильтра наименования -->
-                        <div id="name-popup" class="header-filter-popup p-0">
-                            <!-- ИСПРАВЛЕНО: Изменен фон на bg-secondary для контраста, убраны лишние отступы -->
-                            <div class="p-2 text-white small fw-bold text-uppercase border-bottom border-secondary bg-secondary">
-                                Фильтр по имени
-                            </div>
-
-                            <!-- Внутренний контейнер для прокрутки списка компаний -->
-                            <div style="max-height: 230px; overflow-y: auto;" class="p-1">
-                                <a href="?name=" class="filter-popup-item {% if not current_name %}active{% endif %} mb-1">Все задачи</a>
-
-                                <!-- Цикл вывода компаний -->
-                                {% for company_name in unique_companies %}
-                                    <a href="?name={{ company_name|urlencode }}" class="filter-popup-item {% if current_name == company_name %}active{% endif %} mb-1">
-                                        {{ company_name }}
+                        <!-- Переделанное окно фильтра (теперь это официальный dropdown-menu) -->
+                        <!-- Изменен тег на UL, убран display:none из кастомных стилей -->
+                        <ul id="name-popup" class="header-filter-popup dropdown-menu dropdown-menu-dark shadow-lg p-0">
+                            <div style="max-height: 230px; overflow-y: auto;" class="p-0">
+                                <li>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}name=" class="dropdown-item py-1 px-3">
+                                        Все задачи
                                     </a>
+                                </li>
+                                <li><hr class="dropdown-divider m-0 border-light" style="opacity: 0.25;"></li>
+
+                                {% for task_item in unique_companies %}
+                                    <li>
+                                        <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}name={{ task_item.name|urlencode }}{% if current_flag %}&flag={{ current_flag }}{% endif %}{% if current_sort %}&sort={{ current_sort }}{% endif %}"
+                                           class="dropdown-item py-1 px-3 {% if current_name == task_item.name %}active{% endif %}">
+                                            <small class="text-white-50 font-monospace me-1">#{{ task_item.id }}</small> {{ task_item.name }}
+                                        </a>
+                                    </li>
                                 {% empty %}
-                                    <div class="p-2 text-muted small">Задачи не найдены</div>
+                                    <li><div class="py-2 px-3 text-muted small">Задачи не найдены</div></li>
                                 {% endfor %}
                             </div>
-                        </div>
+                        </ul>
                     </th>
 
-                    <!-- Столбец: Время создания -->
-                    <th scope="col" style="cursor: pointer;" onclick="toggleDateSort()">
+                    <!-- Столбец: Время создания — жесткий text-nowrap и лимит в 180px, чтобы стрелки не улетали -->
+                    <th scope="col" class="text-nowrap" style="width: 180px; cursor: pointer;" onclick="toggleDateSort()">
                         <div class="d-flex align-items-center gap-2">
                             <span>Время создания</span>
                             <span class="filter-icon {% if current_sort %}active{% endif %}">
@@ -124,63 +130,74 @@
                         </div>
                     </th>
 
-                    <th scope="col">Время напоминания</th>
+                    <!-- Столбец: Время напоминания — жесткий text-nowrap и лимит в 180px -->
+                    <th scope="col" class="text-nowrap" style="width: 180px;">Время напоминания</th>
+
+                    <!-- Столбец: Комментарий — без text-nowrap, гибко подстраивается -->
                     <th scope="col">Комментарий</th>
 
                     <!-- Столбец: Флаг -->
-                    <th scope="col" class="text-center position-relative" style="width: 140px;">
-                        <div class="d-flex align-items-center justify-content-center gap-2">
+                    <th scope="col" class="text-center dropdown">
+                        <div class="d-flex align-items-center justify-content-center gap-2 cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false" style="user-select: none;">
                             <span>Flag</span>
-                            <span class="filter-icon {% if current_flag %}active{% endif %}" onclick="toggleFilterPopup(event, 'flag-popup')">▼</span>
+                            <span class="filter-icon {% if current_flag %}active{% endif %}">▼</span>
                         </div>
 
-                        <!-- ВСТАВИТЬ СЮДА: Окно фильтра флагов -->
-                        <div id="flag-popup" class="header-filter-popup popup-right p-0" style="right: 30px !important; left: auto !important;">
-                            <div class="p-2 text-white small fw-bold text-uppercase border-bottom border-secondary bg-secondary">
-                                Фильтр по флагу
+                        <!-- Переделанное окно фильтра флагов -->
+                        <ul id="flag-popup" class="header-filter-popup dropdown-menu dropdown-menu-dark shadow-lg p-0 dropdown-menu-end">
+                            <div class="p-0">
+                                <li>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_name %}name={{ current_name|urlencode }}&{% endif %}flag=" class="dropdown-item py-1 px-3">
+                                        Все флаги
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider m-0 border-light" style="opacity: 0.25;"></li>
+
+                                <li>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_name %}name={{ current_name|urlencode }}&{% endif %}flag=0" class="dropdown-item py-1 px-3 d-flex align-items-center gap-2 {% if current_flag == '0' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-success px-2">0</span> В работе
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_name %}name={{ current_name|urlencode }}&{% endif %}flag=1" class="dropdown-item py-1 px-3 d-flex align-items-center gap-2 {% if current_flag == '1' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-secondary px-2">1</span> Завершено
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_name %}name={{ current_name|urlencode }}&{% endif %}flag=2" class="dropdown-item py-1 px-3 d-flex align-items-center gap-2 {% if current_flag == '2' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-warning text-dark px-2">2</span> Внимание
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_name %}name={{ current_name|urlencode }}&{% endif %}flag=3" class="dropdown-item py-1 px-3 d-flex align-items-center gap-2 {% if current_flag == '3' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-danger px-2">3</span> Активно
+                                    </a>
+                                </li>
                             </div>
-                            <div class="p-1">
-                                <a href="?flag=" class="filter-popup-item {% if not current_flag %}active{% endif %} mb-1">Все флаги</a>
-                                <!-- Добавляем разноцветные круглые бейджи-цифры -->
-                                <a href="?flag=0" class="filter-popup-item {% if current_flag == '0' %}active{% endif %} mb-1 d-flex align-items-center gap-2">
-                                    <span class="badge rounded-pill bg-success px-2">0</span> В работе
-                                </a>
-                                <a href="?flag=1" class="filter-popup-item {% if current_flag == '1' %}active{% endif %} mb-1 d-flex align-items-center gap-2">
-                                    <span class="badge rounded-pill bg-secondary px-2">1</span> Завершено
-                                </a>
-                                <a href="?flag=2" class="filter-popup-item {% if current_flag == '2' %}active{% endif %} mb-1 d-flex align-items-center gap-2">
-                                    <span class="badge rounded-pill bg-warning text-dark px-2">2</span> Внимание
-                                </a>
-                                <a href="?flag=3" class="filter-popup-item {% if current_flag == '3' %}active{% endif %} mb-1 d-flex align-items-center gap-2">
-                                    <span class="badge rounded-pill bg-danger px-2">3</span> Активно
-                                </a>
-                            </div>
-                        </div>
+                        </ul>
                     </th>
                 </tr>
             </thead>
             <tbody>
                 {% for task in tasks %}
-                <!-- ДОБАВЛЕНО: id строки для динамического обновления через JS -->
                 <tr id="task-row-{{ task.id }}">
-                    <!-- ДОБАВЛЕНО: Индивидуальный чекбокс задачи -->
                     <td class="ps-4">
                         <input class="form-check-input task-checkbox" type="checkbox" value="{{ task.id }}" aria-label="Выбрать задачу">
                     </td>
-                    <td class="ps-4 text-muted font-monospace">{{ task.id }}</td>
+                    <!-- Принудительный text-nowrap для контента ячеек -->
+                    <td class="ps-4 text-muted font-monospace text-nowrap">{{ task.id }}</td>
                     <td class="fw-bold text-secondary task-name-cell">{{ task.name }}</td>
-                    <td class="text-muted">{{ task.created_at|date:"d.m.Y H:i" }}</td>
-                    <td class="text-muted">
+                    <td class="text-muted text-nowrap">{{ task.created_at|date:"d.m.Y H:i" }}</td>
+                    <td class="text-muted text-nowrap">
                         {% if task.reminder_at %}
                             {{ task.reminder_at|date:"d.m.Y H:i" }}
                         {% else %}
                             <span class="text-danger fw-bold">*</span>
                         {% endif %}
                     </td>
-                    <!-- ДОБАВЛЕНО: класс task-comment-cell, чтобы JS мог считывать комментарий -->
                     <td class="text-wrap task-comment-cell" style="max-width: 300px;">{{ task.comment|default:"" }}</td>
-                    <td class="text-center">
-                        <span class="badge rounded-pill 
+                    <td class="text-center text-nowrap">
+                        <span class="badge rounded-pill
                             {% if task.status_flag == 0 %} bg-success
                             {% elif task.status_flag == 1 %} bg-secondary
                             {% elif task.status_flag == 2 %} bg-warning text-dark
@@ -250,24 +267,6 @@
 
         </div>
     </div>
-</div>
-
-<!-- Окна выпадающих фильтров заголовков -->
-<div id="name-popup" class="header-filter-popup p-2 text-start">
-    <div class="text-white-50 small fw-bold px-2 py-1 text-uppercase" style="font-size: 0.75rem;">Фильтр по имени</div>
-    <hr class="my-1 border-secondary">
-    <button type="button" class="filter-popup-item {% if current_name == '' or current_name == None %}active{% endif %}" onclick="applyHeaderFilter('name', '')">Все компании</button>
-    <div id="name-unique-options"></div>
-</div>
-
-<div id="flag-popup" class="header-filter-popup p-2 text-start">
-    <div class="text-white-50 small fw-bold px-2 py-1 text-uppercase" style="font-size: 0.75rem;">Выбрать статус</div>
-    <hr class="my-1 border-secondary">
-    <button type="button" class="filter-popup-item {% if current_flag == '' or current_flag == None %}active{% endif %}" onclick="applyHeaderFilter('flag', '')">Все флаги</button>
-    <button type="button" class="filter-popup-item {% if current_flag == '0' %}active{% endif %}" onclick="applyHeaderFilter('flag', '0')"><span class="badge bg-success me-2">0</span> Зеленый</button>
-    <button type="button" class="filter-popup-item {% if current_flag == '1' %}active{% endif %}" onclick="applyHeaderFilter('flag', '1')"><span class="badge bg-secondary me-2">1</span> Серый</button>
-    <button type="button" class="filter-popup-item {% if current_flag == '2' %}active{% endif %}" onclick="applyHeaderFilter('flag', '2')"><span class="badge bg-warning text-dark me-2">2</span> Желтый</button>
-    <button type="button" class="filter-popup-item {% if current_flag == '3' %}active{% endif %}" onclick="applyHeaderFilter('flag', '3')"><span class="badge bg-danger me-2">3</span> Красный</button>
 </div>
 
 {% block extra_js %}

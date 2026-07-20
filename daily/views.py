@@ -7,6 +7,7 @@ from .forms import TaskForm, BookmarkForm
 
 
 class TaskListView(ListView):
+    """Контроллек для вывода списка задач."""
     model = Task
     template_name = 'daily/task_list.html'
     context_object_name = 'tasks'  # Переменная, которая пойдет в HTML-шаблон
@@ -49,48 +50,63 @@ class TaskListView(ListView):
         return queryset
 
     def get_context_data(self, **kwargs):
-        # Метод собирает переменные для полей формы, чтобы они не очищались после отправки
+        """
+        Формирует контекст данных для передачи в HTML-шаблон 'task_list.html'.
+
+        Обеспечивает:
+        1. Сохранение состояний фильтров и сортировки в формах ввода после перезагрузки страницы.
+        2. Извлечение списка всех закладок для построения навигационного меню.
+        3. Определение текущей активной закладки на основе GET-параметров.
+        4. Изолированный сбор уникальных имён задач, принадлежащих исключительно
+           текущей активной закладке (предотвращает появление чужих фильтров).
+        """
+        # Получаем базовый контекст от родительского класса ListView
         context = super().get_context_data(**kwargs)
+
+        # 1. СОХРАНЕНИЕ ТЕКУЩИХ ФИЛЬТРОВ И СОРТИРОВКИ (для удержания состояния в UI)
+        # Извлекаем параметры из адресной строки, чтобы подсветить активные кнопки
         context['current_name'] = self.request.GET.get('name', '').strip()
         context['current_flag'] = self.request.GET.get('flag', '')
         context['current_sort'] = self.request.GET.get('sort', '')
 
-        # Передаем список абсолютно всех закладок для рендеринга пунктов меню
+        # 2. РАБОТА С ЗАКЛАДКАМИ
+        # Вытягиваем абсолютно все закладки для рендеринга пунктов верхнего меню
         all_bookmarks = Bookmark.objects.all()
         context['bookmarks'] = all_bookmarks
 
-        # Извлекаем ID закладки из GET-параметров (если он передан в URL)
+        # Извлекаем ID выбранной закладки из GET-параметров URL (?bookmark=ID)
         bookmark_id = self.request.GET.get('bookmark')
         if bookmark_id:
-            # Если ID передан, ищем конкретную закладку
+            # Если ID передан в URL, находим соответствующий объект из общего списка
             context['current_bookmark'] = all_bookmarks.filter(id=bookmark_id).first()
         else:
-            # Если старт страницы (параметра нет), берем самую первую закладку из базы
+            # Если параметр отсутствует (первый вход на страницу), дефолтом открываем самую первую закладку
             context['current_bookmark'] = all_bookmarks.order_by('id').first()
 
-        # Собираем уникальные, непустые имена компаний в алфавитном порядке
-        context['unique_companies'] = Task.objects.exclude(name="").values_list('name', flat=True).distinct().order_by(
-            'name')
+        # Извлекаем определенную закладку в локальную переменную для удобства фильтрации ниже
+        current_bookmark = context['current_bookmark']
+
+        # 3. ДИНАМИЧЕСКИЙ СБОР ЗАДАЧ ДЛЯ ФИЛЬТРА В ТАБЛИЦЕ (В ПОРЯДКЕ ОТОБРАЖЕНИЯ)
+        if current_bookmark:
+            # Берём отсортированный набор задач из таблицы и отсекаем пустые имена
+            # Передаём объекты целиком, чтобы в шаблоне были доступны и id, и name
+            context['unique_companies'] = self.get_queryset().exclude(name="")
+        else:
+            context['unique_companies'] = []
 
         return context
 
 
 class TaskCreateView(CreateView):
+    """Контроллер создания задачи с гарантированным динамическим редиректом."""
     model = Task
     context_object_name = "task"
     form_class = TaskForm
-    success_url = reverse_lazy("daily:task_list")
-    success_message = "Новая задача успешно создана!"
 
     def dispatch(self, request, *args, **kwargs):
         """Жесткая проверка: если закладок в базе нет, не выводим форму."""
         if not Bookmark.objects.exists():
-            # Вариант 1 (Рекомендуется): Перенаправляем пользователя на главную (кнопки там не будет)
             return redirect('daily:task_list')
-
-            # Вариант 2 (Если хотите выкинуть явную ошибку):
-            # raise Http404("Нельзя создать задачу: в системе отсутствуют закладки.")
-
         return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
@@ -101,20 +117,44 @@ class TaskCreateView(CreateView):
         if bookmark_id:
             initial['bookmark'] = bookmark_id
         else:
-            # Если в URL почему-то нет ID, берем первую существующую закладку
             first_bookmark = Bookmark.objects.order_by('id').first()
             if first_bookmark:
                 initial['bookmark'] = first_bookmark.id
 
         return initial
 
+    def get_success_url(self):
+        """
+        Защищенный метод динамического редиректа.
+        Гарантирует возврат пользователя на текущую открытую вкладку.
+        """
+        # Шаг 1: Пробуем вытащить ID закладки напрямую из адресной строки GET (?bookmark=2)
+        bookmark_id = self.request.GET.get('bookmark')
+
+        # Шаг 2: Если в GET пусто (маловероятно), берем ID из только что сохраненного объекта задачи
+        if not bookmark_id and self.object and self.object.bookmark:
+            bookmark_id = self.object.bookmark.id
+
+        # Шаг 3: Если ID успешно найден, формируем точный кумулятивный URL
+        if bookmark_id:
+            return f"{reverse('daily:task_list')}?bookmark={bookmark_id}"
+
+        # Шаг 4: Жесткий "план Б" — если закладка не определилась, возвращаем на базовый список без падения сервера
+        return reverse("daily:task_list")
+
 
 class TaskUpdateApiView(UpdateView):
+    """Контроллер редактирования задачи."""
     model = Task
     # Указываем поля, которые РАЗРЕШЕНО редактировать пользователю
     fields = ['name', 'comment', 'reminder_at']
 
     def _get_json_data(self):
+        """
+            Парсит JSON из тела запроса, кэширует результат и адаптирует формат дат HTML5.
+
+            В случае некорректного JSON возвращает пустой словарь.
+        """
         if not hasattr(self, 'json_data'):
             try:
                 self.json_data = json.loads(self.request.body)
@@ -126,6 +166,12 @@ class TaskUpdateApiView(UpdateView):
         return self.json_data
 
     def get_object(self, queryset=None):
+        """
+            Извлекает ID задачи из JSON-данных запроса и находит объект в базе данных.
+
+            В случае отсутствия объекта или передачи некорректного ID
+            безопасно возвращает None вместо вызова исключения Http404.
+        """
         data = self._get_json_data()
         task_id = data.get('id')
         try:
@@ -134,17 +180,30 @@ class TaskUpdateApiView(UpdateView):
             return None
 
     def get_form_kwargs(self):
+        """
+            Внедряет данные из JSON-тела запроса в аргументы для инициализации формы.
+
+            Переопределяет стандартный источник данных (из request.POST на JSON-словарь)
+            для обеспечения корректной работы формы с AJAX/JSON-запросами.
+        """
         kwargs = super().get_form_kwargs()
         kwargs['data'] = self._get_json_data()
         return kwargs
 
     def post(self, request, *args, **kwargs):
+        """
+            Проверяет существование объекта перед обработкой формы.
+
+            Если объект не найден, возвращает JSON-ответ со статусом 404.
+            В противном случае передает управление стандартному обработчику POST-запросов.
+        """
         self.object = self.get_object()
         if self.object is None:
             return JsonResponse({'status': 'error', 'message': 'Задача не найдена'}, status=404)
         return super().post(request, *args, **kwargs)
 
     def form_valid(self, form):
+        """Сохраняет валидную форму и возвращает обновленный статус объекта в формате JSON."""
         # Сохраняем измененные name, comment и reminder_at
         self.object = form.save()
 
@@ -158,6 +217,7 @@ class TaskUpdateApiView(UpdateView):
         })
 
     def form_invalid(self, form):
+        """Возвращает JSON-ответ с ошибками валидации формы и HTTP-статусом 400."""
         return JsonResponse({
             'status': 'error',
             'message': 'Ошибка валидации полей',
@@ -166,6 +226,7 @@ class TaskUpdateApiView(UpdateView):
 
 
 class TaskDeleteApiView(DeleteView):
+    """Контроллер удаления задачи."""
     model = Task
 
     def get_object(self, queryset=None):
