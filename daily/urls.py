@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import TaskListView, TaskCreateView, TaskUpdateApiView, TaskDeleteApiView
+from .views import TaskListView, TaskCreateView, TaskUpdateApiView, TaskDeleteApiView, BookmarkCreateView
 from .apps import DailyConfig
 
 
@@ -12,6 +12,8 @@ urlpatterns = [
     path('task/add/', TaskCreateView.as_view(), name='task_create'),
     # Страница редактирования задачи
     path('task/update-api/', TaskUpdateApiView.as_view(), name='task_update_api'),
-    # Страница для удаления
+    # Страница для удаления задачи
     path('task/delete-api/', TaskDeleteApiView.as_view(), name='task_delete_api'),
+    # Страница для создания закладки
+    path('bookmark/add/', BookmarkCreateView.as_view(), name='bookmark_create'),
 ]

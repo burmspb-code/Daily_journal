@@ -1,0 +1,79 @@
+{% extends 'daily/base.html' %}
+
+{% block title %}Создать закладку{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <!-- Карточка формы -->
+        <div class="card shadow-sm border-0 rounded-3">
+            <div class="card-body p-4">
+                <h2 class="h4 fw-bold text-dark mb-3 d-flex align-items-center gap-2">
+                    <!-- Современная SVG-иконка плюса -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" class="text-primary" viewBox="0 0 16 16">
+                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                    </svg>
+                    <span>Новая закладка</span>
+                </h2>
+                <p class="text-muted small mb-4">Заполните наименование ниже, чтобы добавить закладку в журнал.</p>
+
+                <!-- Форма отправки данных в Django -->
+                <form method="POST" action="">
+                    {% csrf_token %}
+
+                    <!-- Вывод общих ошибок формы, если они есть -->
+                    {% if form.non_field_errors %}
+                        {% for error in form.non_field_errors %}
+                            <div class="alert alert-danger py-2 px-3 small mb-3">⚠️ {{ error }}</div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <!-- Поле: Название -->
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label fw-semibold small text-secondary">
+                            {{ form.name.label }}
+                        </label>
+                        <input type="text"
+                               name="{{ form.name.html_name }}"
+                               id="{{ form.name.id_for_label }}"
+                               class="form-control form-control-sm {% if form.name.errors %}is-invalid{% endif %}"
+                               placeholder="Например: Работа, Покупки, Важное"
+                               value="{{ form.name.value|default_if_none:'' }}"
+                               required>
+                        {% for error in form.name.errors %}
+                            <div class="invalid-feedback small mt-1">⚠️ {{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Поле: Описание -->
+                    <div class="mb-3">
+                        <label for="{{ form.description.id_for_label }}" class="form-label fw-semibold small text-secondary">
+                            {{ form.description.label }}
+                        </label>
+                        <textarea name="{{ form.description.html_name }}"
+                                  id="{{ form.description.id_for_label }}"
+                                  class="form-control form-control-sm {% if form.description.errors %}is-invalid{% endif %}"
+                                  rows="3"
+                                  placeholder="Краткое описание этой вкладки (необязательно)">{{ form.description.value|default_if_none:'' }}</textarea>
+                        {% for error in form.description.errors %}
+                            <div class="invalid-feedback small mt-1">⚠️ {{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <hr class="my-4 text-muted opacity-25">
+
+                    <!-- Кнопки управления -->
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a href="{% url 'daily:task_list' %}" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
+                            Отмена
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-sm px-4 fw-semibold shadow-sm">
+                            Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

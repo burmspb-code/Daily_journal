@@ -10,7 +10,7 @@
             <div class="card-body p-4">
                 <h2 class="h4 fw-bold text-dark mb-3 d-flex align-items-center gap-2">
                     <!-- Современная SVG-иконка плюса вместо старого эмодзи -->
-                    <svg xmlns="http://w3.org" width="22" height="22" fill="currentColor" class="text-primary" viewBox="0 0 16 16">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" class="text-primary" viewBox="0 0 16 16">
                         <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
                     </svg>
                     <span>Новая задача</span>
@@ -59,16 +59,16 @@
 </div>
 
 <script>
-    // Профессиональный штрих: автоматически добавляем Bootstrap-класс для всех инпутов формы
-    document.addEventListener("DOMContentLoaded", function() {
-        const formInputs = document.querySelectorAll('form input, form textarea, form select');
-        formInputs.forEach(input => {
-            if (input.type !== 'checkbox' && input.type !== 'radio') {
-                input.classList.add('form-control', 'form-control-sm');
-            } else {
-                input.classList.add('form-check-input');
-            }
-        });
+// Профессиональный штрих: автоматически добавляем Bootstrap-класс для всех инпутов формы
+document.addEventListener("DOMContentLoaded", function() {
+    const formInputs = document.querySelectorAll('form input, form textarea, form select');
+    formInputs.forEach(input => {
+        if (input.type !== 'checkbox' && input.type !== 'radio') {
+            input.classList.add('form-control', 'form-control-sm');
+        } else {
+            input.classList.add('form-check-input');
+        }
     });
+});
 </script>
 {% endblock %}

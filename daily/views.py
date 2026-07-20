@@ -1,9 +1,9 @@
 import json
 from django.http import JsonResponse
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from .models import Task, Bookmark
-from .forms import TaskForm
+from .forms import TaskForm, BookmarkForm
 
 
 class TaskListView(ListView):
@@ -14,17 +14,29 @@ class TaskListView(ListView):
     def get_queryset(self):
         # Получаем базовый набор всех записей из PostgreSQL
         queryset = super().get_queryset()
-        
+
+        # Фильтрация задач по текущей закладке (чтобы не валить всё в кучу)
+        bookmark_id = self.request.GET.get('bookmark')
+        if bookmark_id:
+            queryset = queryset.filter(bookmark_id=bookmark_id)
+        else:
+            # Если старт страницы, берем задачи первой закладки (если она есть)
+            first_bookmark = Bookmark.objects.order_by('id').first()
+            if first_bookmark:
+                queryset = queryset.filter(bookmark=first_bookmark)
+            else:
+                queryset = queryset.none()  # Если закладок нет вообще — возвращаем пустоту
+
         # Фильтрация по наименованию задачи
         name_query = self.request.GET.get('name', '').strip()
         if name_query:
             queryset = queryset.filter(name=name_query)
-            
+
         # Фильтрация по флагу управления
         flag_query = self.request.GET.get('flag', '')
         if flag_query != '':
             queryset = queryset.filter(status_flag=int(flag_query))
-            
+
         # Сортировка по времени создания или по умолчанию (PK)
         sort_query = self.request.GET.get('sort', '')
         if sort_query == 'newest':
@@ -33,7 +45,7 @@ class TaskListView(ListView):
             queryset = queryset.order_by('created_at', 'id')
         else:
             queryset = queryset.order_by('id')  # Наш сброс — сортировка по порядку PK
-            
+
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -43,17 +55,18 @@ class TaskListView(ListView):
         context['current_flag'] = self.request.GET.get('flag', '')
         context['current_sort'] = self.request.GET.get('sort', '')
 
+        # Передаем список абсолютно всех закладок для рендеринга пунктов меню
+        all_bookmarks = Bookmark.objects.all()
+        context['bookmarks'] = all_bookmarks
+
         # Извлекаем ID закладки из GET-параметров (если он передан в URL)
         bookmark_id = self.request.GET.get('bookmark')
         if bookmark_id:
             # Если ID передан, ищем конкретную закладку
-            context['current_bookmark'] = Bookmark.objects.filter(id=bookmark_id).first()
+            context['current_bookmark'] = all_bookmarks.filter(id=bookmark_id).first()
         else:
             # Если старт страницы (параметра нет), берем самую первую закладку из базы
-            context['current_bookmark'] = Bookmark.objects.order_by('id').first()
-
-        # Передаем список абсолютно всех закладок для рендеринга пунктов меню
-        context['bookmarks'] = Bookmark.objects.all()
+            context['current_bookmark'] = all_bookmarks.order_by('id').first()
 
         # Собираем уникальные, непустые имена компаний в алфавитном порядке
         context['unique_companies'] = Task.objects.exclude(name="").values_list('name', flat=True).distinct().order_by(
@@ -67,7 +80,33 @@ class TaskCreateView(CreateView):
     context_object_name = "task"
     form_class = TaskForm
     success_url = reverse_lazy("daily:task_list")
-    success_message = "Новыя задача успешно создана!"
+    success_message = "Новая задача успешно создана!"
+
+    def dispatch(self, request, *args, **kwargs):
+        """Жесткая проверка: если закладок в базе нет, не выводим форму."""
+        if not Bookmark.objects.exists():
+            # Вариант 1 (Рекомендуется): Перенаправляем пользователя на главную (кнопки там не будет)
+            return redirect('daily:task_list')
+
+            # Вариант 2 (Если хотите выкинуть явную ошибку):
+            # raise Http404("Нельзя создать задачу: в системе отсутствуют закладки.")
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_initial(self):
+        """Передаем ID текущей активной закладки в форму."""
+        initial = super().get_initial()
+        bookmark_id = self.request.GET.get('bookmark')
+
+        if bookmark_id:
+            initial['bookmark'] = bookmark_id
+        else:
+            # Если в URL почему-то нет ID, берем первую существующую закладку
+            first_bookmark = Bookmark.objects.order_by('id').first()
+            if first_bookmark:
+                initial['bookmark'] = first_bookmark.id
+
+        return initial
 
 
 class TaskUpdateApiView(UpdateView):
@@ -160,3 +199,18 @@ class TaskDeleteApiView(DeleteView):
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
+
+class BookmarkCreateView(CreateView):
+    """Контроллер создания новой закладки."""
+    model = Bookmark
+    form_class = BookmarkForm
+    template_name = 'daily/bookmark_form.html'  # Укажите путь к вашему HTML-шаблону формы
+    context_object_name = "bookmark"
+
+    def get_success_url(self):
+        """
+        После успешного создания закладки динамически перенаправляем
+        пользователя на главную страницу с автоматическим открытием этой новой вкладки.
+        """
+        # self.object — это только что сохраненный в базу данных экземпляр Bookmark
+        return f"{reverse('daily:task_list')}?bookmark={self.object.id}"

@@ -52,12 +52,9 @@
             <ul class="navbar-nav align-items-center gap-4 ms-auto">
                 <!-- Выпадающее меню закладок -->
                 <li class="nav-item dropdown">
+                    <!-- Добавлен атрибут data-bs-offset для смещения меню ровно к верхнему краю ссылки -->
                     <a class="nav-link dropdown-toggle-custom text-white opacity-75 custom-hover py-1 d-flex align-items-center gap-1"
-                       href="#"
-                       id="bookmarksDropdown"
-                       role="button"
-                       data-bs-toggle="dropdown"
-                       aria-expanded="false">
+                       href="#" id="bookmarksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-offset="0,-32">
                         <!-- Иконка перед словом Закладки -->
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 2px;">
                             <path d="M2 2v13.5a.5.5 0 0 0 .74.439L8 13.069l5.26 2.87A.5.5 0 0 0 14 15.5V2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/>
@@ -68,12 +65,26 @@
                             <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
                         </svg>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow-lg custom-dropdown-menu" aria-labelledby="bookmarksDropdown">
+
+                    <ul class="dropdown-menu dropdown-menu-end shadow-lg custom-dropdown-menu p-0 m-0" aria-labelledby="bookmarksDropdown">
+                        <!-- Кнопка создания закладки -->
+                        <li>
+                            <a class="dropdown-item py-1 px-3 d-flex align-items-center gap-2" href="{% url 'daily:bookmark_create' %}">
+                                <!-- Размер увеличен до 20, класс text-white делает иконку максимально яркой -->
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" class="text-white">
+                                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 .5-.5z"/>
+                                </svg>
+                                <strong>Создать</strong>
+                            </a>
+                        </li>
+
+                        <!-- Светло-серая разделительная линия для темного фона -->
+                        <li><hr class="dropdown-divider border-light m-0" style="opacity: 0.25;"></li>
+
                         {% if bookmarks %}
                             {% for bookmark in bookmarks %}
                                 <li>
-                                    <a class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" href="{% url 'daily:task_list' %}?bookmark={{ bookmark.id }}">
-                                        <!-- Маленькая контурная иконка закладки для пунктов меню -->
+                                    <a class="dropdown-item py-1 px-3 d-flex align-items-center gap-2" href="{% url 'daily:task_list' %}?bookmark={{ bookmark.id }}">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" class="text-white-50">
                                             <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.545a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/>
                                         </svg>
@@ -82,18 +93,9 @@
                                 </li>
                             {% endfor %}
                         {% else %}
-                            <li><span class="dropdown-item-text text-white-50 small py-2 px-3">Нет закладок</span></li>
+                            <li><span class="dropdown-item-text text-white-50 small py-1 px-3">Нет закладок</span></li>
                         {% endif %}
                     </ul>
-                </li>
-                <!-- Кнопка создания задачи -->
-                <li class="nav-item">
-                    <a class="nav-link text-warning opacity-75 custom-hover py-1 d-flex align-items-center gap-2" href="{% url 'daily:task_create' %}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle;">
-                            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
-                        </svg>
-                        <span class="fw-bold">Создать задачу</span>
-                    </a>
                 </li>
             </ul>
 

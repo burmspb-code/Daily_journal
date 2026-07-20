@@ -3,7 +3,9 @@ from .models import Task, Bookmark
 
 
 class TaskForm(forms.ModelForm):
+    """Класс для опеделения полей формы для ввода информации."""
     class Meta:
+        """Класс метаданных."""
         model = Task
         fields = ['name', 'reminder_at', 'comment', 'bookmark']
 
@@ -15,7 +17,7 @@ class TaskForm(forms.ModelForm):
             ),
         }
 
-    # Переопределяем метод __init__ для обработки даты и установки дефолтной закладки
+    # Переопределяем метод __init__ для обработки даты
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -23,10 +25,14 @@ class TaskForm(forms.ModelForm):
         if self.instance and self.instance.pk and self.instance.reminder_at:
             self.initial['reminder_at'] = self.instance.reminder_at.strftime('%Y-%m-%dT%H:%M')
 
-        # 2. Логика для дефолтной Закладки 1 (если объект еще создается)
-        if not self.instance or not self.instance.pk:
-            bookmark, created = Bookmark.objects.get_or_create(
-                name="Закладка 1",
-                defaults={"description": "Автоматически созданная базовая закладка"}
-            )
-            self.initial['bookmark'] = bookmark.id
+        # 2. Настройка выпадающего списка закладок в форме (опционально)
+        # Делаем поле обязательным, так как пустых закладок быть не может
+        self.fields['bookmark'].empty_label = None
+
+
+class BookmarkForm(forms.ModelForm):
+    """Класс для опеделения полей формы для ввода информации."""
+    class Meta:
+        """Класс метаданных."""
+        model = Bookmark
+        fields = ['name', 'description']

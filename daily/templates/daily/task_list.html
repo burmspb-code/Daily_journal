@@ -12,7 +12,7 @@
 <!-- Заголовок страницы -->
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div class="d-flex align-items-center gap-3">
-       <!-- Установили точный цвет #2F4F4F и рамку в тон. Отступы py-2 px-3 и размер fs-6 -->
+        <!-- Установили точный цвет #2F4F4F и рамку в тон. Отступы py-2 px-3 и размер fs-6 -->
         <div class="badge fs-6 py-2 px-3 rounded text-start d-inline-flex align-items-center shadow-sm"
              style="background-color: #2F4F4F; border: 1px solid #3d6363;">
             <h3 class="fw-bold mb-0 fs-6 text-white" style="font-family: inherit;">
@@ -28,27 +28,39 @@
                 {% endif %}
             </h3>
         </div>
+
+        <!-- Кнопка создания задачи -->
+        <a class="btn btn-primary btn-sm fw-semibold d-inline-flex align-items-center gap-1.5"
+           href="{% url 'daily:task_create' %}{% if current_bookmark %}?bookmark={{ current_bookmark.id }}{% endif %}">
+            <!-- Исправлен xmlns на корректный и уменьшен размер до 16 -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle;">
+                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+            </svg>
+            <span>Создать задачу</span>
+        </a>
+
+        <!-- Кнопка удалить выбранные задачи -->
         <button id="btn-delete-selected"
                 class="btn btn-danger btn-sm fw-semibold d-none"
                 onclick="deleteSelectedTasks()"
                 data-url="{% url 'daily:task_delete_api' %}">
             Удалить выбранные (<span id="selected-count">0</span>)
         </button>
-        
-        <!-- КНОПКА ДОЛЖНА БЫТЬ ЗДЕСЬ -->
-        <button id="btn-edit-selected" class="btn btn-warning btn-sm fw-semibold d-none" 
-                onclick="openEditModal()" 
-                data-bs-toggle="modal" 
+
+        <!-- Кнопка редавктировать выбранные задачи -->
+        <button id="btn-edit-selected" class="btn btn-warning btn-sm fw-semibold d-none"
+                onclick="openEditModal()"
+                data-bs-toggle="modal"
                 data-bs-target="#editTaskModal"
                 data-url="{% url 'daily:task_update_api' %}">
             Редактировать
         </button>
     </div>
-    <div class="d-flex gap-2">
-        <a href="{% url 'daily:task_list' %}" class="btn btn-outline-secondary btn-sm fw-semibold">Сбросить все фильтры</a>
-        <span class="badge bg-primary fs-6 py-1.5 px-3">Найдено задач: {{ tasks|length }}</span>
+        <div class="d-flex gap-2">
+            <a href="{% url 'daily:task_list' %}" class="btn btn-outline-secondary btn-sm fw-semibold">Сбросить все фильтры</a>
+            <span class="badge bg-info text-dark fs-6 py-2 px-3 shadow-sm fw-semibold">Найдено задач: {{ tasks|length }}</span>
+        </div>
     </div>
-</div>
 
 <!-- Скрытая форма для отправки GET-запросов фильтрации в класс TaskListView -->
 <form id="hidden-filter-form" method="GET" action="" class="d-none">

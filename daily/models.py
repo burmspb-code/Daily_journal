@@ -21,6 +21,7 @@ class Bookmark(models.Model):
     )
 
     class Meta:
+        """Класс метаданных."""
         verbose_name = "Закладка"
         verbose_name_plural = "Закладки"
         ordering = ['name']
@@ -86,6 +87,7 @@ class Task(models.Model):
     )
 
     class Meta:
+        """Класс метаданных."""
         db_table = 'tasks'  # Имя таблицы в PostgreSQL
         verbose_name = 'Задача'
         verbose_name_plural = 'Задачи'
