@@ -1,9 +1,16 @@
+{% load static %}
+<!-- Подключаем обновленный... -->
+<link rel="stylesheet" href='{% static "daily/css/tasks.css" %}'>
+
 <!-- Верхняя навигационная панель (Navbar) в едином стиле -->
 <nav class="navbar navbar-expand-lg navbar-dark shadow-sm" style="background-color: #1e293b !important;">
     <div class="container">
-        <!-- Логотип: приглушен, становится ярче при наведении -->
+        <!-- Логотип: SVG Журнал -->
         <a class="navbar-brand fw-bold d-flex align-items-center gap-2 opacity-75 text-white transition-all custom-hover" href="{% url 'daily:task_list' %}">
-            <span>📒</span> Daily Journal
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" style="margin-top: -2px;">
+                <path d="M1 2.828c.885-.37 2.154-.769 3.388-.893 1.33-.134 2.458.063 3.112.752v9.742c-.934-.53-2.139-.713-3.558-.682-1.395.031-2.423.308-2.942.503V2.828zM8 3.487c.654-.689 1.782-.886 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.518-.195-1.547-.472-2.942-.503-1.409-.031-2.614.152-3.558.682V3.487zM14.247 14.233c.832-.387 1.753-.742 2.503-.947V1.755c-.75.205-1.67.56-2.503.947v11.531zm-12.494 0c-.832-.387-1.753-.742-2.503-.947V1.755c.75.205 1.67.56 2.503.947v11.531z"/>
+            </svg>
+            Daily Journal
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
@@ -11,45 +18,87 @@
 
         <div class="collapse navbar-collapse" id="navbarNav">
 
-            <!-- Левый блок: Аутентификация -->
-            <ul class="navbar-nav align-items-center gap-3 ms-lg-4">
-                <li class="nav-item">
-                    <a class="nav-link text-white opacity-75 custom-hover py-1" href="#">Войти</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white opacity-75 custom-hover py-1" href="#">Регистрация</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white opacity-75 custom-hover py-1" href="#">Выйти</a>
+            <!-- Левый блок: Навигация по закладкам и кнопка создания -->
+            <ul class="navbar-nav align-items-center gap-4">
+                <!-- Выпадающее меню закладок -->
+                <li class="nav-item dropdown position-relative">
+                    <a class="nav-link dropdown-toggle-custom text-white opacity-75 custom-hover py-1 d-flex align-items-center gap-1"
+                       href="#" id="bookmarksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-offset="0,4">
+                        <!-- Иконка перед словом Закладки -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 2px;">
+                            <path d="M2 2v13.5a.5.5 0 0 0 .74.439L8 13.069l5.26 2.87A.5.5 0 0 0 14 15.5V2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/>
+                        </svg>
+                        Закладки
+                        <!-- Стрелочка вниз -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" style="margin-left: 2px; opacity: 0.8;">
+                            <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                        </svg>
+                    </a>
+
+                    <!-- Меню теперь открывается вправо, выравниваясь по левому краю ссылки (класс dropdown-menu-end убран) -->
+                    <ul class="dropdown-menu shadow-lg custom-dropdown-menu p-0 m-0" aria-labelledby="bookmarksDropdown" style="border: 1px solid #444;">
+                        <!-- Кнопка создания закладки -->
+                        <li>
+                            <a class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" href="{% url 'daily:bookmark_create' %}">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" class="text-white">
+                                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 .5-.5z"/>
+                                </svg>
+                                <strong>Создать</strong>
+                            </a>
+                        </li>
+
+                        <!-- Светло-серая разделительная линия -->
+                        <li><hr class="dropdown-divider m-0" style="border-top: 1px solid rgba(255, 255, 255, 0.15); opacity: 1;"></li>
+
+                        {% if bookmarks %}
+                            {% for bookmark in bookmarks %}
+                                <li>
+                                    <a class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" href="{% url 'daily:task_list' %}?bookmark={{ bookmark.id }}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" class="text-white-50">
+                                            <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.545a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/>
+                                        </svg>
+                                        <span class="bookmark-link-name" data-id="{{ bookmark.id }}">{{ bookmark.name }}</span>
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        {% else %}
+                            <li><span class="dropdown-item-text text-white-50 small py-2 px-3">Нет закладок</span></li>
+                        {% endif %}
+                    </ul>
                 </li>
             </ul>
 
-            <!-- Правый блок: Навигация по задачам -->
-            <ul class="navbar-nav align-items-center gap-4 ms-auto">
+            <!-- Правый block: Аутентификация -->
+            <ul class="navbar-nav align-items-center gap-3 ms-auto">
                 <li class="nav-item">
-                    <a class="nav-link text-white opacity-75 custom-hover py-1" href="{% url 'daily:task_list' %}">Список задач</a>
+                    <a class="nav-link text-white opacity-75 custom-hover py-1 d-flex align-items-center gap-1" href="#">
+                        <!-- Стандартная иконка bi-box-arrow-in-right с корректными координатами -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M6 3.5a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h8a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 0-1 0v2A1.5 1.5 0 0 0 14.5 14h-8A1.5 1.5 0 0 0 5 12.5v-2a.5.5 0 0 0-1 0v2A2.5 2.5 0 0 0 6.5 15h8a2.5 2.5 0 0 0 2.5-2.5v-9A2.5 2.5 0 0 0 14.5 1h-8A2.5 2.5 0 0 0 4 3.5v2a.5.5 0 0 0 1 0z"/>
+                            <path fill-rule="evenodd" d="M11.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H1.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708z"/>
+                        </svg>
+                        Войти
+                    </a>
                 </li>
                 <li class="nav-item">
-                    <!-- Кнопка создания, работающая по общему правилу яркости -->
-                    <a class="nav-link text-warning opacity-75 custom-hover py-1 d-flex align-items-center gap-1.5" href="{% url 'daily:task_create' %}">
-                        <svg xmlns="http://w3.org" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle;">
-                            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                    <a class="nav-link text-white opacity-75 custom-hover py-1 d-flex align-items-center gap-1" href="#">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M12.5 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm.5-5v1h1a.5.5 0 0 1 0 1h-1v1a.5.5 0 0 1-1 0v-1h-1a.5.5 0 0 1 0-1h1v-1a.5.5 0 0 1 1 0Zm-2-6a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM8 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/>
+                            <path d="M8.256 14a4.474 4.474 0 0 1-.229-1.004H3c.001-.246.154-.986.832-1.664C4.484 10.68 5.711 10 8 10c.26 0 .507.009.74.025.226-.341.496-.65.804-.918C8.844 9.047 8.434 9 8 9c-5 0-6 3-6 4s1 1 1 1h5.256Z"/>
                         </svg>
-                        <span class="fw-bold">Создать задачу</span>
+                        Регистрация
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white opacity-75 custom-hover py-1 d-flex align-items-center gap-1" href="#">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
+                            <path fill-rule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+                        </svg>
+                        Выйти
                     </a>
                 </li>
             </ul>
-
         </div>
     </div>
 </nav>
-
-<!-- Маленький блок стилей для реализации плавного изменения яркости -->
-<style>
-    .custom-hover {
-        transition: opacity 0.2s ease-in-out, color 0.2s ease-in-out;
-    }
-    .custom-hover:hover {
-        opacity: 1 !important;
-    }
-</style>

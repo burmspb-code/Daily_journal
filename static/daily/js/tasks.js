@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const checkedBoxes = document.querySelectorAll('.task-checkbox:checked');
         const count = checkedBoxes.length;
 
-        // Управление кнопкой пакетного удаления
         if (count > 0) {
             if (btnDelete) btnDelete.classList.remove('d-none');
             if (selectedCountSpan) selectedCountSpan.textContent = count;
@@ -20,7 +19,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (btnDelete) btnDelete.classList.add('d-none');
         }
 
-        // Управление кнопкой редактирования (только для 1 выбранной задачи)
         if (count === 1) {
             if (btnEdit) btnEdit.classList.remove('d-none');
         } else {
@@ -28,7 +26,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Слушатель для главного чекбокса "Выбрать все"
     if (selectAllCheckbox) {
         selectAllCheckbox.addEventListener('change', function () {
             taskCheckboxes.forEach(cb => cb.checked = this.checked);
@@ -36,7 +33,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Слушатели для индивидуальных чекбоксов задач
     taskCheckboxes.forEach(cb => {
         cb.addEventListener('change', function () {
             if (!this.checked && selectAllCheckbox) {
@@ -46,25 +42,133 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Закрытие выпадающих окон фильтрации при клике вне их области
-    document.addEventListener('click', function (e) {
-        if (!e.target.closest('.position-relative')) {
-            document.querySelectorAll('.header-filter-popup').forEach(popup => {
-                popup.style.display = 'none';
-            });
+    // === УНИВЕРСАЛЬНОЕ И СТАБИЛЬНОЕ АВТОЗАКРЫТИЕ ДЛЯ ВСЕХ МЕНЮ (БЕЗ БАГОВ) ===
+    const allDropdowns = document.querySelectorAll('.dropdown');
+
+    allDropdowns.forEach(dropdownWrapper => {
+        let closeTimeout = null;
+
+        dropdownWrapper.addEventListener('mouseleave', function () {
+            if (!closeTimeout) {
+                closeTimeout = setTimeout(() => {
+                    const toggleBtn = dropdownWrapper.querySelector('[data-bs-toggle="dropdown"]');
+                    if (toggleBtn) {
+                        const bsDropdown = bootstrap.Dropdown.getOrCreateInstance(toggleBtn);
+                        if (bsDropdown) {
+                            bsDropdown.hide();
+                        }
+                    }
+                }, 500);
+            }
+        });
+
+        dropdownWrapper.addEventListener('mouseenter', function () {
+            if (closeTimeout) {
+                clearTimeout(closeTimeout);
+                closeTimeout = null;
+            }
+        });
+    });
+
+    // === РЕДАКТИРОВАНИЕ НАЗВАНИЯ ЗАКЛАДКИ (ИСПРАВЛЕННАЯ СИНХРОНИЗАЦИЯ) ===
+    let originalText = ""; // Глобальный буфер для отмены изменений
+
+    // Запоминаем текст в момент фокуса (клик по полю)
+    document.addEventListener('focusin', function(e) {
+        if (e.target.classList.contains('editable-bookmark-name')) {
+            originalText = e.target.innerText.trim();
         }
     });
+
+    // Обработка клавиш Enter (сохранение) и Escape (отмена)
+    document.addEventListener('keydown', function(e) {
+        if (e.target.classList.contains('editable-bookmark-name')) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Намертво запрещаем перенос строки
+                e.target.blur();    // Спровоцирует событие потери фокуса для сохранения
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.target.innerText = originalText; // Корректно откатываем к актуальному старому значению
+                e.target.blur();
+            }
+        }
+    });
+
+    // Сохранение изменений при потере фокуса
+    document.addEventListener('focusout', function(e) {
+        if (!e.target.classList.contains('editable-bookmark-name')) return;
+
+        const editableField = e.target;
+        const newName = editableField.innerText.trim();
+        const bookmarkId = editableField.getAttribute('data-id');
+
+        // Если текст пустой или не изменился — отменяем отправку
+        if (newName === '' || newName === originalText) {
+            editableField.innerText = originalText;
+            return;
+        }
+
+        // Отправка AJAX-запроса на бэкенд
+        fetch('/daily/bookmark/update-api/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                id: bookmarkId,
+                name: newName
+            })
+        })
+        .then(response => {
+            if (response.ok) {
+                originalText = newName; // Обновляем буфер актуальным именем
+
+                // Синхронно меняем текст во всех элементах выпадающего меню с этим ID
+                const connectedLinks = document.querySelectorAll(`.bookmark-link-name[data-id="${bookmarkId}"]`);
+                connectedLinks.forEach(link => {
+                    link.innerText = newName;
+                });
+
+            } else {
+                alert('Не удалось сохранить изменения.');
+                editableField.innerText = originalText;
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка AJAX:', error);
+            editableField.innerText = originalText;
+        });
+    });
 });
+
+// Вспомогательная функция (вынесена за пределы DOMContentLoaded, чтобы не загромождать код)
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
 
 // Управление показом кастомных окон фильтрации в шапке таблицы
 function toggleFilterPopup(event, popupId) {
     event.stopPropagation();
     const popup = document.getElementById(popupId);
     if (!popup) return;
-    
+
     const isOpen = popup.style.display === 'block';
     document.querySelectorAll('.header-filter-popup').forEach(p => p.style.display = 'none');
-    
+
     if (!isOpen) {
         popup.style.display = 'block';
     }
