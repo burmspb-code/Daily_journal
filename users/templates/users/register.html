@@ -1,0 +1,109 @@
+<!-- users/templates/users/register.html -->
+{% extends 'daily/base.html' %}
+
+{% block title %}Регистрация нового пользователя | Daily Journal{% endblock %}
+
+{% block content %}
+<!-- Подключение JS-скриптов капчи -->
+{{ form.media }}
+
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-6">
+            <div class="card shadow border-0 rounded-3">
+                <div class="card-body p-4 p-sm-5">
+
+                    <h2 class="card-title text-center mb-4 fw-bold text-dark">
+                        <i class="bi bi-person-plus-fill text-primary me-2"></i>Регистрация
+                    </h2>
+
+                    <form method="post" enctype="multipart/form-data" novalidate>
+                        {% csrf_token %}
+
+                        <!-- Перебираем видимые поля для автоматической кастомной стилизации -->
+                        {% for field in form.visible_fields %}
+                            {# Капчу обрабатываем отдельно ниже, чтобы не ломать её верстку общими классами #}
+                            {% if field.name != 'captcha' %}
+                                <div class="mb-3">
+                                    <label for="{{ field.id_for_label }}" class="form-label fw-semibold text-secondary">
+                                        {{ field.label }}
+                                    </label>
+
+                                    <!-- Django автоматически сгенерирует нужный инпут (email, file, select) -->
+                                    {{ field.as_widget }}
+
+                                    <!-- Скрипт на лету вешает классы Bootstrap на инпуты, селекторы и файлы -->
+                                    <script>
+                                        (function() {
+                                            const el = document.getElementById('{{ field.id_for_label }}');
+                                            if (el) {
+                                                // Для файлов используем form-control, для выпадающих списков — form-select
+                                                if (el.tagName === 'SELECT') {
+                                                    el.classList.add('form-select');
+                                                } else {
+                                                    el.classList.add('form-control');
+                                                }
+                                                {% if field.errors %}
+                                                    el.classList.add('is-invalid');
+                                                {% endif %}
+                                            }
+                                        })();
+                                    </script>
+
+                                    <!-- Вывод ошибок конкретного поля -->
+                                    {% if field.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ field.errors|striptags }}
+                                        </div>
+                                    {% endif %}
+
+                                    {% if field.help_text %}
+                                        <div class="form-text text-muted small">{{ field.help_text|safe }}</div>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+
+                        <!-- БЛОК КАПЧИ: Вынесен отдельно для точечной настройки -->
+                        {% if form.captcha %}
+                            <div class="mb-4 d-flex flex-column align-items-center justify-content-center bg-light p-3 rounded-3 border">
+                                <label class="form-label fw-semibold text-secondary mb-2">{{ form.captcha.label }}</label>
+                                <div class="captcha-wrapper">
+                                    {{ form.captcha }}
+                                </div>
+                                {% if form.captcha.errors %}
+                                    <div class="invalid-feedback d-block text-center mt-2">
+                                        {{ form.captcha.errors|striptags }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+
+                        <!-- Ошибки всей формы -->
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger border-0 shadow-sm mb-3" role="alert">
+                                {% for error in form.non_field_errors %}
+                                    <i class="bi bi-exclamation-octagon-fill me-2"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <!-- Кнопка создания аккаунта -->
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg shadow-sm">
+                                <i class="bi bi-check-circle-fill me-2"></i>Создать аккаунт
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="text-center mt-4 border-top pt-3">
+                        <span class="text-muted small">Уже зарегистрированы?</span>
+                        <a href="{% url 'users:login' %}" class="text-decoration-none small fw-bold ms-1">Войти</a>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,31 @@
+<!-- users/templates/users/email_confirmation_failed.html -->
+{% extends 'daily/base.html' %}
+
+{% block title %}Ошибка активации | Daily Journal{% endblock %}
+
+{% block content %}
+<div class="container my-5 text-center">
+    <!-- Карточка ошибки в едином стиле с остальными окнами подтверждения -->
+    <div class="card shadow border-0 p-4 p-sm-5 mx-auto" style="max-width: 500px; border-radius: 1rem;">
+        <!-- Залитая иконка предупреждения выглядит более весомо и современно -->
+        <i class="bi bi-exclamation-triangle-fill text-danger display-1 mb-4"></i>
+
+        <h2 class="fw-bold mb-3 text-dark">Ошибка активации</h2>
+
+        <p class="text-muted small">
+            Ссылка для подтверждения недействительна или её срок действия истек.
+            Пожалуйста, попробуйте зарегистрироваться снова или обратитесь в службу поддержки.
+        </p>
+
+        <!-- Кнопки действий с иконками для улучшения UX -->
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">
+            <a href="{% url 'users:register' %}" class="btn btn-primary shadow-sm px-4">
+                <i class="bi bi-person-plus-fill me-2"></i>Регистрация
+            </a>
+            <a href="{% url 'users:login' %}" class="btn btn-outline-secondary px-4">
+                <i class="bi bi-box-arrow-in-right me-2"></i>На страницу входа
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

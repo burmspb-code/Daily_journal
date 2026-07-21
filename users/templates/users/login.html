@@ -1,0 +1,81 @@
+{% extends 'daily/base.html' %}
+
+{% block title %}Вход | Daily Journal{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-6 col-lg-5">
+            <div class="card shadow border-0 rounded-3">
+                <div class="card-body p-4 p-sm-5">
+                    <h2 class="card-title text-center mb-4 fw-bold text-dark">
+                        <i class="bi bi-journal-bookmark-fill text-primary me-2"></i>Daily Journal
+                    </h2>
+                    <p class="text-center text-muted small mb-4">Войдите, чтобы продолжить свои записи</p>
+
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        {% for hidden_field in form.hidden_fields %}
+                            {{ hidden_field }}
+                        {% endfor %}
+
+                        {% for field in form.visible_fields %}
+                            <div class="mb-3">
+                                <label for="{{ field.id_for_label }}" class="form-label fw-semibold text-secondary">
+                                    {{ field.label }}
+                                </label>
+                                {% if field.field.widget.input_type == 'checkbox' %}
+                                    <div class="form-check">
+                                        {{ field }}
+                                    </div>
+                                {% else %}
+                                    {{ field.as_widget }}
+                                    <script>
+                                        document.getElementById('{{ field.id_for_label }}').classList.add('form-control');
+                                        {% if field.errors %}
+                                            document.getElementById('{{ field.id_for_label }}').classList.add('is-invalid');
+                                        {% endif %}
+                                    </script>
+                                {% endif %}
+
+                                {% if field.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ field.errors|striptags }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger border-0 shadow-sm mb-3" role="alert">
+                                {% for error in form.non_field_errors %}
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg shadow-sm">
+                                <i class="bi bi-pencil-square me-2"></i>Открыть журнал
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="text-center mt-4 border-top pt-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            {# Ссылки теперь ведут на пространство имен users #}
+                            <a href="{% url 'users:password_reset' %}" class="text-decoration-none small text-muted">
+                                <i class="bi bi-question-circle me-1"></i>Забыли пароль?
+                            </a>
+                            <div>
+                                <span class="text-muted small">Впервые у нас?</span>
+                                <a href="{% url 'users:register' %}" class="text-decoration-none small fw-bold ms-1">Создать дневник</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

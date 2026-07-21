@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
 
     "daily", # Основно пользовательское приложение
+    "users",
 ]
 
 MIDDLEWARE = [
@@ -116,3 +117,6 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
+
+# Указываем Django использовать вашу модель вместо встроенной
+AUTH_USER_MODEL = 'users.CustomUser'
