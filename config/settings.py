@@ -118,5 +118,34 @@ STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
 
-# Указываем Django использовать вашу модель вместо встроенной
+# Указываем Django использовать кастомную модель вместо встроенной
 AUTH_USER_MODEL = 'users.CustomUser'
+
+# Использование SMTP для отправки писем
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+# Конфигурация SMTP Яндекс
+EMAIL_HOST = "smtp.yandex.ru"
+EMAIL_PORT = 465  # Яндекс использует порт 465 для SSL
+EMAIL_USE_SSL = True  # Использование SSL вместо TLS (для Яндекса это надежнее)
+EMAIL_USE_TLS = False  # Отключаем TLS
+
+# Логин и пароль приложения почты
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+
+# 16-значный пароль приложения почты
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+
+# Email отправителя по умолчанию
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
+
+# Email для получения уведомлений о просмотрах
+EMAIL_ADMIN_NOTIFICATION = os.getenv("EMAIL_ADMIN_NOTIFICATION")
+
+# Настройки перенаправления для системы аутентификации
+LOGIN_REDIRECT_URL = "daily:task_list"  # Куда направлять после успешного входа
+LOGIN_URL = "users:login"  # Куда отправлять неавторизованного пользователя
+LOGOUT_REDIRECT_URL = "daily:task_list"  # Куда направлять после успешного выхода
+
+# Регион по умолчанию для валидации номеров (ISO 3166-1 alpha-2)
+PHONENUMBER_DEFAULT_REGION = "RU"

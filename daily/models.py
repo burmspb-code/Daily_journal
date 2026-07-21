@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -18,6 +19,14 @@ class Bookmark(models.Model):
     description = models.TextField(
         verbose_name="Описание",
         help_text="Введите описание закладки"
+    )
+
+    # Связь с моделью пользователя
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="bookmarks",
+        verbose_name="Автор"
     )
 
     class Meta:
@@ -84,6 +93,14 @@ class Task(models.Model):
         related_name="tasks",
         verbose_name="Закладка",
         help_text="Выберите закладку"
+    )
+
+    # Связь с моделью пользователя
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="tasks",
+        verbose_name="Автор"
     )
 
     class Meta:

@@ -11,8 +11,8 @@ from django import forms
 
 from django.contrib.auth.forms import UserCreationForm
 # Импортируем библиотеки для работы капчи
-from django_recaptcha.fields import ReCaptchaField
-from django_recaptcha.widgets import ReCaptchaV2Checkbox
+#from django_recaptcha.fields import ReCaptchaField
+#from django_recaptcha.widgets import ReCaptchaV2Checkbox
 
 from users.models import CustomUser
 
@@ -21,11 +21,11 @@ class CustomUserCreateForm(UserCreationForm):
     """Форма для регистрации пользователя на основе кастомной модели."""
 
     # Капча объявлена как обязательное поле класса для защиты от спам-регистраций
-    captcha = ReCaptchaField(
-        label="Проверка на робота",
-        widget=ReCaptchaV2Checkbox(),
-        error_messages={"required": "Пожалуйста, подтвердите, что вы не робот."},
-    )
+    # captcha = ReCaptchaField(
+    #     label="Проверка на робота",
+    #     widget=ReCaptchaV2Checkbox(),
+    #     error_messages={"required": "Пожалуйста, подтвердите, что вы не робот."},
+    # )
 
     class Meta(UserCreationForm.Meta):
         """Класс метаданных."""

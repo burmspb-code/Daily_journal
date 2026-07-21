@@ -1,6 +1,8 @@
 import json
 
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.views import View
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
@@ -9,7 +11,7 @@ from .forms import TaskForm, BookmarkForm
 from .models import Task, Bookmark
 
 
-class TaskListView(ListView):
+class TaskListView(LoginRequiredMixin, ListView):
     """Представление для вывода списка задач на веб-страницу."""
     model = Task
     template_name = 'daily/task_list.html'
@@ -120,20 +122,28 @@ class TaskListView(ListView):
         return context
 
 
-class TaskCreateView(CreateView):
+class TaskCreateView(LoginRequiredMixin, CreateView):
     """
-    Представление для создания задачи через AJAX.
+    Представление для создания задачи через AJAX/HTMX.
 
-    При успешном сохранении возвращает JSON с URL-адресом для динамического редиректа.
+    Автоматически привязывает авторизованного пользователя к задаче
+    и возвращает JSON-ответ для динамического перенаправления на фронтенде.
     """
     model = Task
     context_object_name = "task"
     form_class = TaskForm
 
+    first_bookmark = None
+
     def dispatch(self, request, *args, **kwargs):
         """Жесткая проверка: если закладок в базе нет, не выводим форму."""
-        if not Bookmark.objects.exists():
+        # Оптимизация: сохраняем первую закладку сразу в память класса,
+        # чтобы не делать повторный запрос в get_initial
+        self.first_bookmark = Bookmark.objects.order_by('id').first()
+
+        if not self.first_bookmark:
             return redirect('daily:task_list')
+
         return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
@@ -141,36 +151,40 @@ class TaskCreateView(CreateView):
         initial = super().get_initial()
         bookmark_id = self.request.GET.get('bookmark')
 
+        # Если в GET-запросе передан ID, берем его, иначе — ID первой закладки из dispatch
         if bookmark_id:
             initial['bookmark'] = bookmark_id
-        else:
-            first_bookmark = Bookmark.objects.order_by('id').first()
-            if first_bookmark:
-                initial['bookmark'] = first_bookmark.id
+        elif self.first_bookmark:
+            initial['bookmark'] = self.first_bookmark.id
 
         return initial
 
     def get_success_url(self):
-        """
-        Защищенный метод динамического редиректа.
-        Гарантирует возврат пользователя на текущую открытую вкладку.
-        """
-        # Шаг 1: Пробуем вытащить ID закладки напрямую из адресной строки GET (?bookmark=2)
+        """Формирует точный URL-адрес для возврата на текущую открытую вкладку."""
         bookmark_id = self.request.GET.get('bookmark')
 
-        # Шаг 2: Если в GET пусто (маловероятно), берем ID из только что сохраненного объекта задачи
         if not bookmark_id and self.object and self.object.bookmark:
             bookmark_id = self.object.bookmark.id
 
-        # Шаг 3: Если ID успешно найден, формируем точный кумулятивный URL
         if bookmark_id:
             return f"{reverse('daily:task_list')}?bookmark={bookmark_id}"
 
-        # Шаг 4: Жесткий "план Б" — если закладка не определилась, возвращаем на базовый список без падения сервера
         return reverse("daily:task_list")
 
+    def form_valid(self, form):
+        """
+        Обработка успешной валидации формы.
 
-class TaskUpdateApiView(UpdateView):
+        Привязывает текущего пользователя к задаче и возвращает JSON-ответ
+        вместо классического серверного редиректа.
+        """
+        # 1. Привязываем автора
+        form.instance.owner = self.request.user
+
+        # 2. Возвращаем стандартный метод (он сам сделает обычный редирект)
+        return super().form_valid(form)
+
+class TaskUpdateApiView(LoginRequiredMixin, UpdateView):
     """
     Представление для редактирования задачи.
 
@@ -256,7 +270,7 @@ class TaskUpdateApiView(UpdateView):
         }, status=400)
 
 
-class TaskDeleteApiView(DeleteView):
+class TaskDeleteApiView(LoginRequiredMixin, DeleteView):
     """
     Представление для удаления задачи.
 
@@ -296,7 +310,7 @@ class TaskDeleteApiView(DeleteView):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
 
 
-class BookmarkCreateView(CreateView):
+class BookmarkCreateView(LoginRequiredMixin, CreateView):
     """
     Представление для создания новой закладки.
 
@@ -315,8 +329,20 @@ class BookmarkCreateView(CreateView):
         # self.object — это только что сохраненный в базу данных экземпляр Bookmark
         return f"{reverse('daily:task_list')}?bookmark={self.object.id}"
 
+    def form_valid(self, form):
+        """
+        После успешного заполнения формы создания закладки добавляем
+        в форму авторизованного пользователя вручную, т.к. данное поле
+        отсутствует в форме.
+        """
+        # 1. Привязываем к полю owner объект текущего авторизованного пользователя
+        form.instance.owner = self.request.user
 
-class BookmarkUpdateApiView(View):
+        # 2. Запускаем стандартный процесс сохранения формы Django
+        return super().form_valid(form)
+
+
+class BookmarkUpdateApiView(LoginRequiredMixin, View):
     """
     API-представление для быстрого переименования закладки.
 
