@@ -18,12 +18,64 @@
 
         <div class="collapse navbar-collapse" id="navbarNav">
 
-            <!-- Левый блок: Аутентификация -->
-            <ul class="navbar-nav align-items-center gap-3 ms-lg-4">
+            <!-- Левый блок: Навигация по закладкам и кнопка создания -->
+            <ul class="navbar-nav align-items-center gap-4">
+                <!-- Выпадающее меню закладок -->
+                <li class="nav-item dropdown position-relative">
+                    <a class="nav-link dropdown-toggle-custom text-white opacity-75 custom-hover py-1 d-flex align-items-center gap-1"
+                       href="#" id="bookmarksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-offset="0,4">
+                        <!-- Иконка перед словом Закладки -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 2px;">
+                            <path d="M2 2v13.5a.5.5 0 0 0 .74.439L8 13.069l5.26 2.87A.5.5 0 0 0 14 15.5V2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/>
+                        </svg>
+                        Закладки
+                        <!-- Стрелочка вниз -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" style="margin-left: 2px; opacity: 0.8;">
+                            <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                        </svg>
+                    </a>
+
+                    <!-- Меню теперь открывается вправо, выравниваясь по левому краю ссылки (класс dropdown-menu-end убран) -->
+                    <ul class="dropdown-menu shadow-lg custom-dropdown-menu p-0 m-0" aria-labelledby="bookmarksDropdown" style="border: 1px solid #444;">
+                        <!-- Кнопка создания закладки -->
+                        <li>
+                            <a class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" href="{% url 'daily:bookmark_create' %}">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" class="text-white">
+                                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 .5-.5z"/>
+                                </svg>
+                                <strong>Создать</strong>
+                            </a>
+                        </li>
+
+                        <!-- Светло-серая разделительная линия -->
+                        <li><hr class="dropdown-divider m-0" style="border-top: 1px solid rgba(255, 255, 255, 0.15); opacity: 1;"></li>
+
+                        {% if bookmarks %}
+                            {% for bookmark in bookmarks %}
+                                <li>
+                                    <a class="dropdown-item py-2 px-3 d-flex align-items-center gap-2" href="{% url 'daily:task_list' %}?bookmark={{ bookmark.id }}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" class="text-white-50">
+                                            <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.545a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/>
+                                        </svg>
+                                        <span class="bookmark-link-name" data-id="{{ bookmark.id }}">{{ bookmark.name }}</span>
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        {% else %}
+                            <li><span class="dropdown-item-text text-white-50 small py-2 px-3">Нет закладок</span></li>
+                        {% endif %}
+                    </ul>
+                </li>
+            </ul>
+
+            <!-- Правый block: Аутентификация -->
+            <ul class="navbar-nav align-items-center gap-3 ms-auto">
                 <li class="nav-item">
                     <a class="nav-link text-white opacity-75 custom-hover py-1 d-flex align-items-center gap-1" href="#">
+                        <!-- Стандартная иконка bi-box-arrow-in-right с корректными координатами -->
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                            <path fill-rule="evenodd" d="M1 8a7 7 0 1 1 14 0A7 7 0 0 1 1 8zm10.5A3.5 3.5 0 1 0 8 11.5a3.5 3.5 0 0 0 3.5-3.5zM8 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
+                            <path fill-rule="evenodd" d="M6 3.5a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h8a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 0-1 0v2A1.5 1.5 0 0 0 14.5 14h-8A1.5 1.5 0 0 0 5 12.5v-2a.5.5 0 0 0-1 0v2A2.5 2.5 0 0 0 6.5 15h8a2.5 2.5 0 0 0 2.5-2.5v-9A2.5 2.5 0 0 0 14.5 1h-8A2.5 2.5 0 0 0 4 3.5v2a.5.5 0 0 0 1 0z"/>
+                            <path fill-rule="evenodd" d="M11.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H1.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708z"/>
                         </svg>
                         Войти
                     </a>
@@ -47,58 +99,6 @@
                     </a>
                 </li>
             </ul>
-
-            <!-- Правый блок: Навигация по закладкам и кнопка создания -->
-            <ul class="navbar-nav align-items-center gap-4 ms-auto">
-                <!-- Выпадающее меню закладок -->
-                <li class="nav-item dropdown">
-                    <!-- Добавлен атрибут data-bs-offset для смещения меню ровно к верхнему краю ссылки -->
-                    <a class="nav-link dropdown-toggle-custom text-white opacity-75 custom-hover py-1 d-flex align-items-center gap-1"
-                       href="#" id="bookmarksDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-offset="0,-32">
-                        <!-- Иконка перед словом Закладки -->
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 2px;">
-                            <path d="M2 2v13.5a.5.5 0 0 0 .74.439L8 13.069l5.26 2.87A.5.5 0 0 0 14 15.5V2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/>
-                        </svg>
-                        Закладки
-                        <!-- Стрелочка вниз -->
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" style="margin-left: 2px; opacity: 0.8;">
-                            <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
-                        </svg>
-                    </a>
-
-                    <ul class="dropdown-menu dropdown-menu-end shadow-lg custom-dropdown-menu p-0 m-0" aria-labelledby="bookmarksDropdown">
-                        <!-- Кнопка создания закладки -->
-                        <li>
-                            <a class="dropdown-item py-1 px-3 d-flex align-items-center gap-2" href="{% url 'daily:bookmark_create' %}">
-                                <!-- Размер увеличен до 20, класс text-white делает иконку максимально яркой -->
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" class="text-white">
-                                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 .5-.5z"/>
-                                </svg>
-                                <strong>Создать</strong>
-                            </a>
-                        </li>
-
-                        <!-- Светло-серая разделительная линия для темного фона -->
-                        <li><hr class="dropdown-divider border-light m-0" style="opacity: 0.25;"></li>
-
-                        {% if bookmarks %}
-                            {% for bookmark in bookmarks %}
-                                <li>
-                                    <a class="dropdown-item py-1 px-3 d-flex align-items-center gap-2" href="{% url 'daily:task_list' %}?bookmark={{ bookmark.id }}">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" class="text-white-50">
-                                            <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5V2zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.545a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1H4z"/>
-                                        </svg>
-                                        {{ bookmark.name }}
-                                    </a>
-                                </li>
-                            {% endfor %}
-                        {% else %}
-                            <li><span class="dropdown-item-text text-white-50 small py-1 px-3">Нет закладок</span></li>
-                        {% endif %}
-                    </ul>
-                </li>
-            </ul>
-
         </div>
     </div>
 </nav>

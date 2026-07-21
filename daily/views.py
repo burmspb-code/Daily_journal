@@ -1,22 +1,37 @@
 import json
+
 from django.http import JsonResponse
+from django.urls import reverse
+from django.views import View
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
-from django.urls import reverse_lazy, reverse
-from .models import Task, Bookmark
+
 from .forms import TaskForm, BookmarkForm
+from .models import Task, Bookmark
 
 
 class TaskListView(ListView):
-    """Контроллек для вывода списка задач."""
+    """Представление для вывода списка задач на веб-страницу."""
     model = Task
     template_name = 'daily/task_list.html'
     context_object_name = 'tasks'  # Переменная, которая пойдет в HTML-шаблон
 
     def get_queryset(self):
+        """Возвращает отфильтрованный и отсортированный набор задач.
+
+        Выполняет многоступенчатую обработку выборки из базы данных PostgreSQL
+        на основе GET-параметров запроса:
+        1. Изолирует задачи, принадлежащие только текущей активной закладке.
+        2. Фильтрует записи по точному совпадению наименования (если выбрано).
+        3. Фильтрует записи по цифровому флагу статуса управления.
+        4. Применяет запрошенный тип сортировки (по хронологии, алфавиту или ID).
+
+        Returns:
+            QuerySet: Отфильтрованный и упорядоченный набор объектов Task.
+        """
         # Получаем базовый набор всех записей из PostgreSQL
         queryset = super().get_queryset()
 
-        # Фильтрация задач по текущей закладке (чтобы не валить всё в кучу)
+        # 1. Фильтрация задач по текущей закладке (чтобы не валить всё в кучу)
         bookmark_id = self.request.GET.get('bookmark')
         if bookmark_id:
             queryset = queryset.filter(bookmark_id=bookmark_id)
@@ -28,24 +43,32 @@ class TaskListView(ListView):
             else:
                 queryset = queryset.none()  # Если закладок нет вообще — возвращаем пустоту
 
-        # Фильтрация по наименованию задачи
+        # 2. Фильтрация по наименованию задачи
         name_query = self.request.GET.get('name', '').strip()
         if name_query:
             queryset = queryset.filter(name=name_query)
 
-        # Фильтрация по флагу управления
+        # 3. Фильтрация по флагу управления
         flag_query = self.request.GET.get('flag', '')
         if flag_query != '':
             queryset = queryset.filter(status_flag=int(flag_query))
 
-        # Сортировка по времени создания или по умолчанию (PK)
-        sort_query = self.request.GET.get('sort', '')
+        # 4. Многовариантная сортировка записей
+        sort_query = self.request.GET.get('sort', '').strip()
+
         if sort_query == 'newest':
             queryset = queryset.order_by('-created_at', '-id')
         elif sort_query == 'oldest':
             queryset = queryset.order_by('created_at', 'id')
+        elif sort_query == 'name_asc':
+            # Алфавитный порядок (А -> Я)
+            queryset = queryset.order_by('name')
+        elif sort_query == 'name_desc':
+            # Обратный алфавитный порядок (Я -> А)
+            queryset = queryset.order_by('-name')
         else:
-            queryset = queryset.order_by('id')  # Наш сброс — сортировка по порядку PK
+            # Наш сброс («Исходное состояние») — сортировка по порядку PK
+            queryset = queryset.order_by('id')
 
         return queryset
 
@@ -98,7 +121,11 @@ class TaskListView(ListView):
 
 
 class TaskCreateView(CreateView):
-    """Контроллер создания задачи с гарантированным динамическим редиректом."""
+    """
+    Представление для создания задачи через AJAX.
+
+    При успешном сохранении возвращает JSON с URL-адресом для динамического редиректа.
+    """
     model = Task
     context_object_name = "task"
     form_class = TaskForm
@@ -144,7 +171,11 @@ class TaskCreateView(CreateView):
 
 
 class TaskUpdateApiView(UpdateView):
-    """Контроллер редактирования задачи."""
+    """
+    Представление для редактирования задачи.
+
+    Принимает измененные данные в формате JSON и возвращает результат через AJAX.
+    """
     model = Task
     # Указываем поля, которые РАЗРЕШЕНО редактировать пользователю
     fields = ['name', 'comment', 'reminder_at']
@@ -226,7 +257,11 @@ class TaskUpdateApiView(UpdateView):
 
 
 class TaskDeleteApiView(DeleteView):
-    """Контроллер удаления задачи."""
+    """
+    Представление для удаления задачи.
+
+    Принимает AJAX-запросы и возвращает статус удаления в формате JSON.
+    """
     model = Task
 
     def get_object(self, queryset=None):
@@ -262,7 +297,11 @@ class TaskDeleteApiView(DeleteView):
 
 
 class BookmarkCreateView(CreateView):
-    """Контроллер создания новой закладки."""
+    """
+    Представление для создания новой закладки.
+
+    Обрабатывает AJAX-запросы и возвращает результат в формате JSON.
+    """
     model = Bookmark
     form_class = BookmarkForm
     template_name = 'daily/bookmark_form.html'  # Укажите путь к вашему HTML-шаблону формы
@@ -275,3 +314,41 @@ class BookmarkCreateView(CreateView):
         """
         # self.object — это только что сохраненный в базу данных экземпляр Bookmark
         return f"{reverse('daily:task_list')}?bookmark={self.object.id}"
+
+
+class BookmarkUpdateApiView(View):
+    """
+    API-представление для быстрого переименования закладки.
+
+    Принимает JSON с идентификатором и новым названием, обновляя
+    исключительно поле 'name' в обход полной формы.
+    """
+
+    def post(self, request, *args, **kwargs):
+        try:
+            # 1. Читаем JSON из тела AJAX-запроса
+            data = json.loads(request.body)
+            bookmark_id = data.get('id')
+            new_name = data.get('name', '').strip()
+
+            # 2. Быстрая проверка данных
+            if not bookmark_id:
+                return JsonResponse({'error': 'ID закладки не передан'}, status=400)
+            if not new_name:
+                return JsonResponse({'error': 'Название не может быть пустым'}, status=400)
+
+            # 3. Находим закладку в базе данных
+            bookmark = Bookmark.objects.get(pk=bookmark_id)
+
+            # 4. Обновляем только имя и сохраняем
+            bookmark.name = new_name
+            bookmark.save(update_fields=['name'])  # update_fields гарантирует, что изменятся только имя
+
+            return JsonResponse({'status': 'success'}, status=200)
+
+        except Bookmark.DoesNotExist:
+            return JsonResponse({'error': 'Закладка не найдена'}, status=404)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Некорректный формат JSON'}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': f'Внутренняя ошибка сервера: {str(e)}'}, status=500)
