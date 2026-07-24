@@ -19,15 +19,19 @@ class TaskForm(forms.ModelForm):
 
     # Переопределяем метод __init__ для обработки даты
     def __init__(self, *args, **kwargs):
+        # 1. Извлекаем пользователя из переданных аргументов контроллера
+        self.user = kwargs.pop('user', None)
+
         super().__init__(*args, **kwargs)
 
         # 1. Логика для существующей даты при редактировании
         if self.instance and self.instance.pk and self.instance.reminder_at:
             self.initial['reminder_at'] = self.instance.reminder_at.strftime('%Y-%m-%dT%H:%M')
 
-        # 2. Настройка выпадающего списка закладок в форме (опционально)
-        # Делаем поле обязательным, так как пустых закладок быть не может
-        self.fields['bookmark'].empty_label = None
+        # 2. Если пользователь передан, фильтруем выпадающий список закладок
+        if self.user:
+            self.fields['bookmark'].queryset = Bookmark.objects.filter(owner=self.user)
+            self.fields['bookmark'].empty_label = "Выберите закладку"
 
 
 class BookmarkForm(forms.ModelForm):
