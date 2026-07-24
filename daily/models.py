@@ -10,7 +10,7 @@ class Bookmark(models.Model):
         name (str): Уникальное или смысловое наименование закладки.
         description (str): Подробное описание назначения данной закладки.
     """
-    name = models.CharField(
+    title = models.CharField(
         max_length=100,
         verbose_name="Наименование",
         help_text="Введите наименование закладки"
@@ -33,10 +33,10 @@ class Bookmark(models.Model):
         """Класс метаданных."""
         verbose_name = "Закладка"
         verbose_name_plural = "Закладки"
-        ordering = ['name']
+        ordering = ['title']
 
     def __str__(self):
-        return self.name
+        return self.title
 
 
 class Task(models.Model):
@@ -55,7 +55,7 @@ class Task(models.Model):
         bookmark (Bookmark): Ссылка на объект закладки, к которой привязана задача.
     """
     # Столбец B: Наименование контрагента/задачи
-    name = models.CharField(
+    title = models.CharField(
         max_length=255,
         verbose_name="Наименование"
     )
@@ -111,4 +111,4 @@ class Task(models.Model):
         ordering = ['id']  # Сортировка по порядку (Столбец A)
 
     def __str__(self):
-        return f"№{self.id} | {self.name} | Флаг: {self.status_flag}"
+        return f"№{self.id} | {self.title} | Флаг: {self.status_flag}"

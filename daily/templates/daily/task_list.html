@@ -26,7 +26,8 @@
                           contenteditable="true"
                           data-id="{{ current_bookmark.id }}"
                           style="cursor: pointer; outline: none; border-bottom: 1px dashed rgba(255,255,255,0.4);">
-                        {{ current_bookmark.name }}
+                        <!-- 1. ИСПРАВЛЕНО: Заменили .name на .title -->
+                        {{ current_bookmark.title }}
                     </span>
                 {% else %}
                     Daily Journal & Tasks
@@ -53,7 +54,7 @@
             Удалить выбранные (<span id="selected-count">0</span>)
         </button>
 
-        <!-- Кнопка редавктировать выбранные задачи -->
+        <!-- Кнопка редактировать выбранные задачи -->
         <button id="btn-edit-selected" class="btn btn-warning btn-sm fw-semibold d-none"
                 onclick="openEditModal()"
                 data-bs-toggle="modal"
@@ -62,18 +63,19 @@
             Редактировать
         </button>
     </div>
-        <div class="d-flex gap-2">
-            <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}{% endif %}"
-               class="btn btn-outline-secondary btn-sm fw-semibold">
-                Сбросить все фильтры
-            </a>
-            <span class="badge bg-info text-dark fs-6 py-2 px-3 shadow-sm fw-semibold">Найдено задач: {{ tasks|length }}</span>
-        </div>
+    <div class="d-flex gap-2">
+        <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}{% endif %}"
+           class="btn btn-outline-secondary btn-sm fw-semibold">
+            Сбросить все фильтры
+        </a>
+        <span class="badge bg-info text-dark fs-6 py-2 px-3 shadow-sm fw-semibold">Найдено задач: {{ tasks|length }}</span>
     </div>
+</div>
 
 <!-- Скрытая форма для отправки GET-запросов фильтрации в класс TaskListView -->
 <form id="hidden-filter-form" method="GET" action="" class="d-none">
-    <input type="hidden" name="name" id="hidden-name" value="{{ current_name }}">
+    <!-- 2. ИСПРАВЛЕНО: Переименовали атрибут name="name" в name="title" и переменную в current_title -->
+    <input type="hidden" name="title" id="hidden-name" value="{{ current_title }}">
     <input type="hidden" name="flag" id="hidden-flag" value="{{ current_flag }}">
     <input type="hidden" name="sort" id="hidden-sort" value="{{ current_sort }}">
 </form>
@@ -107,7 +109,8 @@
 
                                 <!-- 1. Исходное состояние (ФОН КАК У ВСЕХ, БЕЗ ЗЕЛЕНОГО ВЫДЕЛЕНИЯ) -->
                                 <li>
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_name %}name={{ current_name|urlencode }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort="
+                                    <!-- Заменили current_name на current_title, а name= на title= -->
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort="
                                        class="dropdown-item py-2 px-3">
                                         Исходное состояние
                                     </a>
@@ -118,7 +121,8 @@
 
                                 <!-- 2. По возрастанию (А -> Я) -->
                                 <li>
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_name %}name={{ current_name|urlencode }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort=name_asc"
+                                    <!-- Заменили current_name на current_title, а name= на title= -->
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort=name_asc"
                                        class="dropdown-item py-2 px-3">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" class="me-2 text-white-50" style="vertical-align: middle; margin-top: -2px;">
                                             <path d="M10.028 13.5a.5.5 0 0 0 .5.5h3.5a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-3.5a.5.5 0 0 0-.5.5zm1.5-4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-2a.5.5 0 0 0-.5.5zm1-4a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5zM4.5 2.5a.5.5 0 0 0-1 0v9.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L4.5 12.293z"/>
@@ -129,7 +133,8 @@
 
                                 <!-- 3. По убыванию (Я -> А) -->
                                 <li>
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_name %}name={{ current_name|urlencode }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort=name_desc"
+                                    <!-- Заменили current_name на current_title, а name= на title= -->
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort=name_desc"
                                        class="dropdown-item py-2 px-3">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" class="me-2 text-white-50" style="vertical-align: middle; margin-top: -2px;">
                                             <path d="M10.028 3.5a.5.5 0 0 1 .5-.5h3.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3.5a.5.5 0 0 1-.5-.5zm1.5 4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5zm1 4a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5zM4.5 2.5a.5.5 0 0 0-1 0v9.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L4.5 12.293z"/>
@@ -208,7 +213,7 @@
                     </td>
                     <!-- Принудительный text-nowrap для контента ячеек -->
                     <td class="text-start ps-3 align-middle text-muted font-monospace text-nowrap">{{ forloop.counter }}</td>
-                    <td class="fw-bold text-secondary task-name-cell">{{ task.name }}</td>
+                    <td class="fw-bold text-secondary task-title-cell">{{ task.title }}</td>
                     <td class="text-muted text-nowrap">{{ task.created_at|date:"d.m.Y H:i" }}</td>
                     <td class="text-muted text-nowrap">
                         {% if task.reminder_at %}
@@ -258,8 +263,8 @@
                     <input type="hidden" id="edit-task-id">
 
                     <div class="mb-3">
-                        <label for="edit-task-name" class="form-label text-warning">Наименование</label>
-                        <input type="text" class="form-control bg-secondary text-white border-0" id="edit-task-name" required>
+                        <label for="edit-task-title" class="form-label text-warning">Наименование</label>
+                        <input type="text" class="form-control bg-secondary text-white border-0" id="edit-task-title" required>
                     </div>
                     <div class="mb-3">
                         <label for="edit-task-reminder" class="form-label text-warning">Время напоминания</label>

@@ -7,7 +7,7 @@ class TaskForm(forms.ModelForm):
     class Meta:
         """Класс метаданных."""
         model = Task
-        fields = ['name', 'reminder_at', 'comment', 'bookmark']
+        fields = ['title', 'reminder_at', 'comment', 'bookmark']
 
         # Профессиональный штрих: задаем тип поля "Календарь + Время"
         widgets = {
@@ -35,4 +35,4 @@ class BookmarkForm(forms.ModelForm):
     class Meta:
         """Класс метаданных."""
         model = Bookmark
-        fields = ['name', 'description']
+        fields = ['title', 'description']

@@ -28,19 +28,19 @@
                         {% endfor %}
                     {% endif %}
 
-                    <!-- Поле: Название -->
+                    <!-- Поле: Название (ИСПРАВЛЕНО: везде заменено на form.title) -->
                     <div class="mb-3">
-                        <label for="{{ form.name.id_for_label }}" class="form-label fw-semibold small text-secondary">
-                            {{ form.name.label }}
+                        <label for="{{ form.title.id_for_label }}" class="form-label fw-semibold small text-secondary">
+                            {{ form.title.label }}
                         </label>
                         <input type="text"
-                               name="{{ form.name.html_name }}"
-                               id="{{ form.name.id_for_label }}"
-                               class="form-control form-control-sm {% if form.name.errors %}is-invalid{% endif %}"
+                               name="{{ form.title.html_name }}"
+                               id="{{ form.title.id_for_label }}"
+                               class="form-control form-control-sm {% if form.title.errors %}is-invalid{% endif %}"
                                placeholder="Например: Работа, Покупки, Важное"
-                               value="{{ form.name.value|default_if_none:'' }}"
+                               value="{{ form.title.value|default_if_none:'' }}"
                                required>
-                        {% for error in form.name.errors %}
+                        {% for error in form.title.errors %}
                             <div class="invalid-feedback small mt-1">⚠️ {{ error }}</div>
                         {% endfor %}
                     </div>

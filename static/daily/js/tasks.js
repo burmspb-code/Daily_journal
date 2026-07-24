@@ -100,11 +100,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!e.target.classList.contains('editable-bookmark-name')) return;
 
         const editableField = e.target;
-        const newName = editableField.innerText.trim();
+        const newTitle = editableField.innerText.trim(); // Переименовали переменную для ясности
         const bookmarkId = editableField.getAttribute('data-id');
 
         // Если текст пустой или не изменился — отменяем отправку
-        if (newName === '' || newName === originalText) {
+        if (newTitle === '' || newTitle === originalText) {
             editableField.innerText = originalText;
             return;
         }
@@ -118,21 +118,26 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             body: JSON.stringify({
                 id: bookmarkId,
-                name: newName
+                title: newTitle //  ИСПРАВЛЕНО: передаем ключ 'title' вместо 'name'
             })
         })
         .then(response => {
             if (response.ok) {
-                originalText = newName; // Обновляем буфер актуальным именем
+                originalText = newTitle; // Обновляем буфер актуальным именем
 
                 // Синхронно меняем текст во всех элементах выпадающего меню с этим ID
                 const connectedLinks = document.querySelectorAll(`.bookmark-link-name[data-id="${bookmarkId}"]`);
                 connectedLinks.forEach(link => {
-                    link.innerText = newName;
+                    link.innerText = newTitle;
+                });
+            } else {
+                // ВЫВОДИМ ТОЧНУЮ ПРИЧИНУ ОШИБКИ ОТ СЕРВЕРА
+                response.json().then(data => {
+                    alert(`Ошибка сохранения! Причина: ${data.message || 'Неизвестная ошибка сервера'}`);
+                }).catch(() => {
+                    alert(`Сервер вернул критическую ошибку без JSON. Статус: ${response.status}`);
                 });
 
-            } else {
-                alert('Не удалось сохранить изменения.');
                 editableField.innerText = originalText;
             }
         })
@@ -184,7 +189,7 @@ function toggleDateSort() {
     form.submit();
 }
 
-// ЭТАЛОННАЯ ФУНКЦИЯ ОТКРЫТИЯ ОКНА: Простая, чистая, без падений
+// ЭТАЛОННАЯ ФУНКЦИЯ ОТКРЫТИЯ ОКНА: Адаптирована под поле title
 function openEditModal() {
     const selectedCheckbox = document.querySelector('.task-checkbox:checked');
     if (!selectedCheckbox) return;
@@ -193,7 +198,11 @@ function openEditModal() {
     const row = document.getElementById(`task-row-${taskId}`);
     if (!row) return;
 
-    const currentName = row.querySelector('.task-name-cell').textContent.trim();
+    // Читаем данные из ячейки title (заменили класс на .task-title-cell)
+    const currentTitle = row.querySelector('.task-title-cell')
+        ? row.querySelector('.task-title-cell').textContent.trim()
+        : row.querySelector('.task-name-cell').textContent.trim(); // Резерв на случай, если класс в HTML ещё старый
+
     const currentComment = row.querySelector('.task-comment-cell').textContent.trim();
 
     const currentFlagBadge = row.querySelector('.badge');
@@ -215,7 +224,8 @@ function openEditModal() {
     }
 
     document.getElementById('edit-task-id').value = taskId;
-    document.getElementById('edit-task-name').value = currentName;
+    // Записываем значение в инпут (использован новый ID 'edit-task-title')
+    document.getElementById('edit-task-title').value = currentTitle;
     document.getElementById('edit-task-comment').value = currentComment;
     document.getElementById('edit-task-reminder').value = formattedDate;
 
@@ -230,7 +240,8 @@ function saveTaskChanges(event) {
     event.preventDefault();
 
     const taskId = document.getElementById('edit-task-id').value;
-    const updatedName = document.getElementById('edit-task-name').value;
+    // 1. Читаем из инпута с новым ID 'edit-task-title'
+    const updatedTitle = document.getElementById('edit-task-title').value;
     const updatedComment = document.getElementById('edit-task-comment').value;
     const updatedReminder = document.getElementById('edit-task-reminder').value;
 
@@ -246,7 +257,7 @@ function saveTaskChanges(event) {
         },
         body: JSON.stringify({
             id: taskId,
-            name: updatedName,
+            title: updatedTitle, // 2. Отправляем на бэкенд ключ 'title' вместо 'name'
             comment: updatedComment,
             reminder_at: updatedReminder || null
         })
@@ -258,7 +269,12 @@ function saveTaskChanges(event) {
     .then(data => {
         const row = document.getElementById(`task-row-${taskId}`);
         if (row) {
-            row.querySelector('.task-name-cell').textContent = updatedName;
+            // 3. Обновляем ячейку в таблице. Ищем новый класс .task-title-cell, с резервом на старый
+            const titleCell = row.querySelector('.task-title-cell') || row.querySelector('.task-name-cell');
+            if (titleCell) {
+                titleCell.textContent = updatedTitle;
+            }
+
             row.querySelector('.task-comment-cell').textContent = updatedComment;
 
             const reminderCell = row.cells[4];

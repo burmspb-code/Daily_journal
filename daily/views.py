@@ -46,9 +46,9 @@ class TaskListView(LoginRequiredMixin, ListView):
                 queryset = queryset.none()  # Если закладок нет вообще — возвращаем пустоту
 
         # 2. Фильтрация по наименованию задачи
-        name_query = self.request.GET.get('name', '').strip()
+        name_query = self.request.GET.get('title', '').strip()
         if name_query:
-            queryset = queryset.filter(name=name_query)
+            queryset = queryset.filter(title=name_query)
 
         # 3. Фильтрация по флагу управления
         flag_query = self.request.GET.get('flag', '')
@@ -64,10 +64,10 @@ class TaskListView(LoginRequiredMixin, ListView):
             queryset = queryset.order_by('created_at', 'id')
         elif sort_query == 'name_asc':
             # Алфавитный порядок (А -> Я)
-            queryset = queryset.order_by('name')
+            queryset = queryset.order_by('title')
         elif sort_query == 'name_desc':
             # Обратный алфавитный порядок (Я -> А)
-            queryset = queryset.order_by('-name')
+            queryset = queryset.order_by('-title')
         else:
             # Наш сброс («Исходное состояние») — сортировка по порядку PK
             queryset = queryset.order_by('id')
@@ -90,7 +90,7 @@ class TaskListView(LoginRequiredMixin, ListView):
 
         # 1. СОХРАНЕНИЕ ТЕКУЩИХ ФИЛЬТРОВ И СОРТИРОВКИ (для удержания состояния в UI)
         # Извлекаем параметры из адресной строки, чтобы подсветить активные кнопки
-        context['current_name'] = self.request.GET.get('name', '').strip()
+        context['current_title'] = self.request.GET.get('title', '').strip()
         context['current_flag'] = self.request.GET.get('flag', '')
         context['current_sort'] = self.request.GET.get('sort', '')
 
@@ -114,8 +114,8 @@ class TaskListView(LoginRequiredMixin, ListView):
         # 3. ДИНАМИЧЕСКИЙ СБОР ЗАДАЧ ДЛЯ ФИЛЬТРА В ТАБЛИЦЕ (В ПОРЯДКЕ ОТОБРАЖЕНИЯ)
         if current_bookmark:
             # Берём отсортированный набор задач из таблицы и отсекаем пустые имена
-            # Передаём объекты целиком, чтобы в шаблоне были доступны и id, и name
-            context['unique_companies'] = self.get_queryset().exclude(name="")
+            # Передаём объекты целиком, чтобы в шаблоне были доступны и id, и title
+            context['unique_companies'] = self.get_queryset().exclude(title="")
         else:
             context['unique_companies'] = []
 
@@ -192,7 +192,7 @@ class TaskUpdateApiView(LoginRequiredMixin, UpdateView):
     """
     model = Task
     # Указываем поля, которые РАЗРЕШЕНО редактировать пользователю
-    fields = ['name', 'comment', 'reminder_at']
+    fields = ['title', 'comment', 'reminder_at']
 
     def _get_json_data(self):
         """
@@ -249,7 +249,7 @@ class TaskUpdateApiView(LoginRequiredMixin, UpdateView):
 
     def form_valid(self, form):
         """Сохраняет валидную форму и возвращает обновленный статус объекта в формате JSON."""
-        # Сохраняем измененные name, comment и reminder_at
+        # Сохраняем измененные title, comment и reminder_at
         self.object = form.save()
 
         # Перезагружаем объект из базы, чтобы сработал ваш автоматический расчет флага (если он прописан в методе save() модели)
@@ -347,7 +347,7 @@ class BookmarkUpdateApiView(LoginRequiredMixin, View):
     API-представление для быстрого переименования закладки.
 
     Принимает JSON с идентификатором и новым названием, обновляя
-    исключительно поле 'name' в обход полной формы.
+    исключительно поле 'title' в обход полной формы.
     """
 
     def post(self, request, *args, **kwargs):
@@ -355,25 +355,26 @@ class BookmarkUpdateApiView(LoginRequiredMixin, View):
             # 1. Читаем JSON из тела AJAX-запроса
             data = json.loads(request.body)
             bookmark_id = data.get('id')
-            new_name = data.get('name', '').strip()
+            # Исправили имя переменной для соответствия полю модели
+            new_title = data.get('title', '').strip()
 
             # 2. Быстрая проверка данных
             if not bookmark_id:
                 return JsonResponse({'error': 'ID закладки не передан'}, status=400)
-            if not new_name:
+            if not new_title:
                 return JsonResponse({'error': 'Название не может быть пустым'}, status=400)
 
-            # 3. Находим закладку в базе данных
-            bookmark = Bookmark.objects.get(pk=bookmark_id)
+            # 3. Находим закладку в базе данных с проверкой владельца (Безопасность!)
+            bookmark = Bookmark.objects.get(pk=bookmark_id, owner=request.user)
 
-            # 4. Обновляем только имя и сохраняем
-            bookmark.name = new_name
-            bookmark.save(update_fields=['name'])  # update_fields гарантирует, что изменятся только имя
+            # 4. Обновляем только название и сохраняем
+            bookmark.title = new_title
+            bookmark.save(update_fields=['title'])  # Обновляет исключительно title в БД
 
             return JsonResponse({'status': 'success'}, status=200)
 
         except Bookmark.DoesNotExist:
-            return JsonResponse({'error': 'Закладка не найдена'}, status=404)
+            return JsonResponse({'error': 'Закладка не найдена или доступ запрещен'}, status=404)
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Некорректный формат JSON'}, status=400)
         except Exception as e:
