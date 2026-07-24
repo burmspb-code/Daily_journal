@@ -9,7 +9,7 @@
 
 from django import forms
 
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 # Импортируем библиотеки для работы капчи
 #from django_recaptcha.fields import ReCaptchaField
 #from django_recaptcha.widgets import ReCaptchaV2Checkbox
@@ -38,3 +38,23 @@ class CustomUserCreateForm(UserCreationForm):
         super().__init__(*args, **kwargs)
         # Делаем поле email обязательным для заполнения на уровне формы
         self.fields['email'].required = True
+
+
+class CustomUserAdminCreationForm(UserCreationForm):
+    """Специальная форма для создания пользователя В АДМИНКЕ."""
+    class Meta(UserCreationForm.Meta):
+        """Класс метаданных."""
+        model = CustomUser
+        fields = ('username', 'email')  # В админке при создании просим только это
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['email'].required = True
+
+
+class CustomUserChangeForm(UserChangeForm):
+    """Форма для редактирования пользователя в админке."""
+    class Meta(UserChangeForm.Meta):
+        """Класс метаданных."""
+        model = CustomUser
+        fields = '__all__'
