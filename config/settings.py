@@ -100,9 +100,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "ru-ru"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Europe/Moscow"
 
 USE_I18N = True
 
@@ -149,3 +149,6 @@ LOGOUT_REDIRECT_URL = "daily:task_list"  # Куда направлять пос�
 
 # Регион по умолчанию для валидации номеров (ISO 3166-1 alpha-2)
 PHONENUMBER_DEFAULT_REGION = "RU"
+
+# Время жизни токена для восстановления пароля и активации аккаунта (24 часа)
+PASSWORD_RESET_TIMEOUT = 24 * 60 * 60  # 86400 секунд
