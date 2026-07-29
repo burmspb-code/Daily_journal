@@ -122,3 +122,19 @@ th.position-relative {
     from { opacity: 0; }
     to { opacity: 1; }
 }
+/* Наш кастомный стиль для кнопки-закладки */
+.btn-bookmark {
+    background-color: #064e3b !important; /* Глубокий изумрудно-зеленый */
+    border: 1px solid #047857 !important;    /* Яркий кант */
+    transition: filter 0.15s ease-in-out !important;
+}
+
+/* Эффект при наведении (работает нативно для всей кнопки) */
+.btn-bookmark:hover {
+    filter: brightness(1.2) !important; /* Увеличивает яркость всей кнопки на 20% */
+}
+
+/* Оставляем стиль для режима редактирования */
+.editable-bookmark-name:focus {
+    border-bottom: 1px solid #ffc107 !important;
+}

@@ -12,9 +12,9 @@
 <!-- Заголовок страницы -->
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div class="d-flex align-items-center gap-3">
-        <!-- Наименование закладки -->
-        <div class="badge fs-6 py-2 px-3 rounded text-start d-inline-flex align-items-center shadow-sm"
-             style="background-color: #2F4F4F; border: 1px solid #3d6363;">
+        <!-- Наименование закладки — теперь это правильная кнопка Bootstrap -->
+        <div class="btn btn-dark btn-bookmark fs-6 py-2 px-3 rounded text-start d-inline-flex align-items-center shadow-sm"
+             style="cursor: pointer;">
             <h3 class="fw-bold mb-0 fs-6 text-white" style="font-family: inherit;">
                 {% if current_bookmark %}
                     <span class="text-white-50 small fw-normal me-1">
@@ -22,11 +22,10 @@
                             <path d="M2 2v13.5a.5.5 0 0 0 .74.439L8 13.069l5.26 2.87A.5.5 0 0 0 14 15.5V2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/>
                         </svg>
                     </span>
-                    <span class="editable-bookmark-name d-inline-block"
+                    <span class="editable-bookmark-name d-inline-block text-white"
                           contenteditable="true"
                           data-id="{{ current_bookmark.id }}"
-                          style="cursor: pointer; outline: none; border-bottom: 1px dashed rgba(255,255,255,0.4);">
-                        <!-- 1. ИСПРАВЛЕНО: Заменили .name на .title -->
+                          style="outline: none; border-bottom: 1px dashed rgba(255,255,255,0.4);">
                         {{ current_bookmark.title }}
                     </span>
                 {% else %}
@@ -72,12 +71,16 @@
     </div>
 </div>
 
-<!-- Скрытая форма для отправки GET-запросов фильтрации в класс TaskListView -->
+<!-- Скрытая форма для сохранения состояния фильтров -->
 <form id="hidden-filter-form" method="GET" action="" class="d-none">
-    <!-- 2. ИСПРАВЛЕНО: Переименовали атрибут name="name" в name="title" и переменную в current_title -->
-    <input type="hidden" name="title" id="hidden-name" value="{{ current_title }}">
-    <input type="hidden" name="flag" id="hidden-flag" value="{{ current_flag }}">
-    <input type="hidden" name="sort" id="hidden-sort" value="{{ current_sort }}">
+    <!-- ИСПРАВЛЕНО: Добавили поле для сохранения текущей закладки -->
+    <input type="hidden" name="bookmark" value="{% if current_bookmark %}{{ current_bookmark.id }}{% endif %}">
+
+    <!-- Сюда же добавьте поле для флага статуса, если оно используется в других фильтрах -->
+    <input type="hidden" name="flag" value="{{ current_flag }}">
+
+    <!-- Ваше текущее поле сортировки, которое меняет скрипт -->
+    <input type="hidden" id="hidden-sort" name="sort" value="{{ current_sort }}">
 </form>
 
 {% csrf_token %}

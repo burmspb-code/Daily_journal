@@ -4,11 +4,13 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils.dateparse import parse_datetime
 from django.views import View
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+from django.views.generic import ListView, CreateView, DeleteView
 
 from .forms import TaskForm, BookmarkForm
-from .models import Task, Bookmark
+from .models import Bookmark
+from .models import Task
 
 
 class TaskListView(LoginRequiredMixin, ListView):
@@ -18,110 +20,81 @@ class TaskListView(LoginRequiredMixin, ListView):
     context_object_name = 'tasks'  # Переменная, которая пойдет в HTML-шаблон
 
     def get_queryset(self):
-        """Возвращает отфильтрованный и отсортированный набор задач.
-
-        Выполняет многоступенчатую обработку выборки из базы данных PostgreSQL
-        на основе GET-параметров запроса:
-        1. Изолирует задачи, принадлежащие только текущей активной закладке.
-        2. Фильтрует записи по точному совпадению наименования (если выбрано).
-        3. Фильтрует записи по цифровому флагу статуса управления.
-        4. Применяет запрошенный тип сортировки (по хронологии, алфавиту или ID).
-
-        Returns:
-            QuerySet: Отфильтрованный и упорядоченный набор объектов Task.
         """
-        # Выбираем задачи только текущего пользователя
-        queryset = Task.objects.filter(owner=self.request.user)
+        Возвращает отфильтрованный и отсортированный набор задач текущего пользователя.
+        """
+        user = self.request.user
 
-        # 1. Фильтрация задач по текущей закладке (чтобы не валить всё в кучу)
+        # select_related делает SQL JOIN, предотвращая проблему N+1
+        queryset = Task.objects.filter(owner=user).select_related('bookmark', 'owner')
+
+        # 1. Фильтрация по текущей закладке
         bookmark_id = self.request.GET.get('bookmark')
         if bookmark_id:
             queryset = queryset.filter(bookmark_id=bookmark_id)
         else:
-            # Если старт страницы, берем задачи первой закладки (если она есть)
-            first_bookmark = Bookmark.objects.order_by('id').first()
+            # Ищем первую закладку ИМЕННО ЭТОГО пользователя
+            first_bookmark = Bookmark.objects.filter(owner=user).order_by('id').first()
             if first_bookmark:
                 queryset = queryset.filter(bookmark=first_bookmark)
             else:
-                queryset = queryset.none()  # Если закладок нет вообще — возвращаем пустоту
+                return Task.objects.none()
 
-        # 2. Фильтрация по наименованию задачи
+        # 2. Фильтрация по наименованию (лучше использовать __icontains для поиска по подстроке)
         name_query = self.request.GET.get('title', '').strip()
         if name_query:
-            queryset = queryset.filter(title=name_query)
+            queryset = queryset.filter(title__icontains=name_query)
 
-        # 3. Фильтрация по флагу управления
-        flag_query = self.request.GET.get('flag', '')
-        if flag_query != '':
+        # 3. Безопасная фильтрация по флагу управления
+        flag_query = self.request.GET.get('flag', '').strip()
+        if flag_query.isdigit():  # Защита от ValueError (HTTP 500)
             queryset = queryset.filter(status_flag=int(flag_query))
 
-        # 4. Многовариантная сортировка записей
+        # 4. Сортировка записей
+        sort_mapping = {
+            'newest': ['-created_at', '-id'],
+            'oldest': ['created_at', 'id'],
+            'name_asc': ['title'],
+            'name_desc': ['-title'],
+        }
+
         sort_query = self.request.GET.get('sort', '').strip()
+        order_by_fields = sort_mapping.get(sort_query, ['id'])
 
-        if sort_query == 'newest':
-            queryset = queryset.order_by('-created_at', '-id')
-        elif sort_query == 'oldest':
-            queryset = queryset.order_by('created_at', 'id')
-        elif sort_query == 'name_asc':
-            # Алфавитный порядок (А -> Я)
-            queryset = queryset.order_by('title')
-        elif sort_query == 'name_desc':
-            # Обратный алфавитный порядок (Я -> А)
-            queryset = queryset.order_by('-title')
-        else:
-            # Наш сброс («Исходное состояние») — сортировка по порядку PK
-            queryset = queryset.order_by('id')
-
-        return queryset
+        return queryset.order_by(*order_by_fields)
 
     def get_context_data(self, **kwargs):
         """
         Формирует контекст данных для передачи в HTML-шаблон 'task_list.html'.
 
         Обеспечивает:
-        1. Сохранение состояний фильтров и сортировки в формах ввода после перезагрузки страницы.
-        2. Извлечение списка всех закладок для построения навигационного меню.
-        3. Определение текущей активной закладки на основе GET-параметров.
-        4. Изолированный сбор уникальных имён задач, принадлежащих исключительно
-           текущей активной закладке (предотвращает появление чужих фильтров).
+        1. Сохранение состояний фильтров и сортировки для удержания активных элементов в UI.
+        2. Извлечение списка всех закладок текущего пользователя для навигационного меню.
+        3. Определение текущей активной закладки.
         """
         # Получаем базовый контекст от родительского класса ListView
         context = super().get_context_data(**kwargs)
+        user = self.request.user
 
         # 1. СОХРАНЕНИЕ ТЕКУЩИХ ФИЛЬТРОВ И СОРТИРОВКИ (для удержания состояния в UI)
-        # Извлекаем параметры из адресной строки, чтобы подсветить активные кнопки
         context['current_title'] = self.request.GET.get('title', '').strip()
-        context['current_flag'] = self.request.GET.get('flag', '')
-        context['current_sort'] = self.request.GET.get('sort', '')
+        context['current_flag'] = self.request.GET.get('flag', '').strip()
+        context['current_sort'] = self.request.GET.get('sort', '').strip()
 
         # 2. РАБОТА С ЗАКЛАДКАМИ
-        # Вытягиваем абсолютно все закладки для рендеринга пунктов верхнего меню
-        bookmarks_owner = Bookmark.objects.filter(owner=self.request.user)
+        # Вытягиваем закладки только текущего пользователя и сразу сортируем их по ID
+        bookmarks_owner = Bookmark.objects.filter(owner=user).order_by('id')
         context['bookmarks'] = bookmarks_owner
 
         # Извлекаем ID выбранной закладки из GET-параметров URL (?bookmark=ID)
-        bookmark_id = self.request.GET.get('bookmark')
-        if bookmark_id:
-            # Если ID передан в URL, находим соответствующий объект из общего списка
-            context['current_bookmark'] = bookmarks_owner.filter(id=bookmark_id).first()
-        else:
-            # Если параметр отсутствует (первый вход на страницу), дефолтом открываем самую первую закладку
-            context['current_bookmark'] = bookmarks_owner.order_by('id').first()
+        bookmark_id = self.request.GET.get('bookmark', '').strip()
 
-        # Извлекаем определенную закладку в локальную переменную для удобства фильтрации ниже
-        current_bookmark = context['current_bookmark']
-
-        # 3. ДИНАМИЧЕСКИЙ СБОР ЗАДАЧ ДЛЯ ФИЛЬТРА В ТАБЛИЦЕ (В ПОРЯДКЕ ОТОБРАЖЕНИЯ)
-        if current_bookmark:
-            # Выбираем только id и title, убираем дубликаты. База данных отработает мгновенно!
-            context['unique_companies'] = (
-                self.get_queryset()
-                .exclude(title="")
-                .values('id', 'title')
-                .distinct()
-            )
+        if bookmark_id.isdigit():
+            # Если ID передан и это число — находим соответствующий объект
+            context['current_bookmark'] = bookmarks_owner.filter(id=int(bookmark_id)).first()
         else:
-            context['unique_companies'] = []
+            # Если параметр отсутствует или некорректен — берем самую первую закладку
+            context['current_bookmark'] = bookmarks_owner.first()
 
         return context
 
@@ -200,74 +173,77 @@ class TaskCreateView(LoginRequiredMixin, CreateView):
         return kwargs
 
 
-class TaskUpdateApiView(LoginRequiredMixin, UpdateView):
+class TaskUpdateApiView(LoginRequiredMixin, View):
     """
-    Представление для редактирования задачи.
-    Обеспечивает безопасность данных и принимает изменения в формате JSON.
+    API-представление для редактирования задачи.
+    Принимает чистый JSON, производит валидацию и возвращает ответ.
     """
-    model = Task
-    fields = ['title', 'comment', 'reminder_at']
-
-    def get_queryset(self):
-        """Блокирует доступ к чужим задачам на уровне SQL-запроса."""
-        return super().get_queryset().filter(owner=self.request.user)
-
-    def _get_json_data(self):
-        """Парсит JSON из тела запроса, кэширует результат и адаптирует формат дат HTML5."""
-        if not hasattr(self, 'json_data'):
-            try:
-                self.json_data = json.loads(self.request.body)
-                if self.json_data.get('reminder_at'):
-                    self.json_data['reminder_at'] = self.json_data['reminder_at'].replace('T', ' ')
-            except (json.JSONDecodeError, TypeError):
-                self.json_data = {}
-        return self.json_data
-
-    def get_object(self, queryset=None):
-        """
-        Извлекает ID задачи и находит объект в базе данных.
-        Благодаря переопределенному get_queryset(), чужие ID вернут None.
-        """
-        data = self._get_json_data()
-        task_id = data.get('id')
-        try:
-            return self.get_queryset().get(id=task_id)
-        except (self.model.DoesNotExist, ValueError):
-            return None
-
-    def get_form_kwargs(self):
-        """Внедряет данные JSON и текущего пользователя в аргументы формы."""
-        kwargs = super().get_form_kwargs()
-        kwargs['data'] = self._get_json_data()
-        # ИСПРАВЛЕНО (Лучшая практика): Передаем пользователя в форму
-        kwargs['user'] = self.request.user
-        return kwargs
 
     def post(self, request, *args, **kwargs):
-        """Проверяет существование объекта и прав на него перед обработкой."""
-        self.object = self.get_object()
-        if self.object is None:
-            # Теперь здесь вернется 404 и при попытке взлома чужой записи
+        try:
+            # 1. Извлекаем данные из тела JSON-запроса
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, TypeError):
+            return JsonResponse({'status': 'error', 'message': 'Невалидный JSON-формат'}, status=400)
+
+        # 2. Ищем задачу текущего пользователя (защита от ID-перебора на уровне SQL)
+        task_id = data.get('id')
+        try:
+            task = Task.objects.get(id=task_id, owner=request.user)
+        except (Task.DoesNotExist, ValueError):
             return JsonResponse({'status': 'error', 'message': 'Задача не найдена или доступ запрещен'}, status=404)
-        return super().post(request, *args, **kwargs)
 
-    def form_valid(self, form):
-        """Сохраняет валидную форму и возвращает обновленный статус объекта в формате JSON."""
-        self.object = form.save()
-        self.object.refresh_from_db()
+        # 3. Обновляем текстовые поля (если они переданы в запросе)
+        if 'title' in data:
+            title_value = data['title'].strip()
+            if not title_value:
+                return JsonResponse({'status': 'error', 'message': 'Наименование задачи не может быть пустым'},
+                                    status=400)
+            task.title = title_value
 
+        if 'comment' in data:
+            task.comment = data['comment'].strip()
+
+        # 4. Обрабатываем дату напоминания (с учетом HTML5 формата 'YYYY-MM-DDTHH:MM')
+        if 'reminder_at' in data:
+            reminder_str = data['reminder_at']
+            if reminder_str:
+                # Приводим к единому стандарту ISO для парсера Django
+                normalized_date = reminder_str.replace(' ', 'T')
+                parsed_date = parse_datetime(normalized_date)
+
+                if parsed_date:
+                    # Делаем дату "осведомленной" (с учетом таймзоны проекта), если она naive
+                    if timezone.is_naive(parsed_date):
+                        parsed_date = timezone.make_aware(parsed_date)
+                    task.reminder_at = parsed_date
+                else:
+                    return JsonResponse({'status': 'error', 'message': 'Неверный формат даты и времени'}, status=400)
+            else:
+                task.reminder_at = None
+
+        # 5. БИЗНЕС-ЛОГИКА: Авторасчет статуса задачи (вместо старой формы)
+        # Если дата напоминания установлена и она уже в прошлом — ставим статус 3 (Просрочена)
+        if task.reminder_at and task.reminder_at < timezone.now():
+            task.status_flag = 3
+        else:
+            # Если задача не просрочена, возвращаем статус в работу (1) или новый (0) на ваше усмотрение
+            # Ниже пример: если текст изменили, пускай она станет "В работе" (1), если не была завершена
+            if task.status_flag == 3:
+                task.status_flag = 1
+
+                # 6. Валидация ограничений модели и сохранение в PostgreSQL
+        try:
+            task.full_clean()  # Проверяет max_length полей и валидаторы модели
+            task.save()
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': f'Ошибка базы данных: {str(e)}'}, status=400)
+
+        # 7. Успешный ответ в JS-скрипт (теперь без ошибок парсинга '<')
         return JsonResponse({
             'status': 'success',
-            'new_flag': self.object.status_flag
+            'new_flag': task.status_flag
         })
-
-    def form_invalid(self, form):
-        """Возвращает JSON-ответ с ошибками валидации формы и HTTP-статусом 400."""
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Ошибка валидации полей',
-            'errors': form.errors.get_json_data()
-        }, status=400)
 
 
 class TaskDeleteApiView(LoginRequiredMixin, DeleteView):
