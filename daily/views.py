@@ -1,16 +1,22 @@
 import json
+import logging
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.utils.timezone import localtime
 from django.views import View
 from django.views.generic import ListView, CreateView, DeleteView
 
 from .forms import TaskForm, BookmarkForm
 from .models import Bookmark
 from .models import Task
+
+logger = logging.getLogger(__name__)
 
 
 class TaskListView(LoginRequiredMixin, ListView):
@@ -173,76 +179,135 @@ class TaskCreateView(LoginRequiredMixin, CreateView):
         return kwargs
 
 
-class TaskUpdateApiView(LoginRequiredMixin, View):
+class TaskCreateApiView(TaskCreateView):
     """
-    API-представление для редактирования задачи.
-    Принимает чистый JSON, производит валидацию и возвращает ответ.
+    API-представление для быстрого инлайн-создания задачи.
+    Наследует всю логику валидации, защиты и привязки owner из TaskCreateView,
+    но возвращает JSON вместо перезагрузки страницы.
     """
 
     def post(self, request, *args, **kwargs):
         try:
-            # 1. Извлекаем данные из тела JSON-запроса
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'status': 'error', 'message': 'Некорректный JSON-формат'}, status=400)
+
+        # 1. Формируем чистые данные для формы из JSON
+        form_data = {
+            'title': data.get('title', '').strip(),
+            'bookmark': data.get('bookmark_id')
+        }
+
+        # 2. Получаем базовые аргументы формы (там сидят 'user', 'initial' и пустой 'data')
+        kwargs_data = self.get_form_kwargs()
+
+        # 3. ИСПРАВЛЕНО: Принудительно заменяем пустой request.POST на наш form_data из JSON
+        kwargs_data['data'] = form_data
+
+        # 4. Инициализируем форму без конфликтов аргументов
+        form = self.get_form_class()(**kwargs_data)
+
+        if form.is_valid():
+            return self.form_valid(form)
+        else:
+            return self.form_invalid(form)
+
+    def form_valid(self, form):
+        """Вызывается, если название заполнено и закладка принадлежит пользователю."""
+        form.instance.owner = self.request.user
+        self.object = form.save()  # Сохраняем задачу в базу данных
+
+        # Форматируем дату в локальном часовом поясе пользователя
+        local_created_at = localtime(self.object.created_at)
+        formatted_date = local_created_at.strftime('%d.%m.%Y %H:%M')
+
+        return JsonResponse({
+            'status': 'success',
+            'id': self.object.id,
+            'created_at': formatted_date
+        })
+
+    def form_invalid(self, form):
+        """Вызывается в случае провала валидации (например, пустой title)."""
+        # Собираем все ошибки формы в одну строку для вывода в alert фронтенда
+        errors = ", ".join([f"{v[0]}" for k, v in form.errors.items()])
+        return JsonResponse({
+            'status': 'error',
+            'message': errors or 'Ошибка валидации формы'
+        }, status=400)
+
+
+class TaskUpdateApiView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        try:
             data = json.loads(request.body)
         except (json.JSONDecodeError, TypeError):
             return JsonResponse({'status': 'error', 'message': 'Невалидный JSON-формат'}, status=400)
 
-        # 2. Ищем задачу текущего пользователя (защита от ID-перебора на уровне SQL)
         task_id = data.get('id')
         try:
             task = Task.objects.get(id=task_id, owner=request.user)
         except (Task.DoesNotExist, ValueError):
-            return JsonResponse({'status': 'error', 'message': 'Задача не найдена или доступ запрещен'}, status=404)
+            return JsonResponse({'status': 'error', 'message': 'Задача не найдена'}, status=404)
 
-        # 3. Обновляем текстовые поля (если они переданы в запросе)
+        # 3. Обновляем название задачи
         if 'title' in data:
             title_value = data['title'].strip()
             if not title_value:
-                return JsonResponse({'status': 'error', 'message': 'Наименование задачи не может быть пустым'},
-                                    status=400)
+                return JsonResponse({'status': 'error', 'message': 'Наименование не может быть пустым'}, status=400)
             task.title = title_value
 
+        # Обновляем комментарий
         if 'comment' in data:
             task.comment = data['comment'].strip()
 
-        # 4. Обрабатываем дату напоминания (с учетом HTML5 формата 'YYYY-MM-DDTHH:MM')
-        if 'reminder_at' in data:
-            reminder_str = data['reminder_at']
+        # 4. Обрабатываем дату напоминания (ИСПРАВЛЕНО И ЗАЩИЩЕНО)
+        formatted_reminder_at = "*"
+
+        if 'remind_at' in data:  # Ключ от JS календаря
+            reminder_str = data['remind_at']
             if reminder_str:
-                # Приводим к единому стандарту ISO для парсера Django
+                # Стандартизируем строку для парсера Django
                 normalized_date = reminder_str.replace(' ', 'T')
                 parsed_date = parse_datetime(normalized_date)
 
                 if parsed_date:
-                    # Делаем дату "осведомленной" (с учетом таймзоны проекта), если она naive
+                    # Делаем дату осведомленной о часовом поясе вашего Django-проекта
                     if timezone.is_naive(parsed_date):
-                        parsed_date = timezone.make_aware(parsed_date)
+                        parsed_date = timezone.make_aware(parsed_date, timezone.get_current_timezone())
                     task.reminder_at = parsed_date
+
+                    # Форматируем для вывода обратно в ячейку таблицы
+                    formatted_reminder_at = timezone.localtime(task.reminder_at).strftime('%d.%m.%Y %H:%M')
                 else:
                     return JsonResponse({'status': 'error', 'message': 'Неверный формат даты и времени'}, status=400)
             else:
                 task.reminder_at = None
 
-        # 5. БИЗНЕС-ЛОГИКА: Авторасчет статуса задачи (вместо старой формы)
-        # Если дата напоминания установлена и она уже в прошлом — ставим статус 3 (Просрочена)
+        # 5. Авторасчет статуса (просрочено/в работе)
         if task.reminder_at and task.reminder_at < timezone.now():
             task.status_flag = 3
         else:
-            # Если задача не просрочена, возвращаем статус в работу (1) или новый (0) на ваше усмотрение
-            # Ниже пример: если текст изменили, пускай она станет "В работе" (1), если не была завершена
-            if task.status_flag == 3:
-                task.status_flag = 1
+            if getattr(task, 'status_flag', None) == 3:
+                task.status_flag = 0
 
-                # 6. Валидация ограничений модели и сохранение в PostgreSQL
+        # 6. Валидация и безопасное сохранение
         try:
-            task.full_clean()  # Проверяет max_length полей и валидаторы модели
+            task.full_clean()  # Если тут упадет, мы поймаем ошибку ниже, а не выбросим 500
             task.save()
+        except ValidationError as ve:
+            # Собираем понятные ошибки валидации полей модели
+            error_msg = ", ".join([f"{k}: {v[0]}" for k, v in ve.message_dict.items()])
+            return JsonResponse({'status': 'error', 'message': f'Ошибка валидации: {error_msg}'}, status=400)
         except Exception as e:
+            # Логируем критическую ошибку в консоль PyCharm, чтобы вы её видели
+            print(f"--- КРИТИЧЕСКАЯ ОШИБКА БАЗЫ ДАННЫХ: {str(e)} ---")
             return JsonResponse({'status': 'error', 'message': f'Ошибка базы данных: {str(e)}'}, status=400)
 
-        # 7. Успешный ответ в JS-скрипт (теперь без ошибок парсинга '<')
         return JsonResponse({
             'status': 'success',
-            'new_flag': task.status_flag
+            'new_flag': getattr(task, 'status_flag', 0),
+            'remind_at_display': formatted_reminder_at
         })
 
 
@@ -268,7 +333,7 @@ class TaskDeleteApiView(LoginRequiredMixin, DeleteView):
         try:
             # Читаем наш JSON из тела запроса
             data = json.loads(request.body)
-            task_ids = data.get('ids', [])
+            task_ids = data.get('task_ids', [])
 
             if not task_ids:
                 return JsonResponse({'status': 'error', 'message': 'Не выбрано ни одной задачи'}, status=400)

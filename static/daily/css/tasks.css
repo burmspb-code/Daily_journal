@@ -1,4 +1,6 @@
-/* static/daily/css/tasks.css */
+/* ==========================================================================
+   1. ФИЛЬТРЫ, НАВБАР И ПОПАПЫ
+   ========================================================================== */
 
 .filter-icon {
     cursor: pointer;
@@ -6,7 +8,8 @@
     transition: opacity 0.2s;
 }
 
-.filter-icon:hover, .filter-icon.active {
+.filter-icon:hover,
+.filter-icon.active {
     opacity: 1;
     color: #ffc107 !important;
 }
@@ -28,7 +31,6 @@ th.position-relative {
     overflow-y: auto !important;
     overflow-x: hidden !important;
 }
-
 
 /* Базовый попап (абсолютное позиционирование) */
 .header-filter-popup {
@@ -81,60 +83,183 @@ th.position-relative {
 .custom-hover {
     transition: opacity 0.2s ease-in-out, color 0.2s ease-in-out;
 }
+
 .custom-hover:hover {
     opacity: 1 !important;
 }
 
-/* Скрываем стандартную стрелку Bootstrap */
-.dropdown-toggle-custom::after {
-    display: none !important;
-}
 
-/* Строгое выпадающее меню закладок */
-.custom-dropdown-menu {
-    background-color: #1e293b !important; /* Глубокий темно-синий */
-    border: 1px solid #334155 !important; /* Тонкая рамка */
-    border-radius: 4px !important;        /* Минимальное классическое скругление */
-    min-width: 180px;
-    margin-top: 0px !important;           /* Меню прижато к навбару */
-    padding: 0 !important;                /* Полное отсутствие внутренних отступов */
+/* ==========================================================================
+   2. МЕНЮ ЗАКЛАДОК И КНОПКИ
+   ========================================================================= */
 
-    /* Плавное проявление */
-    animation: fadeInDropdown 0.15s ease-out;
-}
+/* ... (предыдущие стили .custom-dropdown-menu, .btn-bookmark оставляем без изменений) ... */
 
-/* Пункты меню от края до края */
-.custom-dropdown-menu .dropdown-item {
-    color: rgba(255, 255, 255, 0.8) !important;
-    font-size: 0.95rem;
-    border-radius: 0 !important;          /* Квадратные края для заполнения всей ширины */
-    transition: all 0.1s ease-in-out;
-}
-
-/* Подсветка при наведении */
-.custom-dropdown-menu .dropdown-item:hover {
-    color: #ffffff !important;
-    background-color: #334155 !important; /* Сплошная заливка элемента */
-}
-
-/* Чистая анимация появления без движения */
-@keyframes fadeInDropdown {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
 /* Наш кастомный стиль для кнопки-закладки */
 .btn-bookmark {
     background-color: #064e3b !important; /* Глубокий изумрудно-зеленый */
-    border: 1px solid #047857 !important;    /* Яркий кант */
+    border: 1px solid #047857 !important; /* Яркий кант */
     transition: filter 0.15s ease-in-out !important;
 }
 
-/* Эффект при наведении (работает нативно для всей кнопки) */
+/* Эффект при наведении на всю кнопку */
 .btn-bookmark:hover {
     filter: brightness(1.2) !important; /* Увеличивает яркость всей кнопки на 20% */
 }
 
-/* Оставляем стиль для режима редактирования */
+/* --- РЕДАКТИРУЕМОЕ НАЗВАНИЕ ЗАКЛАДКИ --- */
+
+/* Базовое состояние текста внутри закладки */
+.editable-bookmark-name {
+    display: inline-block;
+    border-bottom: 2px solid transparent !important; /* Скрытая линия против прыжков текста */
+    padding-bottom: 2px; /* Небольшой отступ внутри кнопки */
+    margin-bottom: -2px; /* Компенсация, чтобы кнопка не раздувалась */
+    outline: none !important;
+    box-shadow: none !important;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+/* Подсказка при наведении мыши на текст закладки */
+.editable-bookmark-name:hover {
+    cursor: text;
+    background-color: rgba(255, 193, 7, 0.1) !important; /* Легкая золотистая плашка для контраста на зеленом фоне */
+    border-bottom: 2px solid rgba(255, 193, 7, 0.4) !important; /* Мягкое золотое подчеркивание */
+    border-radius: 3px 3px 0 0;
+}
+
+/* Эффект фокуса — плотное золотое подчеркивание при редактировании */
 .editable-bookmark-name:focus {
-    border-bottom: 1px solid #ffc107 !important;
+    background-color: transparent !important; /* Убираем плашку при активном вводе */
+    border-bottom: 2px solid #ffc107 !important; /* Фирменная золотая линия 2px */
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+
+/* ==========================================================================
+   3. ГЕОМЕТРИЯ И СТРУКТУРА ТАБЛИЦЫ ЗАДАЧ
+   ========================================================================== */
+
+/* Фиксируем раскладку таблицы, чтобы строго контролировать ширину колонок */
+#tasks-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+/* Задаем базовую комфортную высоту для всех ячеек таблицы */
+#tasks-table tbody tr td {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+    height: 45px; /* Фиксируем минимальную высоту строки */
+}
+
+/* Ограничиваем ширину столбца комментариев и включаем безопасный перенос */
+#tasks-table th:nth-child(6),
+#tasks-table td:nth-child(6) {
+    width: 250px;
+    max-width: 250px;
+    white-space: normal;
+    overflow-wrap: break-word; /* Современный стандарт переноса длинных слов */
+}
+
+
+/* ==========================================================================
+   4. ЕДИНЫЙ СТИЛЬ РЕДАКТИРУЕМЫХ ПОЛЕЙ (НАЗВАНИЯ И КОММЕНТАРИИ)
+   ========================================================================== */
+
+/* Базовое состояние: убираем рамки коробки, настраиваем золотую линию строго по ширине текста */
+.editable-task-name,
+.editable-task-comment {
+    display: inline-block;
+    max-width: 100%;
+    border: none !important;
+    border-bottom: 2px solid transparent !important; /* Скрытая линия против прыжков текста */
+    padding-bottom: 4px; /* Оптимальный отступ, чтобы линия не прилипала к буквам */
+    margin-bottom: -2px; /* Компенсируем отступ, сохраняя высоту строки таблицы */
+    outline: none !important;
+    box-shadow: none !important;
+    transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ВСТАВЛЯТЬ СЮДА: Эффект при наведении курсора (подсказка для пользователя) */
+.editable-task-name:hover,
+.editable-task-comment:hover {
+    background-color: rgba(255, 193, 7, 0.06) !important; /* Едва заметный золотистый фон-подсветка */
+    border-bottom: 2px solid rgba(255, 193, 7, 0.3) !important; /* Мягкий полупрозрачный золотой контур */
+    border-radius: 4px 4px 0 0; /* Аккуратное скругление сверху у подсвеченной плашки */
+}
+
+/* Эффект фокуса: красивое плотное золотое подчеркивание */
+.editable-task-name:focus,
+.editable-task-comment:focus {
+    background-color: transparent !important; /* Сбрасываем фоновую плашку при активном вводе */
+    border-bottom: 2px solid #ffc107 !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Логика для выполненных задач */
+.editable-task-name.task-completed {
+    text-decoration: line-through;
+    color: #6c757d; /* Bootstrap text-muted */
+}
+
+/* Возвращаем обычный вид выполненной задачи при редактировании */
+.editable-task-name.task-completed:focus {
+    text-decoration: none;
+    color: #212529; /* Возвращаем темный цвет текста */
+}
+
+
+/* ==========================================================================
+   5. ИНПУТЫ ДАТЫ И ВРЕМЕНИ
+   ========================================================================== */
+
+/* Полный сброс рамок, заливок и свечений Bootstrap для полей даты */
+#tasks-table input[type="datetime-local"],
+#tasks-table input[type="date"],
+#tasks-table input[type="time"],
+#tasks-table .form-control {
+    border: 1px solid transparent !important;
+    background: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+/* Гарантированная чистота инпута при клике внутрь (фокусе) */
+#tasks-table input[type="datetime-local"]:focus,
+#tasks-table input[type="date"]:focus,
+#tasks-table input[type="time"]:focus,
+#tasks-table .form-control:focus {
+    border-color: transparent !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+
+/* ==========================================================================
+   6. ИКОНКИ ДЕЙСТВИЙ (КОММЕНТАРИИ И НАПОМИНАНИЯ)
+   ========================================================================== */
+
+/* Базовое состояние иконок-карандашей и колокольчиков */
+.add-comment-icon,
+.add-reminder-icon {
+    opacity: 0.4;
+    transition: all 0.2s ease-in-out;
+}
+
+.add-reminder-icon {
+    font-size: 0.95rem;
+}
+
+/* Подсветка золотом при наведении на саму иконку ИЛИ на всю родительскую ячейку таблицы */
+.task-comment-cell:hover .add-comment-icon,
+.add-comment-icon:hover,
+.task-reminder-cell:hover .add-reminder-icon,
+.add-reminder-icon:hover {
+    opacity: 1;
+    color: #ffc107 !important;
 }
