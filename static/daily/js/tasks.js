@@ -620,36 +620,48 @@ function saveInlineComment(input, taskId) {
 
 // Навешиваем слушатель на ячейки времени напоминания (вызовите один раз при загрузке страницы)
 document.addEventListener('click', function(e) {
-    const cell = e.target.closest('.remind-cell');
-    if (!cell || cell.querySelector('input[type="datetime-local"]')) return;
+    const cell = e.target.closest('.task-reminder-cell') || e.target.closest('.remind-cell');
+    if (!cell || cell.querySelector('.inline-date-input')) return;
 
-    const taskId = cell.getAttribute('data-id');
+    // Считываем ID. Теперь он гарантированно найдется!
+    const taskId = cell.getAttribute('data-id') || cell.closest('tr').getAttribute('data-id');
+    if (!taskId) return;
 
-    // Пытаемся вытащить текущую дату из текста (если там звезда *, то даты нет)
-    let currentText = cell.textContent.trim();
+    // Регулярным выражением удаляем всё, кроме цифр, точек, двоеточий и пробелов (избавляемся от мусора иконок)
+    let currentText = cell.textContent.trim().replace(/[^\d.:\s]/g, '').trim();
     let currentIsoValue = "";
 
-    if (currentText !== "*") {
-        // Конвертируем формат "ДД.ММ.ГГГГ ЧЧ:ММ" в стандарт ISO "YYYY-MM-DDTHH:MM" для input
+    // Парсим дату только если строка содержит реальные цифры (формат ДД.ММ.ГГГГ ЧЧ:ММ)
+    if (currentText && currentText.length >= 16) {
         const parts = currentText.match(/(\d{2})\.(\d{2})\.(\d{4})\s(\d{2}):(\d{2})/);
         if (parts) {
             currentIsoValue = `${parts[3]}-${parts[2]}-${parts[1]}T${parts[4]}:${parts[5]}`;
         }
     }
 
-    // Заменяем содержимое ячейки на инпут календаря
+    // Сохраняем старый HTML (чтобы вернуть иконку колокольчика, если пользователь нажмет Esc)
+    cell.dataset.oldHtml = cell.innerHTML;
+
+    // Заменяем внутренности ячейки на инпут календаря
     cell.innerHTML = `
         <input type="datetime-local"
                class="form-control form-control-sm inline-date-input"
                value="${currentIsoValue}"
-               style="outline: none; width: 100%; max-width: 170px;"
+               style="outline: none; width: 100%; max-width: 170px; display: inline-block !important;"
                onkeydown="handleDateKey(event, this)"
                onblur="saveInlineDate(this, '${taskId}')">
     `;
 
-    // Мгновенно открываем календарь
-    const input = cell.querySelector('.inline-date-input');
-    input.focus();
+    // Асинхронно передаем фокус и мгновенно раскрываем выпадающий календарь
+    setTimeout(() => {
+        const input = cell.querySelector('.inline-date-input');
+        if (input) {
+            input.focus();
+            if (typeof input.showPicker === 'function') {
+                input.showPicker();
+            }
+        }
+    }, 15);
 });
 
 // Управление клавиатурой в календаре
@@ -658,10 +670,20 @@ function handleDateKey(event, input) {
         event.preventDefault();
         input.blur(); // Вызовет сохранение
     } else if (event.key === 'Escape') {
-        // При отмене просто возвращаем то значение, которое было до клика
+        event.preventDefault();
         const cell = input.parentElement;
-        const oldText = input.defaultValue ? formatIsoToRu(input.defaultValue) : `<span class="text-danger fw-bold">*</span>`;
-        cell.innerHTML = oldText;
+
+        // ИСПРАВЛЕНО: Если старый HTML сохранен, возвращаем его.
+        // Если нет — принудительно возвращаем красивый пустой колокольчик (а не звездочку!)
+        if (cell.dataset.oldHtml) {
+            cell.innerHTML = cell.dataset.oldHtml;
+        } else {
+            cell.innerHTML = `
+                <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                    <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i>
+                </span>
+            `;
+        }
     }
 }
 
@@ -670,7 +692,16 @@ function saveInlineDate(input, taskId) {
     const cell = input.parentElement;
     const newDateTime = input.value; // Строка типа "2026-07-30T23:00"
 
-    fetch('/daily/task/update-api/', {
+    // Если пользователь кликнул и ничего не изменил, просто возвращаем старый вид
+    if (input.value === input.defaultValue && cell.dataset.oldHtml) {
+        cell.innerHTML = cell.dataset.oldHtml;
+        return;
+    }
+
+    const table = document.getElementById('tasks-table');
+    const updateUrl = table ? table.getAttribute('data-update-url') : '/daily/task/update-api/';
+
+    fetch(updateUrl, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -678,11 +709,10 @@ function saveInlineDate(input, taskId) {
         },
         body: JSON.stringify({
             id: taskId,
-            remind_at: newDateTime // Передаем поле
+            remind_at: newDateTime
         })
     })
     .then(response => {
-        // Если сервер вернул ошибку (400, 404, 500), перенаправляем в catch с описанием
         if (!response.ok) {
             return response.json().then(data => { throw new Error(data.message || 'Ошибка сервера'); });
         }
@@ -690,11 +720,23 @@ function saveInlineDate(input, taskId) {
     })
     .then(data => {
         if (data.status === 'success') {
-            if (data.remind_at_display !== "*") {
-                cell.innerHTML = data.remind_at_display;
+            // ИСПРАВЛЕНО: Формируем вывод в точном соответствии с вашим HTML-шаблоном Django
+            if (data.remind_at_display && data.remind_at_display !== "*") {
+                // Возвращаем желтый залитый колокольчик Bootstrap Icons и дату
+                cell.innerHTML = `
+                    <span class="d-inline-flex align-items-center gap-1 text-warning">
+                        <i class="bi bi-bell-fill"></i> ${data.remind_at_display}
+                    </span>
+                `;
             } else {
-                cell.innerHTML = `<span class="text-danger fw-bold">*</span>`;
+                // Если дату стерли — возвращаем пустой серый колокольчик
+                cell.innerHTML = `
+                    <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                        <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i>
+                    </span>
+                `;
             }
+
             // Вызываем перекраску баджа статуса, если она у вас прописана
             if (typeof updateRowStatusBadge === "function") {
                 updateRowStatusBadge(taskId, data.new_flag);
@@ -702,18 +744,38 @@ function saveInlineDate(input, taskId) {
         }
     })
     .catch(error => {
-        // Выводим точную причину, которую прислал Django
         alert("Не удалось сохранить время напоминания. Причина: " + error.message);
-        const oldText = input.defaultValue ? formatIsoToRu(input.defaultValue) : `<span class="text-danger fw-bold">*</span>`;
-        cell.innerHTML = oldText;
+        // При ошибке возвращаем состояние, которое было до клика, либо пустой колокольчик
+        if (cell.dataset.oldHtml) {
+            cell.innerHTML = cell.dataset.oldHtml;
+        } else {
+            cell.innerHTML = `
+                <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                    <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i>
+                </span>
+            `;
+        }
     });
 }
 
-// Вспомогательная функция перевода ISO даты назад в красивый RU формат при отмене Esc
-function formatIsoToRu(isoStr) {
-    if (!isoStr) return `<span class="text-danger fw-bold">*</span>`;
-    const t = isoStr.split(/[-T:]/);
-    return `${t[2]}.${t[1]}.${t[0]} ${t[3]}:${t[4]}`;
+// ==========================================================================
+// ГЛОБАЛЬНЫЕ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ==========================================================================
+
+// Функция для получения CSRF-токена из куки (критически важна для всех POST-запросов)
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
 }
 
 // Функция для динамического обновления баджа статуса в строке
@@ -723,88 +785,313 @@ function updateRowStatusBadge(taskId, flagValue) {
     const badge = row.querySelector('.badge');
     if (!badge) return;
 
-    // В зависимости от флага бэкенда красим бадж прямо на лету!
     if (flagValue === 3) {
         badge.className = "badge rounded-pill bg-danger px-2";
         badge.textContent = "Просрочена";
     } else if (flagValue === 0) {
         badge.className = "badge rounded-pill bg-success px-2";
-        badge.textContent = "0"; // Ваш статус "В работе" или исходный
+        badge.textContent = "0";
     }
 }
 
-// Блок для редактирования названия задачи в таблице
-let originalNameText = "";
 
-// 1. Запоминаем исходное название при клике в поле
+// ==========================================================================
+// БЛОК ДЛЯ ИНЛАЙН РЕДАКТИРОВАНИЯ ВРЕМЕНИ НАПОМИНАНИЯ (КАЛЕНДАРЬ)
+// ==========================================================================
+
+// Навешиваем слушатель на ячейки времени напоминания
+document.addEventListener('click', function(e) {
+    const cell = e.target.closest('.task-reminder-cell') || e.target.closest('.remind-cell');
+    if (!cell || cell.querySelector('.inline-date-input')) return;
+
+    const taskId = cell.getAttribute('data-id') || cell.closest('tr').getAttribute('data-id');
+    if (!taskId) return;
+
+    // Очищаем текст от любых иконок
+    let currentText = cell.textContent.trim().replace(/[^\d.:\s]/g, '').trim();
+    let currentIsoValue = "";
+
+    if (currentText && currentText.length >= 16) {
+        const parts = currentText.match(/(\d{2})\.(\d{2})\.(\d{4})\s(\d{2}):(\d{2})/);
+        if (parts) {
+            currentIsoValue = `${parts[3]}-${parts[2]}-${parts[1]}T${parts[4]}:${parts[5]}`;
+        }
+    }
+
+    cell.dataset.oldHtml = cell.innerHTML;
+
+    cell.innerHTML = `
+        <input type="datetime-local"
+               class="form-control form-control-sm inline-date-input"
+               value="${currentIsoValue}"
+               style="outline: none; width: 100%; max-width: 170px; display: inline-block !important;"
+               onkeydown="handleDateKey(event, this)"
+               onblur="saveInlineDate(this, '${taskId}')">
+    `;
+
+    setTimeout(() => {
+        const input = cell.querySelector('.inline-date-input');
+        if (input) {
+            input.focus();
+            if (typeof input.showPicker === 'function') {
+                input.showPicker();
+            }
+        }
+    }, 15);
+});
+
+// Управление клавиатурой в календаре
+function handleDateKey(event, input) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        input.blur();
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        const cell = input.parentElement;
+        if (cell.dataset.oldHtml) {
+            cell.innerHTML = cell.dataset.oldHtml;
+        } else {
+            cell.innerHTML = `
+                <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                    <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i>
+                </span>
+            `;
+        }
+    }
+}
+
+// Отправка даты на Django
+function saveInlineDate(input, taskId) {
+    const cell = input.parentElement;
+    const newDateTime = input.value;
+
+    if (input.value === input.defaultValue && cell.dataset.oldHtml) {
+        cell.innerHTML = cell.dataset.oldHtml;
+        return;
+    }
+
+    // Жестко задаем проверенный рабочий адрес, как в функциях названий задач
+    const updateUrl = '/daily/task/update-api/';
+
+    fetch(updateUrl, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            id: taskId,
+            remind_at: newDateTime
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => { throw new Error(data.message || 'Ошибка сервера'); });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.status === 'success') {
+            if (data.remind_at_display && data.remind_at_display !== "*") {
+                cell.innerHTML = `
+                    <span class="d-inline-flex align-items-center gap-1 text-warning">
+                        <i class="bi bi-bell-fill"></i> ${data.remind_at_display}
+                    </span>
+                `;
+            } else {
+                cell.innerHTML = `
+                    <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                        <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i>
+                    </span>
+                `;
+            }
+            if (typeof updateRowStatusBadge === "function") {
+                updateRowStatusBadge(taskId, data.new_flag);
+            }
+        }
+    })
+    .catch(error => {
+        alert("Не удалось сохранить время напоминания. Причина: " + error.message);
+        if (cell.dataset.oldHtml) {
+            cell.innerHTML = cell.dataset.oldHtml;
+        } else {
+            cell.innerHTML = `
+                <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                    <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i>
+                </span>
+            `;
+        }
+    });
+}
+
+
+// ==========================================================================
+// БЛОК ДЛЯ РЕДАКТИРОВАНИЯ НАЗВАНИЯ И КОММЕНТАРИЕВ В ТАБЛИЦЕ
+// ==========================================================================
+let originalNameText = "";
+let originalCommentText = ""; // Переменная для хранения исходного комментария
+
+// 1. Запоминаем исходный текст при клике в поле
 document.addEventListener('focusin', function (e) {
+    // Для названий задач
     if (e.target.classList.contains('editable-task-name')) {
-        // Если задача зачеркнута (<del>), берем чистый текстовый контент
         originalNameText = e.target.innerText.trim();
+    }
+
+    // ИСПРАВЛЕНО: Для комментариев (стираем карандаш при фокусе, чтобы появился курсор)
+    if (e.target.classList.contains('editable-task-comment')) {
+        const hasPencil = e.target.querySelector('.add-comment-icon');
+        if (hasPencil) {
+            originalCommentText = "";
+            e.target.innerHTML = ""; // Мгновенно очищаем иконку, освобождая место курсору
+        } else {
+            originalCommentText = e.target.innerText.trim();
+        }
     }
 });
 
-// 2. Обработка клавиш Enter и Escape для названия задачи
+// 2. Обработка клавиш Enter и Escape для названия и комментариев
 document.addEventListener('keydown', function (e) {
+    // Логика для названий задач
     if (e.target.classList.contains('editable-task-name')) {
         if (e.key === 'Enter') {
-            e.preventDefault(); // Запрещаем перенос строки
-            e.target.blur();    // Перенаправляем на focusout для сохранения
+            e.preventDefault();
+            e.target.blur();
         }
         if (e.key === 'Escape') {
             e.preventDefault();
-            // Возвращаем старый текст, если пользователь передумал
             e.target.innerText = originalNameText;
+            e.target.blur();
+        }
+    }
+
+    // ИСПРАВЛЕНО: Логика клавиатуры для комментариев
+    if (e.target.classList.contains('editable-task-comment')) {
+        if (e.key === 'Enter') {
+            e.preventDefault(); // Запрещаем перенос строки в комментариях
+            e.target.blur();
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            if (originalCommentText === "") {
+                e.target.innerHTML = `<i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить комментарий"></i>`;
+            } else {
+                e.target.innerText = originalCommentText;
+            }
             e.target.blur();
         }
     }
 });
 
-// 3. Сохранение названия задачи через AJAX при потере фокуса
+// 3. Сохранение данных через AJAX при потере фокуса
 document.addEventListener('focusout', function (e) {
-    if (!e.target.classList.contains('editable-task-name')) return;
+    // СОХРАНЕНИЕ НАЗВАНИЯ ЗАДАЧИ
+    if (e.target.classList.contains('editable-task-name')) {
+        const editableField = e.target;
+        let newName = editableField.innerText.trim();
+        const taskId = editableField.getAttribute('data-id');
 
-    const editableField = e.target;
-    let newName = editableField.innerText.trim();
-    const taskId = editableField.getAttribute('data-id');
+        if (newName === "") {
+            alert("Наименование задачи не может быть пустым");
+            editableField.innerText = originalNameText;
+            return;
+        }
 
-    // Проверка: если поле полностью очистили, не даем сохранить пустоту
-    if (newName === "") {
-        alert("Наименование задачи не может быть пустым");
-        editableField.innerText = originalNameText;
-        return;
+        if (newName === originalNameText) return;
+
+        fetch('/daily/task/update-api/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                id: taskId,
+                title: newName
+            })
+        })
+        .then(response => {
+            if (response.ok) {
+                originalNameText = newName;
+                const isCompleted = editableField.querySelector('del');
+                if (isCompleted) {
+                    editableField.innerHTML = `<del class="text-muted">${newName}</del>`;
+                }
+            } else {
+                alert("Не удалось сохранить наименование задачи");
+                editableField.innerText = originalNameText;
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка AJAX:', error);
+            editableField.innerText = originalNameText;
+        });
     }
 
-    // Если текст не изменился, ничего не отправляем
-    if (newName === originalNameText) return;
+    // ИСПРАВЛЕНО: СОХРАНЕНИЕ КОММЕНТАРИЯ К ЗАДАЧЕ
+    if (e.target.classList.contains('editable-task-comment')) {
+        const editableField = e.target;
+        let newComment = editableField.innerText.trim();
+        const taskId = editableField.getAttribute('data-id');
 
-    fetch('/daily/task/update-api/', { // Используем тот же эндпоинт
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify({
-            id: taskId,
-            title: newName // Передаем поле title вместо comment
-        })
-    })
-    .then(response => {
-        if (response.ok) {
-            originalNameText = newName;
-
-            // Если задача выполнена (внутри есть тег <del>), перерисовываем структуру
-            const isCompleted = editableField.querySelector('del');
-            if (isCompleted) {
-                editableField.innerHTML = `<del class="text-muted">${newName}</del>`;
-            }
-        } else {
-            alert("Не удалось сохранить наименование задачи");
-            editableField.innerText = originalNameText;
+        // Если поле пустое и до этого было пустым — просто возвращаем карандаш без запроса
+        if (newComment === "" && originalCommentText === "") {
+            editableField.innerHTML = `<i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить комментарий"></i>`;
+            return;
         }
-    })
-    .catch(error => {
-        console.error('Ошибка AJAX:', error);
-        editableField.innerText = originalNameText;
-    });
+
+        if (newComment === originalCommentText) return;
+
+        fetch('/daily/task/update-api/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                id: taskId,
+                comment: newComment // Передаем поле comment на бэкенд Django
+            })
+        })
+        .then(response => {
+            if (response.ok) {
+                originalCommentText = newComment;
+                // Если сохранили пустую строку, возвращаем иконку карандаша
+                if (newComment === "") {
+                    editableField.innerHTML = `<i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить комментарий"></i>`;
+                }
+            } else {
+                alert("Не удалось сохранить комментарий");
+                if (originalCommentText === "") {
+                    editableField.innerHTML = `<i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить комментарий"></i>`;
+                } else {
+                    editableField.innerText = originalCommentText;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка AJAX:', error);
+            editableField.innerText = originalCommentText;
+        });
+    }
+});
+
+// ==========================================================================
+// ИЗОЛИРОВАННАЯ ЗАЩИТА ОТ МУСОРА И RICH TEXT ПРИ ВСТАВКЕ (Ctrl+V)
+// ==========================================================================
+document.addEventListener('DOMContentLoaded', function() {
+    const tableBody = document.getElementById('tasks-table-body');
+    if (tableBody) {
+        tableBody.addEventListener('paste', function(e) {
+            if (e.target.classList.contains('editable-task-name') || e.target.classList.contains('editable-task-comment')) {
+                e.preventDefault(); // Отменяем вставку стилей и HTML-тегов
+
+                // Вытаскиваем только чистые строковые данные из буфера
+                const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+
+                // Безопасно вставляем чистый текст в позицию курсора
+                document.execCommand('insertText', false, text);
+            }
+        });
+    }
 });

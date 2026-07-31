@@ -35,17 +35,22 @@
             </h3>
         </div>
 
-        <!-- Кнопка создания задачи (теперь вызывает JS-скрипт инлайн-добавления) -->
-        {% if user.bookmarks.exists %}
+        <!-- ИСПРАВЛЕНО: Кнопка создания задачи с подсказкой для новых пользователей -->
         <button type="button"
                 class="btn btn-primary btn-sm fw-semibold d-inline-flex align-items-center gap-2"
                 onclick="appendNewTaskRow()"
-                {% if current_bookmark %}data-bookmark-id="{{ current_bookmark.id }}"{% endif %}>
+                {% if current_bookmark %}data-bookmark-id="{{ current_bookmark.id }}"{% endif %}
+                {% if not user.bookmarks.exists %}disabled title="Сначала создайте хотя бы одну закладку в верхнем меню!"{% endif %}>
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle;">
                 <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
             </svg>
             <span>Создать задачу</span>
         </button>
+
+        {% if not user.bookmarks.exists %}
+            <small class="text-muted ms-2 d-none d-md-inline-block">
+                💡 Чтобы начать, создайте свою первую закладку в меню выше
+            </small>
         {% endif %}
 
         <!-- Кнопка удалить выбранные задачи -->
@@ -196,14 +201,15 @@
                     </th>
                 </tr>
             </thead>
-            <tbody id="tasks-table-body">
+           <tbody id="tasks-table-body">
                 {% for task in tasks %}
-                <tr id="task-row-{{ task.id }}">
+                <!-- ИСПРАВЛЕНО: Добавлен атрибут data-id для всей строки -->
+                <tr id="task-row-{{ task.id }}" data-id="{{ task.id }}">
                     <td class="ps-4"><input class="form-check-input task-checkbox" type="checkbox" data-id="{{ task.id }}"></td>
                     <td>{{ forloop.counter }}</td>
+
                     <!-- Столбец: Наименование -->
                     <td class="task-name-cell align-middle fw-semibold" onclick="this.querySelector('.editable-task-name').focus()">
-                        <!-- Убран класс w-100 -->
                         <span class="editable-task-name d-inline-block"
                               contenteditable="true"
                               data-id="{{ task.id }}"
@@ -211,21 +217,23 @@
                             {{ task.title }}
                         </span>
                     </td>
+
                     <td>{{ task.created_at|date:"d.m.Y H:i" }}</td>
-                    <!-- Столбец: Время напоминания -->
-                    <td class="task-reminder-cell align-middle text-nowrap small">
+
+                    <!-- Столбец: Время напоминания (ИСПРАВЛЕНО: Добавлен data-id на ячейку) -->
+                    <td class="task-reminder-cell align-middle text-nowrap small" data-id="{{ task.id }}">
                         {% if task.reminder_at %}
                             <span class="d-inline-flex align-items-center gap-1 text-warning">
                                 <i class="bi bi-bell-fill"></i> {{ task.reminder_at|date:"d.m.Y H:i" }}
                             </span>
                         {% else %}
-                            <!-- ИСПРАВЛЕНО: Вместо звездочки выводим красивую иконку колокольчика -->
                             <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
                                 <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i>
                             </span>
                         {% endif %}
                     </td>
-                    <!-- Столбец комментария в вашей таблице -->
+
+                    <!-- Столбец комментария (ИСПРАВЛЕНО: убран ломающий скрытый символ) -->
                     <td class="task-comment-cell align-middle" onclick="this.querySelector('.editable-task-comment').focus()">
                         <span class="editable-task-comment text-muted small d-inline-block"
                               contenteditable="true"
@@ -233,15 +241,12 @@
                               style="cursor: text; min-height: 24px;">
                             {% if task.comment %}
                                 {{ task.comment }}
-                            {% else %}
-                                <i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить комментарий"></i>
-                            {% endif %}
+                            {% else %}<i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить комментарий"></i>{% endif %}
                         </span>
                     </td>
                     <td class="text-center"><span class="badge rounded-pill bg-success px-2">0</span></td>
                 </tr>
                 {% empty %}
-                <!-- Строка на случай, если задач ещё нет -->
                 <tr id="no-tasks-row"><td colspan="7" class="text-center text-muted py-3">Нет задач в этой закладке</td></tr>
                 {% endfor %}
             </tbody>
@@ -301,9 +306,9 @@
     </div>
 </div>
 
-{% block extra_js %}
-{% load static %}
-<script src="{% static 'daily/js/tasks.js' %}"></script>
 {% endblock %}
 
+{% block extra_js %}
+    {% load static %}
+    <script src="{% static 'daily/js/tasks.js' %}"></script>
 {% endblock %}

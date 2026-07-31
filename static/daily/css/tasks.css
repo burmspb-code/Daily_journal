@@ -93,49 +93,89 @@ th.position-relative {
    2. МЕНЮ ЗАКЛАДОК И КНОПКИ
    ========================================================================= */
 
-/* ... (предыдущие стили .custom-dropdown-menu, .btn-bookmark оставляем без изменений) ... */
+/* Скрываем стандартную стрелку Bootstrap */
+.dropdown-toggle-custom::after {
+    display: none !important;
+}
 
-/* Наш кастомный стиль для кнопки-закладки */
+/* Строгое выпадающее меню закладок (ОРИГИНАЛЬНЫЙ ЦВЕТ SLATE) */
+.custom-dropdown-menu {
+    background-color: #1e293b !important; /* Глубокий темно-синий */
+    border: 1px solid #334155 !important; /* Тонкая рамка */
+    border-radius: 4px !important;        /* Минимальное классическое скругление */
+    min-width: 180px;
+    margin-top: 0px !important;           /* Меню прижато к навбару */
+    padding: 0 !important;                /* Полное отсутствие внутренних отступов контейнера */
+
+    /* Плавное проявление */
+    animation: fadeInDropdown 0.15s ease-out;
+}
+
+/* ИСПРАВЛЕНО: Пункты меню от края до края с комфортными отступами против слипания */
+.custom-dropdown-menu .dropdown-item {
+    display: flex !important;             /* Идеальное выравнивание иконок и текста по центру */
+    align-items: center !important;
+    padding: 0.6rem 1.25rem !important;   /* Добавлен воздух между пунктами закладок */
+    color: rgba(255, 255, 255, 0.8) !important;
+    font-size: 0.95rem;
+    border-radius: 0 !important;          /* Квадратные края для заполнения всей ширины */
+    transition: all 0.1s ease-in-out;
+}
+
+/* Подсветка при наведении — ИСПРАВЛЕНО: Золотой акцент для текста и иконок закладок */
+.custom-dropdown-menu .dropdown-item:hover {
+    color: #ffc107 !important;            /* Ваше фирменное золото при наведении */
+    background-color: #334155 !important; /* Сплошная заливка элемента */
+}
+
+/* Отдельная подсветка золотом для иконки плюса в пункте «Создать» при наведении */
+.custom-dropdown-menu .dropdown-item:hover i.text-success {
+    color: #ffc107 !important;
+    transition: color 0.1s ease-in-out;
+}
+
+/* Чистая анимация появления без движения */
+@keyframes fadeInDropdown {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Наш кастомный стиль для кнопки-закладки в таблице (оставляем без изменений) */
 .btn-bookmark {
     background-color: #064e3b !important; /* Глубокий изумрудно-зеленый */
     border: 1px solid #047857 !important; /* Яркий кант */
     transition: filter 0.15s ease-in-out !important;
 }
 
-/* Эффект при наведении на всю кнопку */
+/* Эффект при наведении на всю кнопку-закладку */
 .btn-bookmark:hover {
-    filter: brightness(1.2) !important; /* Увеличивает яркость всей кнопки на 20% */
+    filter: brightness(1.2) !important;  /* Увеличивает яркость всей кнопки на 20% */
 }
 
-/* --- РЕДАКТИРУЕМОЕ НАЗВАНИЕ ЗАКЛАДКИ --- */
-
-/* Базовое состояние текста внутри закладки */
+/* --- РЕДАКТИРУЕМОЕ НАЗВАНИЕ ЗАКЛАДКИ ВНУТРИ КНОПКИ --- */
 .editable-bookmark-name {
     display: inline-block;
-    border-bottom: 2px solid transparent !important; /* Скрытая линия против прыжков текста */
-    padding-bottom: 2px; /* Небольшой отступ внутри кнопки */
-    margin-bottom: -2px; /* Компенсация, чтобы кнопка не раздувалась */
+    border-bottom: 2px solid transparent !important;
+    padding-bottom: 2px;
+    margin-bottom: -2px;
     outline: none !important;
     box-shadow: none !important;
     transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
-/* Подсказка при наведении мыши на текст закладки */
 .editable-bookmark-name:hover {
     cursor: text;
-    background-color: rgba(255, 193, 7, 0.1) !important; /* Легкая золотистая плашка для контраста на зеленом фоне */
-    border-bottom: 2px solid rgba(255, 193, 7, 0.4) !important; /* Мягкое золотое подчеркивание */
+    background-color: rgba(255, 193, 7, 0.1) !important;
+    border-bottom: 2px solid rgba(255, 193, 7, 0.4) !important;
     border-radius: 3px 3px 0 0;
 }
 
-/* Эффект фокуса — плотное золотое подчеркивание при редактировании */
 .editable-bookmark-name:focus {
-    background-color: transparent !important; /* Убираем плашку при активном вводе */
-    border-bottom: 2px solid #ffc107 !important; /* Фирменная золотая линия 2px */
+    background-color: transparent !important;
+    border-bottom: 2px solid #ffc107 !important;
     outline: none !important;
     box-shadow: none !important;
 }
-
 
 /* ==========================================================================
    3. ГЕОМЕТРИЯ И СТРУКТУРА ТАБЛИЦЫ ЗАДАЧ
@@ -173,6 +213,7 @@ th.position-relative {
 .editable-task-comment {
     display: inline-block;
     max-width: 100%;
+    min-width: 10px;
     border: none !important;
     border-bottom: 2px solid transparent !important; /* Скрытая линия против прыжков текста */
     padding-bottom: 4px; /* Оптимальный отступ, чтобы линия не прилипала к буквам */
@@ -211,16 +252,15 @@ th.position-relative {
     color: #212529; /* Возвращаем темный цвет текста */
 }
 
-
 /* ==========================================================================
-   5. ИНПУТЫ ДАТЫ И ВРЕМЕНИ
+   5. ИНПУТЫ ДАТЫ И ВРЕМЕНИ (ИСПРАВЛЕНО)
    ========================================================================== */
 
-/* Полный сброс рамок, заливок и свечений Bootstrap для полей даты */
-#tasks-table input[type="datetime-local"],
-#tasks-table input[type="date"],
-#tasks-table input[type="time"],
-#tasks-table .form-control {
+/* Полный сброс Bootstrap ТОЛЬКО для обычных полей (исключая наш инпут .inline-date-input) */
+#tasks-table input[type="datetime-local"]:not(.inline-date-input),
+#tasks-table input[type="date"]:not(.inline-date-input),
+#tasks-table input[type="time"]:not(.inline-date-input),
+#tasks-table .form-control:not(.inline-date-input) {
     border: 1px solid transparent !important;
     background: transparent !important;
     outline: none !important;
@@ -228,17 +268,26 @@ th.position-relative {
     padding: 0 !important;
 }
 
-/* Гарантированная чистота инпута при клике внутрь (фокусе) */
-#tasks-table input[type="datetime-local"]:focus,
-#tasks-table input[type="date"]:focus,
-#tasks-table input[type="time"]:focus,
-#tasks-table .form-control:focus {
+/* Гарантированная чистота обычных инпутов при клике внутрь (фокусе) */
+#tasks-table input[type="datetime-local"]:not(.inline-date-input):focus,
+#tasks-table input[type="date"]:not(.inline-date-input):focus,
+#tasks-table input[type="time"]:not(.inline-date-input):focus,
+#tasks-table .form-control:not(.inline-date-input):focus {
     border-color: transparent !important;
     outline: 0 !important;
     box-shadow: none !important;
     background: transparent !important;
 }
 
+/* Кастомные стили безопасности для инлайнового календаря */
+#tasks-table .inline-date-input {
+    background-color: #ffffff !important; /* Белый фон, чтобы перекрыть текст сзади */
+    color: #212529 !important;            /* Темный читаемый цвет текста */
+    border: 1px solid #ced4da !important; /* Тонкая серая Bootstrap-рамка */
+    border-radius: 4px !important;        /* Аккуратные скругления */
+    padding: 4px 8px !important;          /* Внутренние отступы, чтобы фокус не слетал */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important; /* Легкая тень для объема */
+}
 
 /* ==========================================================================
    6. ИКОНКИ ДЕЙСТВИЙ (КОММЕНТАРИИ И НАПОМИНАНИЯ)
