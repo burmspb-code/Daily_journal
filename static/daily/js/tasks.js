@@ -281,7 +281,9 @@ function appendNewTaskRow() {
         <td colspan="4">
             <input type="text" id="inline-task-input" class="form-control form-control-sm border-primary shadow-sm" placeholder="Напишите название задачи и нажмите Enter..." style="outline: none;">
         </td>
-        <td class="text-center"><span class="badge rounded-pill bg-secondary px-2">new</span></td>
+        <td class="text-center">
+            <span class="badge rounded-pill bg-success px-2">0</span>
+        </td>
     `;
     tbody.appendChild(newRow);
 
@@ -437,8 +439,23 @@ function updateRowStatusBadge(taskId, flagValue) {
     if (!row) return;
     const badge = row.querySelector('.badge');
     if (!badge) return;
-    if (flagValue === 3) { badge.className = "badge rounded-pill bg-danger px-2"; badge.textContent = "Просрочена"; }
-    else if (flagValue === 0) { badge.className = "badge rounded-pill bg-success px-2"; badge.textContent = "0"; }
+
+    // Принудительно приводим к числу на случай, если пришла строка
+    const flag = parseInt(flagValue);
+
+    if (flag === 0) {
+        badge.className = "badge rounded-pill bg-success px-2";
+        badge.textContent = "0";
+    } else if (flag === 1) {
+        badge.className = "badge rounded-pill bg-warning text-dark px-2";
+        badge.textContent = "1";
+    } else if (flag === 2) {
+        badge.className = "badge rounded-pill bg-secondary px-2";
+        badge.textContent = "2";
+    } else if (flag === 3) {
+        badge.className = "badge rounded-pill bg-danger px-2";
+        badge.textContent = "3"; // или "Дедлайн" в зависимости от того, что вы выводите в строках по умолчанию
+    }
 }
 
 function getCookie(name) {

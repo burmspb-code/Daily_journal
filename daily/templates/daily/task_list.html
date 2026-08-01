@@ -96,7 +96,7 @@
 <!-- Главный контейнер карточки с таблицей -->
 <div class="card shadow-sm border-0 rounded-3">
     <!-- Контейнер скроллинга (убрали инлайн-стиль overflow) -->
-    <div class="table-responsive" {% if tasks|length < 4 %}style="min-height: 350px;"{% endif %}>
+    <div class="table-responsive" style="min-height: 250px;">
         <table class="table table-hover table-striped align-middle mb-0" id="tasks-table">
             <thead class="table-primary sticky-top" style="z-index: 100;">
                 <tr>
@@ -180,22 +180,51 @@
                         </div>
 
                         <!-- Переделанное окно фильтра флагов -->
-                        <ul id="flag-popup" class="header-filter-popup dropdown-menu dropdown-menu-dark shadow-lg p-0 dropdown-menu-end">
-                            <div class="p-0">
+                        <ul id="flag-popup" class="header-filter-popup dropdown-menu dropdown-menu-dark shadow-lg p-0 dropdown-menu-end" style="border: 1px solid #444;">
+                            <div style="max-height: 250px; overflow-y: auto;" class="p-0">
+
+                                <!-- 1. Все статусы -->
                                 <li>
-                                    <!-- ИСПРАВЛЕНО: изменен name на title, current_name на current_title -->
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=" class="dropdown-item py-2 px-3">
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag="
+                                       class="dropdown-item py-2 px-3 {% if not current_flag %}active{% endif %}">
                                         Все статусы
                                     </a>
                                 </li>
-                                <li><hr class="dropdown-divider m-0 border-light" style="opacity: 0.25;"></li>
 
+                                <li><hr class="dropdown-divider m-0" style="border-top: 1px solid rgba(255, 255, 255, 0.15); opacity: 1;"></li>
+
+                                <!-- 2. Флаг 0: Создана -->
                                 <li>
-                                    <!-- ИСПРАВЛЕНО: синхронизированы переменные поиска по тексту и сохранение сортировки -->
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=0" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '0' %}active{% endif %}">
-                                        <span class="badge rounded-pill bg-success px-2">0</span> В работе
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=0"
+                                       class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '0' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-success px-2">0</span> Создана
                                     </a>
                                 </li>
+
+                                <!-- 3. Флаг 1: В работе -->
+                                <li>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=1"
+                                       class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '1' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-warning text-dark px-2">1</span> В работе
+                                    </a>
+                                </li>
+
+                                <!-- 4. Флаг 2: Выполнена -->
+                                <li>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=2"
+                                       class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '2' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-secondary px-2">2</span> Выполнена
+                                    </a>
+                                </li>
+
+                                <!-- 5. Флаг 3: Дедлайн -->
+                                <li>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=3"
+                                       class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '3' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-danger px-2">3</span> Дедлайн
+                                    </a>
+                                </li>
+
                             </div>
                         </ul>
                     </th>
