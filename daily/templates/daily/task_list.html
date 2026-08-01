@@ -197,7 +197,9 @@
                                 <li>
                                     <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=0"
                                        class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '0' %}active{% endif %}">
-                                        <span class="badge rounded-pill bg-success px-2">0</span> Создана
+                                        <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1">
+                                            <i class="bi bi-plus-circle-fill"></i> Создана
+                                        </span>
                                     </a>
                                 </li>
 
@@ -205,7 +207,9 @@
                                 <li>
                                     <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=1"
                                        class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '1' %}active{% endif %}">
-                                        <span class="badge rounded-pill bg-warning text-dark px-2">1</span> В работе
+                                        <span class="badge rounded-pill bg-warning text-dark px-2 py-1 d-inline-flex align-items-center gap-1">
+                                            <i class="bi bi-gear-fill"></i> В работе
+                                        </span>
                                     </a>
                                 </li>
 
@@ -213,7 +217,9 @@
                                 <li>
                                     <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=2"
                                        class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '2' %}active{% endif %}">
-                                        <span class="badge rounded-pill bg-secondary px-2">2</span> Выполнена
+                                        <span class="badge rounded-pill bg-secondary px-2 py-1 d-inline-flex align-items-center gap-1">
+                                            <i class="bi bi-check-circle-fill"></i> Выполнена
+                                        </span>
                                     </a>
                                 </li>
 
@@ -221,7 +227,9 @@
                                 <li>
                                     <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=3"
                                        class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '3' %}active{% endif %}">
-                                        <span class="badge rounded-pill bg-danger px-2">3</span> Дедлайн
+                                        <span class="badge rounded-pill bg-danger px-2 py-1 d-inline-flex align-items-center gap-1">
+                                            <i class="bi bi-exclamation-triangle-fill"></i> Дедлайн
+                                        </span>
                                     </a>
                                 </li>
 
@@ -235,12 +243,18 @@
                 <tr id="task-row-{{ task.id }}" data-id="{{ task.id }}">
                     <td class="ps-4"><input class="form-check-input task-checkbox" type="checkbox" data-id="{{ task.id }}"></td>
                     <td>{{ forloop.counter }}</td>
+
+                    <!-- Столбец: Наименование -->
                     <td class="task-name-cell align-middle fw-semibold" onclick="this.querySelector('.editable-task-name').focus()">
                         <span class="editable-task-name d-inline-block" contenteditable="true" data-id="{{ task.id }}" style="cursor: text; min-height: 24px;">
                             {{ task.title }}
                         </span>
                     </td>
+
+                    <!-- Столбец: Время создания -->
                     <td>{{ task.created_at|date:"d.m.Y H:i" }}</td>
+
+                    <!-- Столбец: Время напоминания -->
                     <td class="task-reminder-cell align-middle text-nowrap small" data-id="{{ task.id }}">
                         {% if task.reminder_at %}
                             <span class="d-inline-flex align-items-center gap-1 text-warning"><i class="bi bi-bell-fill"></i> {{ task.reminder_at|date:"d.m.Y H:i" }}</span>
@@ -248,12 +262,34 @@
                             <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;"><i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить"></i></span>
                         {% endif %}
                     </td>
+
+                    <!-- Столбец: Комментарий -->
                     <td class="task-comment-cell align-middle" onclick="this.querySelector('.editable-task-comment').focus()">
                         <span class="editable-task-comment text-muted small d-inline-block" contenteditable="true" data-id="{{ task.id }}" style="cursor: text; min-height: 24px;">
                             {% if task.comment %}{{ task.comment }}{% else %}<i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить"></i>{% endif %}
                         </span>
                     </td>
-                    <td class="text-center"><span class="badge rounded-pill bg-success px-2">0</span></td>
+
+                    <!-- СТОЛБЕЦ ОБНОВЛЕН: Динамический вывод статуса с иконками Bootstrap Icons -->
+                    <td class="text-center task-status-cell" style="cursor: pointer;">
+                        {% if task.status_flag == 0 %}
+                            <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1" title="Создана">
+                                <i class="bi bi-plus-circle-fill"></i> Создана
+                            </span>
+                        {% elif task.status_flag == 1 %}
+                            <span class="badge rounded-pill bg-warning text-dark px-2 py-1 d-inline-flex align-items-center gap-1" title="В работе">
+                                <i class="bi bi-gear-fill"></i> В работе
+                            </span>
+                        {% elif task.status_flag == 2 %}
+                            <span class="badge rounded-pill bg-secondary px-2 py-1 d-inline-flex align-items-center gap-1" title="Выполнена">
+                                <i class="bi bi-check-circle-fill"></i> Выполнена
+                            </span>
+                        {% elif task.status_flag == 3 %}
+                            <span class="badge rounded-pill bg-danger px-2 py-1 d-inline-flex align-items-center gap-1" title="Дедлайн">
+                                <i class="bi bi-exclamation-triangle-fill"></i> Дедлайн
+                            </span>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% empty %}
                 <tr id="no-tasks-row"><td colspan="7" class="text-center text-muted py-3">Нет задач в этой закладке</td></tr>

@@ -282,7 +282,9 @@ function appendNewTaskRow() {
             <input type="text" id="inline-task-input" class="form-control form-control-sm border-primary shadow-sm" placeholder="Напишите название задачи и нажмите Enter..." style="outline: none;">
         </td>
         <td class="text-center">
-            <span class="badge rounded-pill bg-success px-2">0</span>
+            <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1">
+                <i class="bi bi-plus-circle-fill"></i> Создана
+            </span>
         </td>
     `;
     tbody.appendChild(newRow);
@@ -360,7 +362,11 @@ function saveInlineTask(title, bookmarkId, rowNumber) {
             <td class="task-comment-cell align-middle" onclick="this.querySelector('.editable-task-comment').focus()">
                 <span class="editable-task-comment text-muted small d-inline-block" contenteditable="true" data-id="${data.id}" style="cursor: text; min-height: 24px;"><i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить комментарий"></i></span>
             </td>
-            <td class="text-center"><span class="badge rounded-pill bg-success px-2">0</span></td>
+            <td class="text-center">
+                <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-plus-circle-fill"></i> Создана
+                </span>
+            </td>
         `;
         updateTopTaskCounter(1);
     })
@@ -440,21 +446,20 @@ function updateRowStatusBadge(taskId, flagValue) {
     const badge = row.querySelector('.badge');
     if (!badge) return;
 
-    // Принудительно приводим к числу на случай, если пришла строка
     const flag = parseInt(flagValue);
 
     if (flag === 0) {
-        badge.className = "badge rounded-pill bg-success px-2";
-        badge.textContent = "0";
+        badge.className = "badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1";
+        badge.innerHTML = `<i class="bi bi-plus-circle-fill"></i> Создана`;
     } else if (flag === 1) {
-        badge.className = "badge rounded-pill bg-warning text-dark px-2";
-        badge.textContent = "1";
+        badge.className = "badge rounded-pill bg-warning text-dark px-2 py-1 d-inline-flex align-items-center gap-1";
+        badge.innerHTML = `<i class="bi bi-gear-fill"></i> В работе`;
     } else if (flag === 2) {
-        badge.className = "badge rounded-pill bg-secondary px-2";
-        badge.textContent = "2";
+        badge.className = "badge rounded-pill bg-secondary px-2 py-1 d-inline-flex align-items-center gap-1";
+        badge.innerHTML = `<i class="bi bi-check-circle-fill"></i> Выполнена`;
     } else if (flag === 3) {
-        badge.className = "badge rounded-pill bg-danger px-2";
-        badge.textContent = "3"; // или "Дедлайн" в зависимости от того, что вы выводите в строках по умолчанию
+        badge.className = "badge rounded-pill bg-danger px-2 py-1 d-inline-flex align-items-center gap-1";
+        badge.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> Дедлайн`;
     }
 }
 
