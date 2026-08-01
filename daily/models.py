@@ -103,6 +103,13 @@ class Task(models.Model):
         verbose_name="Автор"
     )
 
+    # Флаг успешной отправки уведомления
+    is_notified = models.BooleanField(
+        default=False,
+        verbose_name="Уведомление отправлено",
+        help_text="Флаг контроля, чтобы не отправлять пуш повторно"
+    )
+
     class Meta:
         """Класс метаданных."""
         db_table = 'tasks'  # Имя таблицы в PostgreSQL
