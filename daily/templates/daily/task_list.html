@@ -201,47 +201,27 @@
                     </th>
                 </tr>
             </thead>
-           <tbody id="tasks-table-body">
+           <tbody id="tasks-table-body" data-current-bookmark-id="{{ current_bookmark.id }}">
                 {% for task in tasks %}
-                <!-- ИСПРАВЛЕНО: Добавлен атрибут data-id для всей строки -->
                 <tr id="task-row-{{ task.id }}" data-id="{{ task.id }}">
                     <td class="ps-4"><input class="form-check-input task-checkbox" type="checkbox" data-id="{{ task.id }}"></td>
                     <td>{{ forloop.counter }}</td>
-
-                    <!-- Столбец: Наименование -->
                     <td class="task-name-cell align-middle fw-semibold" onclick="this.querySelector('.editable-task-name').focus()">
-                        <span class="editable-task-name d-inline-block"
-                              contenteditable="true"
-                              data-id="{{ task.id }}"
-                              style="cursor: text; min-height: 24px;">
+                        <span class="editable-task-name d-inline-block" contenteditable="true" data-id="{{ task.id }}" style="cursor: text; min-height: 24px;">
                             {{ task.title }}
                         </span>
                     </td>
-
                     <td>{{ task.created_at|date:"d.m.Y H:i" }}</td>
-
-                    <!-- Столбец: Время напоминания (ИСПРАВЛЕНО: Добавлен data-id на ячейку) -->
                     <td class="task-reminder-cell align-middle text-nowrap small" data-id="{{ task.id }}">
                         {% if task.reminder_at %}
-                            <span class="d-inline-flex align-items-center gap-1 text-warning">
-                                <i class="bi bi-bell-fill"></i> {{ task.reminder_at|date:"d.m.Y H:i" }}
-                            </span>
+                            <span class="d-inline-flex align-items-center gap-1 text-warning"><i class="bi bi-bell-fill"></i> {{ task.reminder_at|date:"d.m.Y H:i" }}</span>
                         {% else %}
-                            <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
-                                <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i>
-                            </span>
+                            <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;"><i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить"></i></span>
                         {% endif %}
                     </td>
-
-                    <!-- Столбец комментария (ИСПРАВЛЕНО: убран ломающий скрытый символ) -->
                     <td class="task-comment-cell align-middle" onclick="this.querySelector('.editable-task-comment').focus()">
-                        <span class="editable-task-comment text-muted small d-inline-block"
-                              contenteditable="true"
-                              data-id="{{ task.id }}"
-                              style="cursor: text; min-height: 24px;">
-                            {% if task.comment %}
-                                {{ task.comment }}
-                            {% else %}<i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить комментарий"></i>{% endif %}
+                        <span class="editable-task-comment text-muted small d-inline-block" contenteditable="true" data-id="{{ task.id }}" style="cursor: text; min-height: 24px;">
+                            {% if task.comment %}{{ task.comment }}{% else %}<i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить"></i>{% endif %}
                         </span>
                     </td>
                     <td class="text-center"><span class="badge rounded-pill bg-success px-2">0</span></td>

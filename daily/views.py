@@ -180,47 +180,30 @@ class TaskCreateView(LoginRequiredMixin, CreateView):
 
 
 class TaskCreateApiView(TaskCreateView):
-    """
-    API-представление для быстрого инлайн-создания задачи.
-    Наследует всю логику валидации, защиты и привязки owner из TaskCreateView,
-    но возвращает JSON вместо перезагрузки страницы.
-    """
-
     def post(self, request, *args, **kwargs):
         try:
-            data = json.loads(request.body)
+            self.json_data = json.loads(request.body)
         except json.JSONDecodeError:
-            return JsonResponse({'status': 'error', 'message': 'Некорректный JSON-формат'}, status=400)
+            return JsonResponse({'status': 'error', 'message': 'Некорректный JSON-format'}, status=400)
 
-        # 1. Формируем чистые данные для формы из JSON
-        form_data = {
-            'title': data.get('title', '').strip(),
-            'bookmark': data.get('bookmark_id')
-        }
-
-        # 2. Получаем базовые аргументы формы (там сидят 'user', 'initial' и пустой 'data')
-        kwargs_data = self.get_form_kwargs()
-
-        # 3. ИСПРАВЛЕНО: Принудительно заменяем пустой request.POST на наш form_data из JSON
-        kwargs_data['data'] = form_data
-
-        # 4. Инициализируем форму без конфликтов аргументов
-        form = self.get_form_class()(**kwargs_data)
-
+        form = self.get_form()
         if form.is_valid():
             return self.form_valid(form)
-        else:
-            return self.form_invalid(form)
+        return self.form_invalid(form)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['data'] = {
+            'title': str(self.json_data.get('title', '')).strip(),
+            'bookmark': self.json_data.get('bookmark_id'),
+            'owner': self.request.user.id
+        }
+        return kwargs
 
     def form_valid(self, form):
-        """Вызывается, если название заполнено и закладка принадлежит пользователю."""
         form.instance.owner = self.request.user
-        self.object = form.save()  # Сохраняем задачу в базу данных
-
-        # Форматируем дату в локальном часовом поясе пользователя
-        local_created_at = localtime(self.object.created_at)
-        formatted_date = local_created_at.strftime('%d.%m.%Y %H:%M')
-
+        self.object = form.save()
+        formatted_date = localtime(self.object.created_at).strftime('%d.%m.%Y %H:%M')
         return JsonResponse({
             'status': 'success',
             'id': self.object.id,
@@ -228,16 +211,20 @@ class TaskCreateApiView(TaskCreateView):
         })
 
     def form_invalid(self, form):
-        """Вызывается в случае провала валидации (например, пустой title)."""
-        # Собираем все ошибки формы в одну строку для вывода в alert фронтенда
         errors = ", ".join([f"{v[0]}" for k, v in form.errors.items()])
-        return JsonResponse({
-            'status': 'error',
-            'message': errors or 'Ошибка валидации формы'
-        }, status=400)
+        return JsonResponse({'status': 'error', 'message': errors or 'Ошибка валидации'}, status=400)
 
 
 class TaskUpdateApiView(LoginRequiredMixin, View):
+    """
+    API-представление для быстрого инлайн-создания задачи.
+
+    Принимает POST-запрос с JSON-телом, содержащим название задачи (`title`)
+    и идентификатор закладки (`bookmark_id`). Возвращает JSON-ответ со статусом
+    операции, ID созданной записи и отформатированной датой создания.
+
+    Наследует логику защиты и базовые методы из `TaskCreateView`.
+    """
     def post(self, request, *args, **kwargs):
         try:
             data = json.loads(request.body)
@@ -250,7 +237,7 @@ class TaskUpdateApiView(LoginRequiredMixin, View):
         except (Task.DoesNotExist, ValueError):
             return JsonResponse({'status': 'error', 'message': 'Задача не найдена'}, status=404)
 
-        # 3. Обновляем название задачи
+        # Обновляем название задачи
         if 'title' in data:
             title_value = data['title'].strip()
             if not title_value:
@@ -261,7 +248,7 @@ class TaskUpdateApiView(LoginRequiredMixin, View):
         if 'comment' in data:
             task.comment = data['comment'].strip()
 
-        # 4. Обрабатываем дату напоминания (ИСПРАВЛЕНО И ЗАЩИЩЕНО)
+        # Обрабатываем дату напоминания (ИСПРАВЛЕНО И ЗАЩИЩЕНО)
         formatted_reminder_at = "*"
 
         if 'remind_at' in data:  # Ключ от JS календаря
@@ -284,14 +271,14 @@ class TaskUpdateApiView(LoginRequiredMixin, View):
             else:
                 task.reminder_at = None
 
-        # 5. Авторасчет статуса (просрочено/в работе)
+        # Авторасчет статуса (просрочено/в работе)
         if task.reminder_at and task.reminder_at < timezone.now():
             task.status_flag = 3
         else:
             if getattr(task, 'status_flag', None) == 3:
                 task.status_flag = 0
 
-        # 6. Валидация и безопасное сохранение
+        # Валидация и безопасное сохранение
         try:
             task.full_clean()  # Если тут упадет, мы поймаем ошибку ниже, а не выбросим 500
             task.save()
