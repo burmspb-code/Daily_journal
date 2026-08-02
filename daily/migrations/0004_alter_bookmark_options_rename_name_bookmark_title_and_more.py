@@ -6,22 +6,26 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('daily', '0003_bookmark_owner_task_owner'),
+        ("daily", "0003_bookmark_owner_task_owner"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='bookmark',
-            options={'ordering': ['title'], 'verbose_name': 'Закладка', 'verbose_name_plural': 'Закладки'},
+            name="bookmark",
+            options={
+                "ordering": ["title"],
+                "verbose_name": "Закладка",
+                "verbose_name_plural": "Закладки",
+            },
         ),
         migrations.RenameField(
-            model_name='bookmark',
-            old_name='name',
-            new_name='title',
+            model_name="bookmark",
+            old_name="name",
+            new_name="title",
         ),
         migrations.RenameField(
-            model_name='task',
-            old_name='name',
-            new_name='title',
+            model_name="task",
+            old_name="name",
+            new_name="title",
         ),
     ]

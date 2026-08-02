@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
 from users.models import CustomUser
+
 # Импортируем именно админские формы
 from users.forms import CustomUserAdminCreationForm, CustomUserChangeForm
 
@@ -15,40 +16,44 @@ class CustomUserAdmin(UserAdmin):
 
     # Поля для отображения в таблице
     list_display = (
-        'username',
-        'email',
-        'phone_number',
-        'avatar',
+        "username",
+        "email",
+        "phone_number",
+        "avatar",
         "is_staff",
         "is_superuser",
         "is_active",
     )
 
     # Клик по этим полям будет открывать страницу редактирования пользователя
-    list_display_links = ('username', 'email')
+    list_display_links = ("username", "email")
 
     # Поля, по которым можно фильтровать пользователей в правой панели
-    list_filter = ('is_staff', 'is_superuser', 'is_active')
+    list_filter = ("is_staff", "is_superuser", "is_active")
 
     # Поля, по которым работает поиск вверху таблицы
-    search_fields = ('username', 'email', 'phone_number')
+    search_fields = ("username", "email", "phone_number")
 
     # Сортировка
-    ordering = ('username', 'is_staff', 'is_superuser', 'is_active')
+    ordering = ("username", "is_staff", "is_superuser", "is_active")
 
     # НАСТРОЙКА ПОЛЕЙ ПРИ РЕДАКТИРОВАНИИ (Исправлено: возвращены обязательные поля Django)
     fieldsets = (
         (
             "Личная информация",
-            {
-                "fields": ("username", "email", "phone_number", "avatar")
-            },
+            {"fields": ("username", "email", "phone_number", "avatar")},
         ),
         (
             "Права доступа",
             {
                 # groups и user_permissions обязательны для работы UserAdmin!
-                "fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")
+                "fields": (
+                    "is_active",
+                    "is_staff",
+                    "is_superuser",
+                    "groups",
+                    "user_permissions",
+                )
             },
         ),
         (
@@ -74,4 +79,4 @@ class CustomUserAdmin(UserAdmin):
     )
 
     # Делаем даты системными (только для чтения), чтобы их нельзя было случайно изменить
-    readonly_fields = ('last_login', 'date_joined')
+    readonly_fields = ("last_login", "date_joined")

@@ -11,10 +11,10 @@ load_dotenv(override=True)
 
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-fallback-key')
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-fallback-key")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+DEBUG = os.getenv("DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = ["*"]
 
@@ -28,8 +28,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
-    "daily", # Основно пользовательское приложение
+    "daily",  # Основно пользовательское приложение
     "users",
 ]
 
@@ -67,13 +66,13 @@ WSGI_APPLICATION = "config.wsgi.application"
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST"),
+        "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
 
@@ -115,11 +114,11 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 STATICFILES_DIRS = [
-    BASE_DIR / 'static',
+    BASE_DIR / "static",
 ]
 
 # Указываем Django использовать кастомную модель вместо встроенной
-AUTH_USER_MODEL = 'users.CustomUser'
+AUTH_USER_MODEL = "users.CustomUser"
 
 # Использование SMTP для отправки писем
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
@@ -158,10 +157,10 @@ PASSWORD_RESET_TIMEOUT = 24 * 60 * 60  # 86400 секунд
 # ==============================================================================
 
 # URL-адрес для подключения к Redis (брокер сообщений)
-CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
 
 # URL-адрес для хранения результатов выполнения задач в Redis
-CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
 
 # Часовой пояс для планировщика Celery (должен совпадать с Django)
 CELERY_TIMEZONE = TIME_ZONE  # Берём значение из переменной TIME_ZONE вашего проекта

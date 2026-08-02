@@ -7,27 +7,54 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('daily', '0001_initial'),
+        ("daily", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Bookmark',
+            name="Bookmark",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(help_text='Введите наименование закладки', max_length=100, verbose_name='Наименование')),
-                ('description', models.TextField(help_text='Введите описание закладки', verbose_name='Описание')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "name",
+                    models.CharField(
+                        help_text="Введите наименование закладки",
+                        max_length=100,
+                        verbose_name="Наименование",
+                    ),
+                ),
+                (
+                    "description",
+                    models.TextField(
+                        help_text="Введите описание закладки", verbose_name="Описание"
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Закладка',
-                'verbose_name_plural': 'Закладки',
-                'ordering': ['name'],
+                "verbose_name": "Закладка",
+                "verbose_name_plural": "Закладки",
+                "ordering": ["name"],
             },
         ),
         migrations.AddField(
-            model_name='task',
-            name='bookmark',
-            field=models.ForeignKey(default=1, help_text='Выберите закладку', on_delete=django.db.models.deletion.CASCADE, related_name='tasks', to='daily.bookmark', verbose_name='Закладка'),
+            model_name="task",
+            name="bookmark",
+            field=models.ForeignKey(
+                default=1,
+                help_text="Выберите закладку",
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="tasks",
+                to="daily.bookmark",
+                verbose_name="Закладка",
+            ),
             preserve_default=False,
         ),
     ]

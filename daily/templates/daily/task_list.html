@@ -63,10 +63,9 @@
 
         <!-- Кнопка редактировать выбранные задачи -->
         <button id="btn-edit-selected" class="btn btn-warning btn-sm fw-semibold d-none"
-                onclick="openEditModal()"
                 data-bs-toggle="modal"
                 data-bs-target="#editTaskModal"
-                data-url="{% url 'daily:task_update_api' %}">
+                onclick="openEditModal()">
             Редактировать
         </button>
     </div>
@@ -96,7 +95,7 @@
 <!-- Главный контейнер карточки с таблицей -->
 <div class="card shadow-sm border-0 rounded-3">
     <!-- Контейнер скроллинга (убрали инлайн-стиль overflow) -->
-    <div class="table-responsive" style="min-height: 250px;">
+    <div class="table-responsive">
         <table class="table table-hover table-striped align-middle mb-0" id="tasks-table">
             <thead class="table-primary sticky-top" style="z-index: 100;">
                 <tr>
@@ -255,7 +254,12 @@
                     <td>{{ task.created_at|date:"d.m.Y H:i" }}</td>
 
                     <!-- Столбец: Время напоминания -->
-                    <td class="task-reminder-cell align-middle text-nowrap small" data-id="{{ task.id }}">
+                    <td class="task-reminder-cell align-middle text-nowrap small" data-id="{{ task.id }} ">
+                        <!-- БЕЗОПАСНО: Добавляем скрытое поле с чистой датой для JS модалки -->
+                        {% if task.reminder_at %}
+                            <input type="hidden" class="raw-reminder-date" value="{{ task.reminder_at|date:'Y-m-d\TH:i' }}">
+                        {% endif %}
+
                         {% if task.reminder_at %}
                             <span class="d-inline-flex align-items-center gap-1 text-warning"><i class="bi bi-bell-fill"></i> {{ task.reminder_at|date:"d.m.Y H:i" }}</span>
                         {% else %}
@@ -270,7 +274,7 @@
                         </span>
                     </td>
 
-                    <!-- СТОЛБЕЦ ОБНОВЛЕН: Динамический вывод статуса с иконками Bootstrap Icons -->
+                    <!-- СТОЛБЕЦ: Динамический вывод статуса с иконками Bootstrap Icons -->
                     <td class="text-center task-status-cell" style="cursor: pointer;">
                         {% if task.status_flag == 0 %}
                             <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1" title="Создана">
@@ -304,49 +308,66 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content bg-dark text-white border-secondary">
 
-            <!-- ОТКРЫВАЮЩИЙ ТЕГ ФОРМЫ ДОЛЖЕН БЫТЬ ЗДЕСЬ -->
             <form id="edit-task-form" onsubmit="saveTaskChanges(event)">
+                {% csrf_token %}
 
                 <div class="modal-header border-secondary">
-                    <!-- ДОБАВИЛИ ТЕГ span С id ДЛЯ ВЫВОДА НОМЕРА ЗАДАЧИ -->
-                    <h5 class="modal-title" id="editTaskModalLabel">Редактирование задачи № <span id="edit-task-number-title" class="text-warning"></span></h5>
+                    <h5 class="modal-title" id="editTaskModalLabel">
+                        Редактирование задачи № <span id="edit-task-number-title" class="text-warning"></span>
+                    </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
 
                 <div class="modal-body">
-                    <!-- Скрытое поле для ID задачи -->
+                    <!-- Скрытое поле ID -->
                     <input type="hidden" id="edit-task-id">
 
+                    <!-- Цикл для остальных полей (статус тут не появится) -->
+                    {% for field in edit_form %}
+                        <div class="mb-3">
+                            <label for="{{ field.id_for_label }}" class="form-label text-warning small fw-semibold">
+                                {{ field.label }}
+                            </label>
+                            {{ field }}
+
+                            {% if field.help_text %}
+                                <div class="form-text text-muted small">{{ field.help_text }}</div>
+                            {% endif %}
+
+                            {% for error in field.errors %}
+                                <div class="text-danger small mt-1">⚠️ {{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+
+                    <!-- === БЛОК СТАТУСА (РУЧНАЯ ВСТАВКА) === -->
                     <div class="mb-3">
-                        <label for="edit-task-title" class="form-label text-warning">Наименование</label>
-                        <input type="text" class="form-control bg-secondary text-white border-0" id="edit-task-title" required>
+                        <label class="form-label text-warning small fw-semibold">
+                            Статус (Флаг) — Авторасчет
+                        </label>
+                        <!--
+                          {{ edit_form.instance.get_status_flag_display }}
+                          берет цифру из БД и превращает в текст из STATUS_CHOICES
+                        -->
+                        <input type="text"
+                               class="form-control form-control-sm bg-secondary text-white border-0"
+                               value="{{ edit_form.instance.get_status_flag_display }}"
+                               disabled>
+                        <div class="form-text text-muted small">
+                            Статус определяется автоматически на основе даты напоминания.
+                            Изменить вручную нельзя.
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="edit-task-reminder" class="form-label text-warning">Время напоминания</label>
-                        <input type="datetime-local" class="form-control bg-secondary text-white border-0" id="edit-task-reminder">
-                    </div>
-                    <div class="mb-3">
-                        <label for="edit-task-comment" class="form-label text-warning">Комментарий</label>
-                        <textarea class="form-control bg-secondary text-white border-0" id="edit-task-comment" rows="3"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label for="edit-task-flag" class="form-label text-warning">Статус (Флаг) — Авторасчет</label>
-                        <select class="form-select bg-dark text-muted border-secondary" id="edit-task-flag" disabled>
-                            <option value="0">0 — Зеленый (Успех)</option>
-                            <option value="1">1 — Серый</option>
-                            <option value="2">2 — Желтый</option>
-                            <option value="3">3 — Красный</option>
-                        </select>
-                    </div>
+                    <!-- ======================================= -->
+
                 </div>
 
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary fw-semibold">Сохранить изменения</button>
+                    <button type="submit" class="btn btn-primary fw-semibold shadow-sm">Сохранить изменения</button>
                 </div>
 
-            </form> <!-- ЗАКРЫВАЮЩИЙ ТЕГ ФОРМЫ СТРОГО В САМОМ КОНЦЕ CONTENT -->
-
+            </form>
         </div>
     </div>
 </div>

@@ -6,6 +6,7 @@
 валидации регистрационных данных, интеграцию с сервисами капчи
 и перенаправление пользователей на этапы подтверждения учетных записей.
 """
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.tokens import default_token_generator
@@ -23,9 +24,10 @@ from .models import CustomUser
 
 class UserRegisterView(CreateView):
     """Представление для регистрации нового пользователя."""
+
     model = CustomUser
     form_class = CustomUserCreateForm
-    template_name = 'users/register.html'
+    template_name = "users/register.html"
     success_url = reverse_lazy("users:email_confirmation_sent")
 
     def form_valid(self, form):
@@ -120,7 +122,7 @@ class EmailConfirmView(View):
             # Используем корректное имя модели CustomUser вместо User
             uid = force_str(urlsafe_base64_decode(uidb64))
             user = CustomUser.objects.get(pk=uid)
-        except (TypeError, ValueError, OverflowError, CustomUser.DoesNotExist):
+        except TypeError, ValueError, OverflowError, CustomUser.DoesNotExist:
             user = None
 
         # Проверяем, существует ли пользователь и валиден ли токен (не истек ли срок)
@@ -146,4 +148,4 @@ class EmailConfirmView(View):
 class EmailConfirmationSentView(TemplateView):
     """Статическая страница с уведомлением об отправке письма."""
 
-    template_name = 'users/email_confirmation_sent.html'
+    template_name = "users/email_confirmation_sent.html"

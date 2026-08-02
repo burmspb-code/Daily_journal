@@ -16,15 +16,10 @@ from django.db import models
 
 class CustomUser(AbstractUser):
     """Кастомная модель пользователя."""
-    username = models.CharField(
-        max_length=100,
-        unique=True,
-        help_text="Введите ник"
-    )
+
+    username = models.CharField(max_length=100, unique=True, help_text="Введите ник")
     email = models.EmailField(
-        unique=True,
-        verbose_name="email",
-        help_text="Введите адрес электронной почты"
+        unique=True, verbose_name="email", help_text="Введите адрес электронной почты"
     )
     phone_number = PhoneNumberField(
         blank=True,
@@ -41,13 +36,16 @@ class CustomUser(AbstractUser):
         help_text="Загрузите аватар",
     )
 
-    USERNAME_FIELD = 'username'  # Поле для входа (логин)
-    REQUIRED_FIELDS = ['email']  # Что еще спросить при createsuperuser (кроме USERNAME_FIELD и пароля)
+    USERNAME_FIELD = "username"  # Поле для входа (логин)
+    REQUIRED_FIELDS = [
+        "email"
+    ]  # Что еще спросить при createsuperuser (кроме USERNAME_FIELD и пароля)
 
     class Meta:
         """Класс метаданных."""
-        verbose_name="пользователь"
-        verbose_name_plural="пользователи"
+
+        verbose_name = "пользователь"
+        verbose_name_plural = "пользователи"
 
     def __str__(self):
         return f"{self.username} ({self.email})"
