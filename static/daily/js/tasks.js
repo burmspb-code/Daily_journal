@@ -868,3 +868,22 @@ document.addEventListener('paste', function(e) {
         document.execCommand('insertText', false, text);
     }
 });
+
+// === 8. СОРТИРОВКА ПО ДАТА СОЗДАНИЯ ===
+function toggleDateSort() {
+    // 1. Получаем текущие URL-параметры
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentSort = urlParams.get('sort'); // предполагаем, что параметр называется 'sort'
+
+    // 2. Определяем следующее состояние сортировки
+    let nextSort = 'newest';
+    if (currentSort === 'newest') {
+        nextSort = 'oldest';
+    } else if (currentSort === 'oldest') {
+        nextSort = 'newest';
+    }
+
+    // 3. Обновляем параметр в URL и перезагружаем страницу
+    urlParams.set('sort', nextSort);
+    window.location.search = urlParams.toString();
+}
