@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "daily",  # Основно пользовательское приложение
     "users",
+
 ]
 
 MIDDLEWARE = [

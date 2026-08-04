@@ -33,7 +33,7 @@ class TaskListView(LoginRequiredMixin, ListView):
         # select_related делает SQL JOIN, предотвращая проблему N+1
         queryset = Task.objects.filter(owner=user).select_related("bookmark", "owner")
 
-        # 1. Фильтрация по текущей закладке
+        # Фильтрация по текущей закладке
         bookmark_id = self.request.GET.get("bookmark")
         if bookmark_id:
             queryset = queryset.filter(bookmark_id=bookmark_id)
@@ -45,17 +45,17 @@ class TaskListView(LoginRequiredMixin, ListView):
             else:
                 return Task.objects.none()
 
-        # 2. Фильтрация по наименованию (лучше использовать __icontains для поиска по подстроке)
+        # Фильтрация по наименованию (лучше использовать __icontains для поиска по подстроке)
         name_query = self.request.GET.get("title", "").strip()
         if name_query:
             queryset = queryset.filter(title__icontains=name_query)
 
-        # 3. Безопасная фильтрация по флагу управления
+        # Безопасная фильтрация по флагу управления
         flag_query = self.request.GET.get("flag", "").strip()
         if flag_query.isdigit():  # Защита от ValueError (HTTP 500)
             queryset = queryset.filter(status_flag=int(flag_query))
 
-        # 4. Сортировка записей
+        # Сортировка записей
         sort_mapping = {
             "newest": ["-created_at", "-id"],
             "oldest": ["created_at", "id"],
@@ -81,12 +81,12 @@ class TaskListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
-        # 1. СОХРАНЕНИЕ ТЕКУЩИХ ФИЛЬТРОВ И СОРТИРОВКИ (для удержания состояния в UI)
+        # СОХРАНЕНИЕ ТЕКУЩИХ ФИЛЬТРОВ И СОРТИРОВКИ (для удержания состояния в UI)
         context["current_title"] = self.request.GET.get("title", "").strip()
         context["current_flag"] = self.request.GET.get("flag", "").strip()
         context["current_sort"] = self.request.GET.get("sort", "").strip()
 
-        # 2. РАБОТА С ЗАКЛАДКАМИ
+        # РАБОТА С ЗАКЛАДКАМИ
         # Вытягиваем закладки только текущего пользователя и сразу сортируем их по ID
         bookmarks_owner = Bookmark.objects.filter(owner=user).order_by("id")
         context["bookmarks"] = bookmarks_owner
@@ -118,7 +118,7 @@ class TaskCreateApiView(LoginRequiredMixin, View):
     """
 
     def post(self, request, *args, **kwargs):
-        # 1. Проверяем наличие закладок у пользователя перед созданием задачи
+        # Проверяем наличие закладок у пользователя перед созданием задачи
         first_bookmark = (
             Bookmark.objects.filter(owner=request.user).order_by("id").first()
         )
@@ -131,7 +131,7 @@ class TaskCreateApiView(LoginRequiredMixin, View):
                 status=400,
             )
 
-        # 2. Читаем и валидируем JSON из тела запроса
+        # Читаем и валидируем JSON из тела запроса
         try:
             json_data = json.loads(request.body)
         except json.JSONDecodeError, TypeError:
@@ -139,7 +139,7 @@ class TaskCreateApiView(LoginRequiredMixin, View):
                 {"status": "error", "message": "Некорректный JSON-формат"}, status=400
             )
 
-        # 3. Собираем данные для формы. Если закладка не передана, берем первую доступную
+        # Собираем данные для формы. Если закладка не передана, берем первую доступную
         bookmark_id = json_data.get("bookmark_id") or first_bookmark.id
 
         form_data = {
@@ -147,7 +147,7 @@ class TaskCreateApiView(LoginRequiredMixin, View):
             "bookmark": bookmark_id,
         }
 
-        # 4. Инициализируем форму (передаем user для внутренней фильтрации querysets)
+        # Инициализируем форму (передаем user для внутренней фильтрации querysets)
         form = TaskForm(data=form_data, user=request.user)
 
         if form.is_valid():
@@ -163,7 +163,7 @@ class TaskCreateApiView(LoginRequiredMixin, View):
                 {"status": "success", "id": task.id, "created_at": formatted_date}
             )
 
-        # 5. Обработка ошибок валидации формы Django
+        # Обработка ошибок валидации формы Django
         errors = ", ".join([f"{v[0]}" for k, v in form.errors.items()])
         return JsonResponse(
             {"status": "error", "message": errors or "Ошибка валидации"}, status=400

@@ -7,9 +7,10 @@ from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import path
 
 from users.views import UserRegisterView, EmailConfirmationSentView, EmailConfirmView
+from users.apps import UsersConfig
 
 # Пространство имен для URL-адресов приложения
-app_name = "users"
+app_name = UsersConfig.name
 
 urlpatterns = [
     # Маршрут для регистрации нового пользователя (template_name убран, так как он есть во views)
