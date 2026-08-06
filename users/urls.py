@@ -6,7 +6,7 @@ from django.contrib.auth import views as auth_views
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import path
 
-from users.views import UserRegisterView, EmailConfirmationSentView, EmailConfirmView
+from users.views import UserRegisterView, EmailConfirmationSentView, EmailConfirmView, UserRegisterAPIView
 from users.apps import UsersConfig
 
 # Пространство имен для URL-адресов приложения
@@ -18,6 +18,12 @@ urlpatterns = [
         "register/",
         UserRegisterView.as_view(),
         name="register",
+    ),
+    # Маршрут для регистрации нового пользователя через API
+    path(
+        "register/api/",
+        UserRegisterAPIView.as_view(),
+        name="register_api",
     ),
     # Маршрут для входа
     path(

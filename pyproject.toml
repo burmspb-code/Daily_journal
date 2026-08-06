@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [tool.poetry]
-package-mode = false  # <-- ТЕПЕРЬ ОНО НА СВОЕМ МЕСТЕ
+package-mode = false
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
