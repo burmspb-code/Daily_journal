@@ -1,11 +1,21 @@
-# users/services.py
+"""
+Сервисный слой для бизнес-логики приложения управления пользователями (users).
+
+Данный модуль изолирует сложную логику от представлений (views) и содержит
+функции для регистрации аккаунтов, отправки писем верификации и сброса пароля,
+а также валидации одноразовых токенов активации.
+"""
+
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import transaction
 from django.urls import reverse
 from django.utils.encoding import force_bytes
-from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+
+from users.models import CustomUser
 
 
 class EmailActivationError(Exception):
@@ -18,7 +28,7 @@ class InvalidActivationToken(Exception):
     pass
 
 
-def register_inactive_user(request, save_callback) -> getattr:
+def register_inactive_user(request: HttpRequest, save_callback: Callable[[], User]) -> User:
     """Бизнес-логика регистрации неактивного пользователя и отправки email.
 
     Args:

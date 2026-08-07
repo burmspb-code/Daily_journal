@@ -1,3 +1,12 @@
+"""
+Глобальные настройки и конфигурация для Django-проекта Daily Journal.
+
+Этот модуль содержит все системные параметры проекта: настройки базы данных,
+подключение приложений, конфигурацию безопасности, сессий и SMTP-серверов.
+Для проверки корректности настроек перед деплоем используйте:
+`python manage.py check --deploy`
+"""
+
 import os
 from datetime import timedelta
 from pathlib import Path
@@ -122,8 +131,9 @@ STATICFILES_DIRS = [
 # Указываем Django использовать кастомную модель вместо встроенной
 AUTH_USER_MODEL = "users.CustomUser"
 
-# Использование SMTP для отправки писем
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# Временно комментируем SMTP и включаем вывод в консоль:
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
 # Конфигурация SMTP Яндекс
 EMAIL_HOST = "smtp.yandex.ru"

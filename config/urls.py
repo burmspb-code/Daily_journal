@@ -1,4 +1,5 @@
-# config/urls.py
+"""Глобальный конфигурационный файл маршрутов (URL) всего проекта."""
+
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import RedirectView

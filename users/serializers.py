@@ -1,9 +1,19 @@
+"""
+Сериализаторы приложения управления пользователями (users) для Django REST Framework.
+
+Модуль содержит классы для преобразования данных моделей в формат JSON и обратно,
+а также логику комплексной валидации полей при регистрации, авторизации,
+просмотре личного профиля и сбросе паролей пользователей.
+"""
+
+from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from users.models import CustomUser
 
+User = get_user_model()
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     """Сериализатор для создания нового пользователя."""
@@ -34,6 +44,23 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         """Используем кастомный менеджер для безопасного хэширования пароля."""
         # Метод create_user автоматически захеширует пароль перед сохранением
         return CustomUser.objects.create_user(**validated_data)
+
+
+class UserSerializer(serializers.ModelSerializer):
+    """Сериализатор для просмотра и редактирования профиля пользователя."""
+
+    class Meta:
+        """Класс метаданных."""
+
+        model = CustomUser
+        fields = (
+            "id",
+            "username",
+            "email",
+            "phone_number",
+            "avatar",
+        )
+        read_only_fields = ("email",)
 
 
 class EmailVerificationSerializer(serializers.Serializer):
