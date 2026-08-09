@@ -13,6 +13,10 @@ from .views import (
 app_name = DailyConfig.name
 
 urlpatterns = [
+    # =========================================================================
+    # ВЕБ-ИНТЕРФЕЙС (HTML СТРАНИЦЫ ДЛЯ БРАУЗЕРА)
+    # =========================================================================
+
     # Маршрут с таблицей задач
     path("", TaskListView.as_view(), name="task_list"),
     # НОВЫЙ МАРШРУТ ДЛЯ ИНЛАЙН-СОЗДАНИЯ
@@ -24,9 +28,11 @@ urlpatterns = [
     # Маршрут для создания закладки
     path("bookmark/add/", BookmarkCreateView.as_view(), name="bookmark_create"),
     # Маршрут редактирования закладки
-    path(
-        "bookmark/update-api/",
-        BookmarkUpdateApiView.as_view(),
-        name="bookmark_update_api",
-    ),
+    path("bookmark/update-api/", BookmarkUpdateApiView.as_view(), name="bookmark_update_api",),
+
+    # =========================================================================
+    # REST API V1 (ДЛЯ МОБИЛЬНЫХ ПРИЛОЖЕНИЙ И ФРОНТЕНДА)
+    # =========================================================================
+
+
 ]

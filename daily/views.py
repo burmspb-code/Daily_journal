@@ -9,101 +9,72 @@ from django.utils.dateparse import parse_datetime
 from django.views import View
 from django.views.generic import ListView, CreateView, DeleteView
 
+from rest_framework.generics import ListAPIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
 from .forms import TaskEditForm
 from .forms import TaskForm, BookmarkForm
-from .models import Bookmark
-from .models import Task
+from .models import Bookmark, Task
+from .services import TaskService
+from  .serializer import TaskSerializer
 
 logger = logging.getLogger(__name__)
 
+# ========================= Эндпоинты для работы для работы через WEB===============================================
 
 class TaskListView(LoginRequiredMixin, ListView):
-    """Представление для вывода списка задач на веб-страницу."""
+    """Представление для вывода списка задач на веб-страницу.
 
+    Использует сервисный слой `TaskService` для сборки единого контекста данных
+    (задачи, закладки, состояния фильтров). Инкапсулирует логику веб-интерфейса,
+    добавляя HTML-форму редактирования.
+    """
     model = Task
     template_name = "daily/task_list.html"
-    context_object_name = "tasks"  # Переменная, которая пойдет в HTML-шаблон
+    context_object_name = "tasks"
 
     def get_queryset(self):
+        """Возвращает пустой QuerySet.
+
+        Переопределен для предотвращения стандартного запроса ListView к БД.
+        Все необходимые данные (включая отфильтрованные задачи) извлекаются
+        оптимизированным путем в методе `get_context_data`.
+
+        Returns:
+            QuerySet: Пустой набор объектов Task.
         """
-        Возвращает отфильтрованный и отсортированный набор задач текущего пользователя.
-        """
-        user = self.request.user
-
-        # select_related делает SQL JOIN, предотвращая проблему N+1
-        queryset = Task.objects.filter(owner=user).select_related("bookmark", "owner")
-
-        # Фильтрация по текущей закладке
-        bookmark_id = self.request.GET.get("bookmark")
-        if bookmark_id:
-            queryset = queryset.filter(bookmark_id=bookmark_id)
-        else:
-            # Ищем первую закладку ИМЕННО ЭТОГО пользователя
-            first_bookmark = Bookmark.objects.filter(owner=user).order_by("id").first()
-            if first_bookmark:
-                queryset = queryset.filter(bookmark=first_bookmark)
-            else:
-                return Task.objects.none()
-
-        # Фильтрация по наименованию (лучше использовать __icontains для поиска по подстроке)
-        name_query = self.request.GET.get("title", "").strip()
-        if name_query:
-            queryset = queryset.filter(title__icontains=name_query)
-
-        # Безопасная фильтрация по флагу управления
-        flag_query = self.request.GET.get("flag", "").strip()
-        if flag_query.isdigit():  # Защита от ValueError (HTTP 500)
-            queryset = queryset.filter(status_flag=int(flag_query))
-
-        # Сортировка записей
-        sort_mapping = {
-            "newest": ["-created_at", "-id"],
-            "oldest": ["created_at", "id"],
-            "name_asc": ["title"],
-            "name_desc": ["-title"],
-        }
-
-        sort_query = self.request.GET.get("sort", "").strip()
-        order_by_fields = sort_mapping.get(sort_query, ["id"])
-
-        return queryset.order_by(*order_by_fields)
+        # Оставляем этот метод для корректной работы ListView,
+        # но данные возьмем сразу пачкой в get_context_data, чтобы не дублировать логику
+        return Task.objects.none()
 
     def get_context_data(self, **kwargs):
-        """
-        Формирует контекст данных для передачи в HTML-шаблон 'task_list.html'.
+        """Формирует итоговый контекст данных для HTML-шаблона 'task_list.html'.
 
-        Обеспечивает:
-        1. Сохранение состояний фильтров и сортировки для удержания активных элементов в UI.
-        2. Извлечение списка всех закладок текущего пользователя для навигационного меню.
-        3. Определение текущей активной закладки.
+        Запрашивает бизнес-данные у сервисного слоя за один проход и дополняет
+        их специфичными для веб-интерфейса элементами (Django-формами).
+
+        Args:
+            **kwargs: Произвольные именованные аргументы родительского класса.
+
+        Returns:
+            dict: Полный контекст для рендеринга страницы, содержащий:
+                - tasks (QuerySet): Отфильтрованные задачи пользователя.
+                - bookmarks (list): Все закладки пользователя.
+                - current_bookmark (Bookmark): Активная закладка.
+                - current_title / current_flag / current_sort (str): Состояния UI.
+                - edit_form (TaskEditForm): Форма редактирования задачи.
         """
-        # Получаем базовый контекст от родительского класса ListView
         context = super().get_context_data(**kwargs)
-        user = self.request.user
 
-        # СОХРАНЕНИЕ ТЕКУЩИХ ФИЛЬТРОВ И СОРТИРОВКИ (для удержания состояния в UI)
-        context["current_title"] = self.request.GET.get("title", "").strip()
-        context["current_flag"] = self.request.GET.get("flag", "").strip()
-        context["current_sort"] = self.request.GET.get("sort", "").strip()
+        # Запрашиваем всё у сервиса за один раз
+        service_data = TaskService.get_task_list_context(
+            user=self.request.user, params=self.request.GET
+        )
+        context.update(service_data)
 
-        # РАБОТА С ЗАКЛАДКАМИ
-        # Вытягиваем закладки только текущего пользователя и сразу сортируем их по ID
-        bookmarks_owner = Bookmark.objects.filter(owner=user).order_by("id")
-        context["bookmarks"] = bookmarks_owner
-
-        # Извлекаем ID выбранной закладки из GET-параметров URL (?bookmark=ID)
-        bookmark_id = self.request.GET.get("bookmark", "").strip()
-
-        if bookmark_id.isdigit():
-            # Если ID передан и это число — находим соответствующий объект
-            context["current_bookmark"] = bookmarks_owner.filter(
-                id=int(bookmark_id)
-            ).first()
-        else:
-            # Если параметр отсутствует или некорректен — берем самую первую закладку
-            context["current_bookmark"] = bookmarks_owner.first()
-
-        # Передаем форму редактирования под уникальным именем 'edit_form'
+        # Переопределяем tasks, так как ListView ожидает их здесь
+        context["tasks"] = service_data["tasks"]
         context["edit_form"] = TaskEditForm(user=self.request.user)
 
         return context
@@ -376,3 +347,77 @@ class BookmarkUpdateApiView(LoginRequiredMixin, View):
             return JsonResponse(
                 {"error": f"Внутренняя ошибка сервера: {str(e)}"}, status=500
             )
+
+# ========================= Эндпоинты для работы с API ===============================================
+
+class TaskListAPIView(ListAPIView):
+    """API-представление для получения списка задач в формате JSON.
+
+    Интегрирует логику фильтрации `TaskService` с сериализаторами DRF. Возвращает
+    клиенту не только массив задач, но и метаданные интерфейса (список закладок,
+    активную закладку и примененные фильтры) в одном ответе.
+    """
+    serializer_class = TaskSerializer
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request, *args, **kwargs):
+        """Формирует структурированный JSON-ответ со списком задач и метаданными.
+
+        Вызывает единый сервис контекста, сериализует объекты моделей Django
+        в типы данных Python и возвращает унифицированный HTTP-ответ. Поддерживает
+        стандартную пагинацию DRF.
+
+        Args:
+            request (Request): Объект запроса DRF.
+            *args: Произвольные позиционные аргументы.
+            **kwargs: Произвольные именованные аргументы.
+
+        Returns:
+            Response: Объект ответа DRF с JSON-структурой:
+                {
+                    "meta": {
+                        "current_filters": {"title": str, "flag": str, "sort": str},
+                        "bookmarks": [...],
+                        "current_bookmark": {...}
+                    },
+                    "tasks": [...]
+                }
+        """
+        # Получаем весь готовый контекст из сервиса
+        service_context = TaskService.get_task_list_context(
+            user=request.user, params=request.query_params
+        )
+
+        # Сериализуем список задач с поддержкой пагинации
+        queryset = service_context["tasks"]
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            tasks_data = self.get_serializer(page, many=True).data
+        else:
+            tasks_data = self.get_serializer(queryset, many=True).data
+
+        # Сериализуем метаданные закладок
+        bookmarks_serialized = BookmarkSerializer(service_context["bookmarks"], many=True).data
+        current_bookmark_serialized = (
+            BookmarkSerializer(service_context["current_bookmark"]).data
+            if service_context["current_bookmark"] else None
+        )
+
+        # Формируем единый чистый JSON-ответ
+        response_data = {
+            "meta": {
+                "current_filters": {
+                    "title": service_context["current_title"],
+                    "flag": service_context["current_flag"],
+                    "sort": service_context["current_sort"],
+                },
+                "bookmarks": bookmarks_serialized,
+                "current_bookmark": current_bookmark_serialized,
+            },
+            "tasks": tasks_data,
+        }
+
+        if page is not None:
+            return self.get_paginated_response(response_data)
+
+        return Response(response_data)

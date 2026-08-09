@@ -16,9 +16,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .forms import CustomUserCreateForm
 from .models import CustomUser
-from .serializers import UserSerializer, EmailVerificationSerializer, UserRegisterSerializer, \
-    PasswordResetConfirmSerializer, \
-    PasswordResetRequestSerializer
+from .serializers import UserSerializer, EmailVerificationSerializer, UserRegisterSerializer
 from .services import (
     EmailActivationError,
     InvalidActivationToken,
@@ -28,6 +26,7 @@ from .services import (
 
 User = get_user_model()
 
+# ========================= Эндпоинты для работы для работы через WEB==============================================
 
 class UserRegisterView(CreateView):
     """Представление для регистрации нового пользователя через веб-форму."""
