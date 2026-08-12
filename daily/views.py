@@ -8,7 +8,6 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views import View
 from django.views.generic import ListView, CreateView, DeleteView
-
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -16,10 +15,12 @@ from rest_framework.response import Response
 from .forms import TaskEditForm
 from .forms import TaskForm, BookmarkForm
 from .models import Bookmark, Task
+from .paginators import TaskListAPIViewPagination
+from .serializer import TaskSerializer, BookmarkSerializer
 from .services import TaskService
-from  .serializer import TaskSerializer
 
 logger = logging.getLogger(__name__)
+
 
 # ========================= Эндпоинты для работы для работы через WEB===============================================
 
@@ -348,6 +349,7 @@ class BookmarkUpdateApiView(LoginRequiredMixin, View):
                 {"error": f"Внутренняя ошибка сервера: {str(e)}"}, status=500
             )
 
+
 # ========================= Эндпоинты для работы с API ===============================================
 
 class TaskListAPIView(ListAPIView):
@@ -359,6 +361,7 @@ class TaskListAPIView(ListAPIView):
     """
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = TaskListAPIViewPagination
 
     def list(self, request, *args, **kwargs):
         """Формирует структурированный JSON-ответ со списком задач и метаданными.

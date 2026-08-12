@@ -8,6 +8,7 @@ from .views import (
     BookmarkCreateView,
     BookmarkUpdateApiView,
     TaskCreateApiView,
+    TaskListAPIView,
 )
 
 app_name = DailyConfig.name
@@ -17,10 +18,10 @@ urlpatterns = [
     # ВЕБ-ИНТЕРФЕЙС (HTML СТРАНИЦЫ ДЛЯ БРАУЗЕРА)
     # =========================================================================
 
-    # Маршрут с таблицей задач
+    # Маршрут со списком задач
     path("", TaskListView.as_view(), name="task_list"),
     # НОВЫЙ МАРШРУТ ДЛЯ ИНЛАЙН-СОЗДАНИЯ
-    path("task/create-api/", TaskCreateApiView.as_view(), name="task_create_api"),
+    path("task/create-api/", TaskCreateApiView.as_view(), name="task_create"),
     # Маршрут инлайн редактирования задачи
     path("task/update-api/", TaskUpdateApiView.as_view(), name="task_update_api"),
     # Маршрут для удаления задачи
@@ -34,5 +35,6 @@ urlpatterns = [
     # REST API V1 (ДЛЯ МОБИЛЬНЫХ ПРИЛОЖЕНИЙ И ФРОНТЕНДА)
     # =========================================================================
 
-
+    # Маршрут со списком задач
+    path("task/api/v1/list/", TaskListAPIView.as_view(), name="api_task_list"),
 ]

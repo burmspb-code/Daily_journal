@@ -3,13 +3,16 @@
 """
 
 from rest_framework import serializers
-from .models import Task
+from .models import Task, Bookmark
 
 
 class TaskSerializer(serializers.ModelSerializer):
     # Выводим человекочитаемое имя закладки (read_only=True означает, что поле только для чтения)
-    bookmark_name = serializers.CharField(
-        source="bookmark.name", read_only=True
+    bookmark_title = serializers.CharField(
+        source="bookmark.title", read_only=True
+    )
+    owner_username = serializers.CharField(
+        source="owner.username", read_only=True
     )
 
     class Meta:
@@ -21,6 +24,12 @@ class TaskSerializer(serializers.ModelSerializer):
             "reminder_at",
             "comment",
             "status_flag",
-            "bookmark_name",
-            "owner",
+            "bookmark_title",
+            "owner_username",
         ]
+
+
+class BookmarkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Bookmark
+        fields = '__all__'
