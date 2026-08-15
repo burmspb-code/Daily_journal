@@ -8,15 +8,20 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views import View
 from django.views.generic import ListView, CreateView, DeleteView
-from rest_framework.generics import ListAPIView
+
+from rest_framework import status
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.generics import ListAPIView, UpdateAPIView, ListCreateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .forms import TaskEditForm
 from .forms import TaskForm, BookmarkForm
 from .models import Bookmark, Task
 from .paginators import TaskListAPIViewPagination
-from .serializer import TaskSerializer, BookmarkSerializer
+from .serializer import TaskSerializer, BookmarkSerializer, BookmarkUpdateSerializer
 from .services import TaskService
 
 logger = logging.getLogger(__name__)
@@ -81,7 +86,7 @@ class TaskListView(LoginRequiredMixin, ListView):
         return context
 
 
-class TaskCreateApiView(LoginRequiredMixin, View):
+class TaskCreateView(LoginRequiredMixin, View):
     """
     Самостоятельное API-представление для быстрого инлайн-создания задачи.
 
@@ -142,7 +147,7 @@ class TaskCreateApiView(LoginRequiredMixin, View):
         )
 
 
-class TaskUpdateApiView(LoginRequiredMixin, View):
+class TaskUpdateView(LoginRequiredMixin, View):
 
     # Если вместо редиректа на страницу входа для API нужен чистый JSON-ответ:
     def handle_no_permission(self):
@@ -164,7 +169,7 @@ class TaskUpdateApiView(LoginRequiredMixin, View):
 
         updated_fields = []
 
-        # 1. Обновляем название
+        # Обновляем название
         if "title" in request.POST:
             title = request.POST.get("title", "").strip()
             if not title:
@@ -174,12 +179,12 @@ class TaskUpdateApiView(LoginRequiredMixin, View):
             task.title = title
             updated_fields.append("title")
 
-        # 2. Обновляем комментарий
+        # Обновляем комментарий
         if "comment" in request.POST:
             task.comment = request.POST.get("comment", "").strip()
             updated_fields.append("comment")
 
-        # 3. Обновляем напоминание (дата и время)
+        # Обновляем напоминание (дата и время)
         if "reminder_at" in request.POST:
             reminder_raw = request.POST.get("reminder_at", "").strip()
 
@@ -229,7 +234,7 @@ class TaskUpdateApiView(LoginRequiredMixin, View):
         )
 
 
-class TaskDeleteApiView(LoginRequiredMixin, DeleteView):
+class TaskDeleteView(LoginRequiredMixin, DeleteView):
     """
     Представление для удаления задачи.
 
@@ -277,15 +282,14 @@ class TaskDeleteApiView(LoginRequiredMixin, DeleteView):
 
 class BookmarkCreateView(LoginRequiredMixin, CreateView):
     """
-    Представление для создания новой закладки.
-
-    Обрабатывает AJAX-запросы и возвращает результат в формате JSON.
+    Представление для создания новой закладки через стандартный WEB-интерфейс.
+    После сохранения выполняет классический редирект на список задач.
     """
 
     model = Bookmark
     form_class = BookmarkForm
     template_name = (
-        "daily/bookmark_form.html"  # Укажите путь к вашему HTML-шаблону формы
+        "daily/bookmark_form.html"  # Укажите путь к HTML-шаблону формы
     )
     context_object_name = "bookmark"
 
@@ -303,58 +307,47 @@ class BookmarkCreateView(LoginRequiredMixin, CreateView):
         в форму авторизованного пользователя вручную, т.к. данное поле
         отсутствует в форме.
         """
-        # 1. Привязываем к полю owner объект текущего авторизованного пользователя
+        # Привязываем к полю owner объект текущего авторизованного пользователя
         form.instance.owner = self.request.user
 
-        # 2. Запускаем стандартный процесс сохранения формы Django
+        # Запускаем стандартный процесс сохранения формы Django
         return super().form_valid(form)
 
 
-class BookmarkUpdateApiView(LoginRequiredMixin, View):
+class BookmarkUpdateWebResponseView(APIView):
     """
-    API-представление для быстрого переименования закладки.
-    Принимает стандартные данные формы (FormData), обновляя
-    исключительно поле 'title'.
+    Эндпоинт для инлайн-редактирования названия ЗАКЛАДКИ внутри WEB-интерфейса.
+    Принимает POST-запрос с FormData (id и title) с текущей страницы.
+    Аутентификация по сессии браузера + обязательная CSRF-защита.
     """
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [SessionAuthentication]  # Завязано на вошедшего в браузер юзера
 
     def post(self, request, *args, **kwargs):
+        bookmark_id = request.data.get('id')
+
+        # Находим закладку строго для текущего пользователя сайта
         try:
-            # ИСПРАВЛЕНО: Читаем данные напрямую из request.POST вместо json.loads
-            bookmark_id = request.POST.get("id")
-            new_title = request.POST.get("title", "").strip()
+            bookmark = Bookmark.objects.get(id=bookmark_id, owner=request.user)
+        except (Bookmark.DoesNotExist, ValueError):
+            return Response({"error": "Закладка не найдена"}, status=status.HTTP_404_NOT_FOUND)
 
-            # Быстрая проверка данных
-            if not bookmark_id:
-                return JsonResponse({"error": "ID закладки не передан"}, status=400)
-            if not new_title:
-                return JsonResponse(
-                    {"error": "Название не может быть пустым"}, status=400
-                )
+        # Передаем данные в сериализатор для валидации поля 'title'
+        serializer = BookmarkUpdateSerializer(bookmark, data=request.data, partial=True)
 
-            # Находим закладку в базе данных с проверкой владельца
-            bookmark = Bookmark.objects.get(pk=bookmark_id, owner=request.user)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"status": "success"}, status=status.HTTP_200_OK)
 
-            # Обновляем только название и сохраняем
-            bookmark.title = new_title
-            bookmark.save(update_fields=["title"])
-
-            return JsonResponse({"status": "success"}, status=200)
-
-        except Bookmark.DoesNotExist:
-            return JsonResponse(
-                {"error": "Закладка не найдена или доступ запрещен"}, status=404
-            )
-        except Exception as e:
-            return JsonResponse(
-                {"error": f"Внутренняя ошибка сервера: {str(e)}"}, status=500
-            )
+        # Если название пустое, DRF вернет структурированную ошибку 400
+        return Response({"error": serializer.errors.get('title', ['Ошибка валидации'])[0]},
+                        status=status.HTTP_400_BAD_REQUEST)
 
 
 # ========================= Эндпоинты для работы с API ===============================================
 
 class TaskListAPIView(ListAPIView):
     """API-представление для получения списка задач в формате JSON.
-
     Интегрирует логику фильтрации `TaskService` с сериализаторами DRF. Возвращает
     клиенту не только массив задач, но и метаданные интерфейса (список закладок,
     активную закладку и примененные фильтры) в одном ответе.
@@ -424,3 +417,37 @@ class TaskListAPIView(ListAPIView):
             return self.get_paginated_response(response_data)
 
         return Response(response_data)
+
+
+class BookmarkUpdateExternalApiView(UpdateAPIView):
+    """
+    API-представление для редактирования названия ЗАКЛАДКИ.
+    Принимает PATCH-запрос по URL: /api/v1/bookmarks/<id>/
+    Аутентификация через JWT-токен в заголовке Authorization.
+    """
+
+    serializer_class = BookmarkUpdateSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]  # Защита токеном, а не сессией браузера
+
+    def get_queryset(self):
+        return Bookmark.objects.filter(owner=self.request.user)
+
+
+class BookmarkListCreateAPIView(ListCreateAPIView):
+    """
+    API-представление для создания новой закладки
+    или вывода списка закладок.
+    """
+
+    serializer_class = BookmarkSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get_queryset(self):
+        """Фильтруем список под текущего пользователя."""
+        return Bookmark.objects.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        """Автоматически сохраняем авторизованного пользователя в поле owner."""
+        serializer.save(owner=self.request.user)

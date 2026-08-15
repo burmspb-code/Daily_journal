@@ -33,3 +33,19 @@ class BookmarkSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bookmark
         fields = '__all__'
+
+    # Говорим DRF, что owner не нужно требовать на вход и валидировать от клиента
+    extra_kwargs = {
+        'owner': {'read_only': True}
+    }
+
+
+class BookmarkUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Bookmark
+        fields = ['id', 'title']
+
+    def validate_title(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Название не может быть пустым.")
+        return value.strip()

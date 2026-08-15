@@ -57,7 +57,7 @@ function saveInlineDate(input, taskId) {
     formData.append('id', taskId);
     formData.append('reminder_at', newDateTime);
 
-    fetch('/daily/task/update-api/', {
+    fetch('/daily/task/update/', {
         method: "POST",
         headers: {
             "X-CSRFToken": getCookie('csrftoken')

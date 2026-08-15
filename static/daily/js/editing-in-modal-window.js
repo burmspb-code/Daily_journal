@@ -122,7 +122,7 @@ export function saveTaskChanges(event) {
     }
 
     // 3. Отправляем запрос
-    fetch('/daily/task/update-api/', {
+    fetch('/daily/task/update/', {
         method: 'POST',
         body: formData, // Отправляем FormData, НЕ JSON
         headers: {

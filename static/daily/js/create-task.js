@@ -69,7 +69,7 @@ export function saveInlineTask(title, bookmarkId, rowNumber) {
     const input = document.getElementById('inline-task-input');
     if (input) input.disabled = true;
 
-    fetch('/daily/task/create-api/', {
+    fetch('/daily/task/create/', {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie('csrftoken') },
         body: JSON.stringify({ title: title, bookmark_id: bookmarkId })

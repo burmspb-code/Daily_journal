@@ -56,7 +56,7 @@ document.addEventListener('focusout', function (e) {
         formData.append('id', taskId);
         formData.append('title', newName);
 
-        fetch('/daily/task/update-api/', {
+        fetch('/daily/task/update/', {
             method: 'POST',
             headers: {
                 'X-CSRFToken': getCookie('csrftoken')
@@ -93,7 +93,7 @@ document.addEventListener('focusout', function (e) {
         formData.append('id', taskId);
         formData.append('comment', newComment);
 
-        fetch('/daily/task/update-api/', {
+        fetch('/daily/task/update/', {
             method: 'POST',
             headers: {
                 'X-CSRFToken': getCookie('csrftoken')

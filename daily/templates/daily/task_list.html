@@ -56,7 +56,7 @@
             {% endif %}
 
             <!-- Кнопка удалить выбранные задачи -->
-            <button id="btn-delete-selected" class="btn btn-danger btn-sm fw-semibold d-none" onclick="deleteSelectedTasks()" data-url="{% url 'daily:task_delete_api' %}">
+            <button id="btn-delete-selected" class="btn btn-danger btn-sm fw-semibold d-none" onclick="deleteSelectedTasks()" data-url="{% url 'daily:task_delete' %}">
                 Удалить выбранные (<span id="selected-count">0</span>)
             </button>
 
