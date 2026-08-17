@@ -239,8 +239,6 @@
 
 </div> <!-- Конец главного фиксированного контейнера -->
 
-
-
 <!-- Модальное окно редактирования задачи -->
 <div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -309,6 +307,26 @@
             </form>
         </div>
     </div>
+</div>
+
+<!-- Модальное окно подтверждения удаления -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-white border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title" id="deleteModalLabel">Подтвердите действие</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        Вы уверены, что хотите удалить выбранные задачи (<span id="delete-count-span">1</span> шт.)?
+      </div>
+      <!-- ИСПРАВЛЕНО: Заменено с modal-header на modal-footer -->
+      <div class="modal-footer border-secondary justify-content-end gap-2">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-danger" id="btn-confirm-delete-action">ОК</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 {% csrf_token %}

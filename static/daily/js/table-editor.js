@@ -9,9 +9,9 @@ import { initReminderEditing } from './editing-reminder-time.js';
 import { toggleDateSort } from './date-sort.js';
 import {
     appendNewTaskRow,
-    saveInlineTask,
-    deleteSelectedTasks
+    saveInlineTask
 } from './create-task.js';
+import { deleteSelectedTasks } from './delete-tasks.js'
 import {
     openEditModal,
     saveTaskChanges

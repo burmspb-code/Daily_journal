@@ -44,7 +44,7 @@ urlpatterns = [
 
     # URL для задач (возвращает список задач)
     path("api/v1/tasks/", TaskListAPIView.as_view(), name="task_list_api"),
-    # URL для создания новой закладки (POST) или получения списка (GET)
+    # URL для создания новой закладки (POST) или получения списка закладок(GET)
     path('api/v1/bookmarks/', BookmarkListCreateAPIView.as_view(), name='bookmark_list_create_api'),
     # URL для просмотра(GET), обновления(PUT / PATCH) и удаления(DELETE) конкретной закладки
     path('api/v1/bookmarks/<int:pk>/', BookmarkUpdateExternalApiView.as_view(), name='bookmark_api'),

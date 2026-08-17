@@ -11,7 +11,7 @@ from django.views.generic import ListView, CreateView, DeleteView
 
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.generics import ListAPIView, UpdateAPIView, ListCreateAPIView
+from rest_framework.generics import ListAPIView, RetrieveUpdateDestroyAPIView, ListCreateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -419,10 +419,9 @@ class TaskListAPIView(ListAPIView):
         return Response(response_data)
 
 
-class BookmarkUpdateExternalApiView(UpdateAPIView):
+class BookmarkUpdateExternalApiView(RetrieveUpdateDestroyAPIView):
     """
-    API-представление для редактирования названия ЗАКЛАДКИ.
-    Принимает PATCH-запрос по URL: /api/v1/bookmarks/<id>/
+    API-представление для просмотра(GET), обновления(PUT / PATCH) и удаления(DELETE) конкретной закладки.
     Аутентификация через JWT-токен в заголовке Authorization.
     """
 

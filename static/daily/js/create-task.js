@@ -110,37 +110,3 @@ export function saveInlineTask(title, bookmarkId, rowNumber) {
         if (input) { input.disabled = false; input.focus(); }
     });
 }
-
-export function deleteSelectedTasks() {
-    const checkedBoxes = document.querySelectorAll('.task-checkbox:checked');
-    if (checkedBoxes.length === 0) return;
-
-    if (!confirm(`Вы уверены, что хотите удалить выбранные задачи (${checkedBoxes.length} шт.)?`)) return;
-
-    const taskIds = Array.from(checkedBoxes).map(cb => parseInt(cb.getAttribute('data-id')));
-    const btnDelete = document.getElementById('btn-delete-selected');
-    const url = btnDelete.getAttribute('data-url');
-
-    fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-        body: JSON.stringify({ task_ids: taskIds })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            taskIds.forEach(id => { const row = document.getElementById(`task-row-${id}`); if (row) row.remove(); });
-            renumberTableRows();
-            const selectAll = document.getElementById('select-all-tasks');
-            if (selectAll) selectAll.checked = false;
-            btnDelete.classList.add('d-none');
-            document.getElementById('btn-edit-selected').classList.add('d-none');
-            const selectedCountSpan = document.getElementById('selected-count');
-            if (selectedCountSpan) selectedCountSpan.textContent = '0';
-            alert(data.message);
-        } else {
-            alert('Ошибка выполнения: ' + data.message);
-        }
-    })
-    .catch(error => alert('Ошибка удаления: ' + error.message));
-}
