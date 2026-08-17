@@ -110,3 +110,25 @@ export function saveInlineTask(title, bookmarkId, rowNumber) {
         if (input) { input.disabled = false; input.focus(); }
     });
 }
+
+// Слушатель горячей клавиши "+"
+document.addEventListener('keydown', function(event) {
+    // 1. Проверяем нажатие клавиши "+" или кнопки "+" на Numpad
+    if (event.key === '+' || event.key === 'NumpadAdd') {
+
+        // 2. Защита: проверяем, не пишет ли пользователь уже в инпуте или contenteditable
+        const activeEl = document.activeElement;
+        const isTyping = activeEl && (
+            activeEl.tagName === 'INPUT' ||
+            activeEl.tagName === 'TEXTAREA' ||
+            activeEl.isContentEditable
+        );
+
+        // Если пользователь уже где-то вводит текст, то символ "+" должен просто напечататься
+        if (isTyping) return;
+
+        // 3. Если фокус нигде не стоит, перехватываем нажатие и вызываем создание строки
+        event.preventDefault();
+        appendNewTaskRow();
+    }
+});
