@@ -23,6 +23,12 @@ import {
     updateRowStatusBadge,
     getCookie
 } from './secondary-system-functions.js';
+import {
+    initPeriodicityListeners,
+    handleFieldsToggle,
+    setPeriodicityFields,
+    formatDurationFromSeconds
+} from './taskPeriodicity.js';
 
 // ==========================================
 // 2. ГЛОБАЛЬНАЯ РЕГИСТРАЦИЯ ДЛЯ HTML / HTMX
@@ -38,6 +44,10 @@ window.saveTaskChanges = saveTaskChanges;
 window.appendNewTaskRow = appendNewTaskRow;
 window.saveInlineTask = saveInlineTask;
 window.deleteSelectedTasks = deleteSelectedTasks;
+window.initPeriodicityListeners = initPeriodicityListeners;
+window.handleFieldsToggle = handleFieldsToggle;
+window.setPeriodicityFields = setPeriodicityFields;
+window.formatDurationFromSeconds = formatDurationFromSeconds;
 
 // ==========================================
 // 3. ГЛОБАЛЬНЫЕ ЭЛЕМЕНТЫ ИНТЕРФЕЙСА

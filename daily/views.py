@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import timedelta  # Не забудьте импортировать вверху файла
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
@@ -8,10 +9,12 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views import View
 from django.views.generic import ListView, CreateView, DeleteView
-
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.generics import ListAPIView, RetrieveUpdateDestroyAPIView, ListCreateAPIView
+from rest_framework.generics import ListAPIView
+from rest_framework.generics import RetrieveUpdateDestroyAPIView, ListCreateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -19,9 +22,11 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .forms import TaskEditForm
 from .forms import TaskForm, BookmarkForm
-from .models import Bookmark, Task
+from .models import Bookmark
+from .models import Task
 from .paginators import TaskListAPIViewPagination
-from .serializer import TaskSerializer, BookmarkSerializer, BookmarkUpdateSerializer
+from .serializers import BookmarkUpdateSerializer
+from .serializers import TaskSerializer, BookmarkSerializer
 from .services import TaskService
 
 logger = logging.getLogger(__name__)
@@ -88,7 +93,7 @@ class TaskListView(LoginRequiredMixin, ListView):
 
 class TaskCreateView(LoginRequiredMixin, View):
     """
-    Самостоятельное API-представление для быстрого инлайн-создания задачи.
+    Представление для быстрого инлайн-создания задачи.
 
     Принимает POST-запрос с JSON-телом, валидирует данные через TaskForm
     и возвращает JSON с ID новой задачи для мгновенного добавления в таблицу.
@@ -148,8 +153,10 @@ class TaskCreateView(LoginRequiredMixin, View):
 
 
 class TaskUpdateView(LoginRequiredMixin, View):
+    """
+    Представление для редактирования задачи через модальное окно.
+    """
 
-    # Если вместо редиректа на страницу входа для API нужен чистый JSON-ответ:
     def handle_no_permission(self):
         return JsonResponse({"error": "Пользователь не авторизован"}, status=401)
 
@@ -160,7 +167,6 @@ class TaskUpdateView(LoginRequiredMixin, View):
             return JsonResponse({"error": "Не передан ID задачи"}, status=400)
 
         try:
-            # Теперь request.user гарантированно авторизован
             task = Task.objects.get(id=task_id, owner=request.user)
         except Task.DoesNotExist:
             return JsonResponse(
@@ -195,7 +201,6 @@ class TaskUpdateView(LoginRequiredMixin, View):
                         {"error": "Неверный формат даты и времени"}, status=400
                     )
 
-                # Привязываем к часовому поясу
                 if timezone.is_naive(naive_datetime):
                     new_reminder = timezone.make_aware(naive_datetime)
                 else:
@@ -203,19 +208,48 @@ class TaskUpdateView(LoginRequiredMixin, View):
             else:
                 new_reminder = None
 
-            # ЛОГИКА СБРОСА УВЕДОМЛЕНИЯ:
-            # Если дата изменилась, нужно сбросить флаг уведомления, чтобы пуш ушел снова
             if task.reminder_at != new_reminder:
                 task.reminder_at = new_reminder
-                task.is_notified = False  # Сбрасываем флаг контроля пушей
+                task.is_notified = False
                 updated_fields.extend(["reminder_at", "is_notified"])
+
+        # Обновляем периодичность повторения
+        if "periodicity_1" in request.POST:
+            val_0 = request.POST.get("periodicity_0", "").strip()
+            val_1 = request.POST.get("periodicity_1", "").strip()
+
+            new_periodicity = None
+            if val_1 != "none" and val_0:
+                try:
+                    amount = int(val_0)
+                    if val_1 == 'minutes':
+                        new_periodicity = timedelta(minutes=amount)
+                    elif val_1 == 'hours':
+                        new_periodicity = timedelta(hours=amount)
+                    elif val_1 == 'days':
+                        new_periodicity = timedelta(days=amount)
+                    elif val_1 == 'weeks':
+                        new_periodicity = timedelta(weeks=amount)
+                    elif val_1 == 'months':
+                        new_periodicity = timedelta(days=amount * 30)
+                    elif val_1 == 'years':
+                        new_periodicity = timedelta(days=amount * 365)
+                except (ValueError, TypeError):
+                    return JsonResponse({"error": "Некорректное значение интервала"}, status=400)
+
+            # Если значение изменилось, фиксируем для записи в БД
+            if task.periodicity != new_periodicity:
+                task.periodicity = new_periodicity
+                updated_fields.append("periodicity")
 
         # Сохраняем строго измененные поля
         if updated_fields:
-            # Убираем дубликаты из списка, если они появились
             task.save(update_fields=list(set(updated_fields)))
 
-        # Формируем ответ (маппинг 'status' совпадает с вашим JS скриптом)
+        # В ответе возвращаем отформатированный текст или секунды для JS таблицы
+        # Чтобы JS на фронтенде сразу понял, что отрисовать в инлайн-строке:
+        total_seconds = task.periodicity.total_seconds() if task.periodicity else 0
+
         return JsonResponse(
             {
                 "status": "success",
@@ -226,9 +260,10 @@ class TaskUpdateView(LoginRequiredMixin, View):
                     "reminder_at": (
                         task.reminder_at.isoformat() if task.reminder_at else None
                     ),
-                    "status": task.status_flag,  # Передаем число (0, 1, 2, 3)
-                    "status_display": task.get_status_flag_display(),  # Передаем текст ("Создана", "В работе" и т.д.)
+                    "status": task.status_flag,
+                    "status_display": task.get_status_flag_display(),
                     "bookmark_id": task.bookmark_id,
+                    "periodicity_seconds": total_seconds,
                 },
             }
         )
@@ -314,6 +349,7 @@ class BookmarkCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
+@extend_schema(exclude=True)  # Полностью исключает это веб-представление из Swagger/Redoc
 class BookmarkUpdateWebResponseView(APIView):
     """
     Эндпоинт для инлайн-редактирования названия ЗАКЛАДКИ внутри WEB-интерфейса.
@@ -356,29 +392,38 @@ class TaskListAPIView(ListAPIView):
     permission_classes = [IsAuthenticated]
     pagination_class = TaskListAPIViewPagination
 
-    def list(self, request, *args, **kwargs):
-        """Формирует структурированный JSON-ответ со списком задач и метаданными.
+    # Явно задаем queryset, чтобы заглушить предупреждение Swagger в консоли
+    queryset = Task.objects.none()
 
-        Вызывает единый сервис контекста, сериализует объекты моделей Django
-        в типы данных Python и возвращает унифицированный HTTP-ответ. Поддерживает
-        стандартную пагинацию DRF.
-
-        Args:
-            request (Request): Объект запроса DRF.
-            *args: Произвольные позиционные аргументы.
-            **kwargs: Произвольные именованные аргументы.
-
-        Returns:
-            Response: Объект ответа DRF с JSON-структурой:
-                {
-                    "meta": {
-                        "current_filters": {"title": str, "flag": str, "sort": str},
-                        "bookmarks": [...],
-                        "current_bookmark": {...}
-                    },
-                    "tasks": [...]
+    @extend_schema(
+        summary="Получение списка задач с метаданными",
+        description="Возвращает массив задач текущего пользователя с учетом пагинации, а также метаданные фильтров и закладок.",
+        responses={
+            200: inline_serializer(
+                name='TaskListWithMetaResponse',
+                fields={
+                    'meta': inline_serializer(
+                        name='TaskListMeta',
+                        fields={
+                            'current_filters': inline_serializer(
+                                name='TaskListFilters',
+                                fields={
+                                    'title': serializers.CharField(allow_null=True),
+                                    'flag': serializers.CharField(allow_null=True),
+                                    'sort': serializers.CharField(allow_null=True),
+                                }
+                            ),
+                            'bookmarks': BookmarkSerializer(many=True),
+                            'current_bookmark': BookmarkSerializer(allow_null=True),
+                        }
+                    ),
+                    'tasks': TaskSerializer(many=True)
                 }
-        """
+            )
+        }
+    )
+    def list(self, request, *args, **kwargs):
+        """Формирует структурированный JSON-ответ со списком задач и метаданными."""
         # Получаем весь готовый контекст из сервиса
         service_context = TaskService.get_task_list_context(
             user=request.user, params=request.query_params
@@ -445,6 +490,11 @@ class BookmarkListCreateAPIView(ListCreateAPIView):
 
     def get_queryset(self):
         """Фильтруем список под текущего пользователя."""
+        # ЗАЩИТА ДЛЯ SWAGGER: если схему генерирует робот, отдаем пустой кверисет
+        if getattr(self, "swagger_fake_view", False) or "spectacular" in str(
+                self.request
+        ):
+            return Bookmark.objects.none()
         return Bookmark.objects.filter(owner=self.request.user)
 
     def perform_create(self, serializer):

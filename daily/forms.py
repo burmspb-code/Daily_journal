@@ -1,5 +1,85 @@
+from datetime import timedelta
+
 from django import forms
-from .models import Task, Bookmark
+
+from .models import Bookmark
+from .models import Task
+
+
+class DarkDurationWidget(forms.MultiWidget):
+    """
+    Форма для ввода пользователем периодичности выполнения задач.
+    """
+
+    def __init__(self, attrs=None):
+        # Конфигурируем два внутренних инпута в вашем фирменном темном стиле
+        widgets = [
+            forms.NumberInput(attrs={
+                'class': 'form-control bg-dark text-white border-secondary',
+                'min': '1',
+                'placeholder': 'Кол-во',
+                'id': 'edit-task-period-value'
+            }),
+            forms.Select(attrs={
+                'class': 'form-select bg-dark text-white border-secondary',
+                'id': 'edit-task-period-unit'
+            }, choices=[
+                ('none', 'Не повторять'),
+                ('minutes', 'Минут'),
+                ('hours', 'Часов'),
+                ('days', 'Дней'),
+                ('weeks', 'Недель'),
+                ('months', 'Месяцев'),
+                ('years', 'Лет'),
+            ])
+        ]
+        super().__init__(widgets, attrs)
+
+    def decompress(self, value):
+        """Разбивает timedelta из базы данных на число и тип периода."""
+        if isinstance(value, timedelta):
+            seconds = value.total_seconds()
+            if seconds == 0: return [None, 'none']
+            if seconds % 31536000 == 0: return [int(seconds / 31536000), 'years']
+            if seconds % 2592000 == 0: return [int(seconds / 2592000), 'months']
+            if seconds % 604800 == 0: return [int(seconds / 604800), 'weeks']
+            if seconds % 86400 == 0: return [int(seconds / 86400), 'days']
+            if seconds % 3600 == 0: return [int(seconds / 3600), 'hours']
+            return [int(seconds / 60), 'minutes']
+        return [None, 'none']
+
+    def value_from_datadict(self, data, files, name):
+        """Собирает отправленные данные обратно в timedelta, поддерживая любые префиксы имён."""
+        # 1. Пытаемся найти ключи динамически по их окончаниям во входящем словаре POST
+        val_0 = None
+        val_1 = None
+        print(f"Проверка --- {data.items()} ---")
+        for key, value in data.items():
+            if key.endswith(f"{name}_0"):
+                val_0 = value
+            elif key.endswith(f"{name}_1"):
+                val_1 = value
+
+        # Если динамический поиск не дал результатов, пробуем стандартный подход Django
+        if val_0 is None:
+            val_0 = data.get(f"{name}_0")
+        if val_1 is None:
+            val_1 = data.get(f"{name}_1")
+
+        # Если период установлен в "Не повторять" или отсутствует
+        if val_1 == 'none' or not val_1:
+            return None
+
+        try:
+            amount = int(val_0)
+            if val_1 == 'minutes': return timedelta(minutes=amount)
+            if val_1 == 'hours': return timedelta(hours=amount)
+            if val_1 == 'days': return timedelta(days=amount)
+            if val_1 == 'weeks': return timedelta(weeks=amount)
+            if val_1 == 'months': return timedelta(days=amount * 30)
+            if val_1 == 'years': return timedelta(days=amount * 365)
+        except (ValueError, TypeError):
+            return None
 
 
 class TaskForm(forms.ModelForm):
@@ -55,42 +135,26 @@ class TaskForm(forms.ModelForm):
 
 class TaskEditForm(TaskForm):
     """
-    Форма редактирования задачи (специализированная версия TaskForm).
-
-    Предназначена исключительно для обновления существующих задач.
-    В отличие от базовой формы, здесь применяется дополнительная стилизация
-    под темную тему интерфейса (Bootstrap классы) и жесткая фиксация
-    набора редактируемых полей.
-
-    Важно: Поле status_flag намеренно НЕ объявлено здесь и исключено из Meta.
-    Это реализует логику "Авторасчета статуса": пользователь не может менять
-    статус вручную, он отображается только для чтения в шаблоне.
+    Форма редактирования задачи с исправленным календарем и поддержкой периодичности.
     """
 
     class Meta(TaskForm.Meta):
-        """
-        Мета-класс, наследующий настройки от TaskForm.
+        fields = ["title", "reminder_at", "periodicity", "comment", "bookmark"]
 
-        Переопределяет список полей, явно подтверждая отсутствие status_flag.
-        Это гарантирует, что цикл {% for field in form %} в шаблоне
-        никогда не сгенерирует поле для ручного выбора статуса.
-        """
-
-        # Явно указываем поля, чтобы избежать случайного включения скрытых полей
-        fields = ["title", "reminder_at", "comment", "bookmark"]
+        # Переопределяем виджеты жестко на уровне мета-данных Django
+        widgets = {
+            'periodicity': DarkDurationWidget(),
+            # Явно принуждаем Django использовать виджет даты и времени HTML5
+            'reminder_at': forms.DateTimeInput(
+                format="%Y-%m-%dT%H:%M",
+                attrs={
+                    'type': 'datetime-local',
+                    'class': 'form-control form-control-sm bg-secondary text-white border-0'
+                }
+            ),
+        }
 
     def __init__(self, *args, **kwargs):
-        """
-        Инициализатор формы редактирования.
-
-        Применяет специфические CSS-классы для каждого поля формы,
-        адаптируя стандартный вид Django под дизайн приложения (темная тема).
-        Также гарантирует правильный тип ввода для поля даты/времени.
-
-        Args:
-            *args: Позиционные аргументы для родительского конструктора.
-            **kwargs: Именованные аргументы.
-        """
         super().__init__(*args, **kwargs)
 
         # Словарь базовых CSS-классов для разных типов полей
@@ -102,6 +166,10 @@ class TaskEditForm(TaskForm):
 
         # Применяем стили ко всем полям формы
         for field_name, field in self.fields.items():
+            # ИСКЛЮЧАЕМ ОБА ПОЛЯ: у них виджеты уже идеально настроены в Meta.widgets
+            if field_name in ["periodicity", "reminder_at"]:
+                continue
+
             # Устанавливаем количество строк для текстового поля комментария
             if field_name == "comment":
                 field.widget.attrs.update({"rows": 3})
@@ -109,15 +177,6 @@ class TaskEditForm(TaskForm):
             # Получаем соответствующий класс или используем класс по умолчанию
             css_class = base_classes.get(field_name, base_classes["default"])
             field.widget.attrs.update({"class": css_class})
-
-        # Гарантируем, что поле напоминания имеет тип datetime-local
-        self.fields["reminder_at"].widget.format = "%Y-%m-%dT%H:%M"
-        self.fields["reminder_at"].widget.attrs.update(
-            {
-                "type": "datetime-local",
-                "class": base_classes.get("default"),  # применяем ваш стиль
-            }
-        )
 
 
 class BookmarkForm(forms.ModelForm):

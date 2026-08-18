@@ -74,8 +74,21 @@ export function openEditModal() {
     // Передаем ID закладки в выпадающий список формы Django
     if (document.getElementById('id_bookmark')) document.getElementById('id_bookmark').value = bookmarkId;
 
-    // ИСПРАВЛЕНО: Передаем текущий статус задачи в выпадающий список Django-формы по ID 'id_flag'
+    // Передаем текущий статус задачи в выпадающий список Django-формы по ID 'id_flag'
     if (document.getElementById('id_flag')) document.getElementById('id_flag').value = currentStatusFlag;
+
+    // ===  Считывание периодичности и заполнение инпутов формы ===
+    const periodicityCell = row.querySelector('.task-periodicity-cell');
+
+    // Безопасно забираем секунды из data-атрибута (если ячейки или атрибута нет, берем 0)
+    const totalSeconds = periodicityCell ? parseInt(periodicityCell.getAttribute('data-seconds'), 10) || 0 : 0;
+
+    // Вызываем функцию нашего модуля для правильной расстановки числа и селекта в модальном окне
+    if (typeof window.setPeriodicityFields === 'function') {
+        window.setPeriodicityFields(totalSeconds);
+    } else {
+        console.error("Критическая ошибка: функция window.setPeriodicityFields не инициализирована.");
+    }
 }
 
 // Функция 2: Сохранение изменений
@@ -105,140 +118,144 @@ export function saveTaskChanges(event) {
     formData.set('id', taskId); // Явно гарантируем передачу 'id'
     formData.set('title', newTitle); // Явно гарантируем передачу 'title'
 
-    // Функция для получения CSRF токена
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-
     // 3. Отправляем запрос
     fetch('/daily/task/update/', {
         method: 'POST',
         body: formData, // Отправляем FormData, НЕ JSON
         headers: {
-            'X-CSRFToken': getCookie('csrftoken')
+            'X-CSRFToken': window.getCookie('csrftoken')
             // ВАЖНО: НЕ ставь здесь 'Content-Type: application/json'!
             // Браузер сам поставит правильный Content-Type (multipart/form-data) для FormData
         }
     })
-    .then(response => {
-        if (!response.ok) throw new Error('Ошибка сервера');
-        return response.json();
-    })
-    .then(data => {
-        console.log('Успех:', data);
-        const row = document.getElementById(`task-row-${taskId}`);
+        .then(response => {
+            if (!response.ok) throw new Error('Ошибка сервера');
+            return response.json();
+        })
+        .then(data => {
+            console.log('Успех:', data);
+            const row = document.getElementById(`task-row-${taskId}`);
 
-        if (row) {
-            // 1. Наименование задачи
-            const titleCell = row.querySelector('.editable-task-name');
-            if (titleCell) {
-                titleCell.innerText = data.task.title || '';
-            }
-
-            // 2. Комментарий задачи
-            const commentCell = row.querySelector('.editable-task-comment');
-            if (commentCell) {
-                if (data.task.comment && data.task.comment.trim() !== '') {
-                    commentCell.innerText = data.task.comment;
-                    commentCell.classList.remove('text-muted');
-                } else {
-                    commentCell.classList.add('text-muted');
-                    commentCell.innerHTML = '<i class="bi bi-pencil add-comment-icon text-secondary" title="Добавить"></i>';
+            if (row) {
+                // 1. Наименование задачи
+                const titleCell = row.querySelector('.editable-task-name');
+                if (titleCell) {
+                    titleCell.innerText = data.task.title || '';
                 }
-            }
 
-            // 3. Напоминание даты и времени
-            const reminderCell = row.querySelector('.task-reminder-cell');
-            if (reminderCell) {
-                if (data.task.reminder_at) {
-                    // Безопасный парсинг даты ISO из Django
-                    const dateObj = new Date(data.task.reminder_at);
+                // 2. Комментарий задачи
+                const commentCell = row.querySelector('.editable-task-comment');
+                if (commentCell) {
+                    if (data.task.comment && data.task.comment.trim() !== '') {
+                        commentCell.innerText = data.task.comment;
+                        commentCell.classList.remove('text-muted');
+                    } else {
+                        commentCell.classList.add('text-muted');
+                        commentCell.innerHTML = '<i class="bi bi-pencil add-comment-icon text-secondary" title="Добавить"></i>';
+                    }
+                }
 
-                    if (!isNaN(dateObj.getTime())) { // Проверяем, что дата распарсилась корректно
-                        const formattedDate = dateObj.toLocaleString('ru-RU', {
-                            day: '2-digit', month: '2-digit', year: 'numeric',
-                            hour: '2-digit', minute: '2-digit'
-                        }).replace(',', ''); // Убираем возможную запятую между датой и временем
+                // 3. Напоминание даты и времени
+                const reminderCell = row.querySelector('.task-reminder-cell');
+                if (reminderCell) {
+                    if (data.task.reminder_at) {
+                        // Безопасный парсинг даты ISO из Django
+                        const dateObj = new Date(data.task.reminder_at);
 
-                        reminderCell.innerHTML = `
+                        if (!isNaN(dateObj.getTime())) { // Проверяем, что дата распарсилась корректно
+                            const formattedDate = dateObj.toLocaleString('ru-RU', {
+                                day: '2-digit', month: '2-digit', year: 'numeric',
+                                hour: '2-digit', minute: '2-digit'
+                            }).replace(',', ''); // Убираем возможную запятую между датой и временем
+
+                            reminderCell.innerHTML = `
                             <input type="hidden" class="raw-reminder-date" value="${data.task.reminder_at}">
                             <span class="d-inline-flex align-items-center gap-1 text-warning">
                                 <i class="bi bi-bell-fill"></i> ${formattedDate}
                             </span>`.trim();
-                    }
-                } else {
-                    reminderCell.innerHTML = `
+                        }
+                    } else {
+                        reminderCell.innerHTML = `
                         <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
                             <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить"></i>
                         </span>`.trim();
+                    }
                 }
-            }
 
-            // 4. Статус задачи (Полностью синхронизирован с ТЗ и Django-шаблоном)
-            const statusCell = row.querySelector('.task-status-cell');
-            if (statusCell) {
-                const statusCode = data.task.status;
-                const statusText = data.task.status_display || '';
+                // 4. Статус задачи (Полностью синхронизирован с ТЗ и Django-шаблоном)
+                const statusCell = row.querySelector('.task-status-cell');
+                if (statusCell) {
+                    const statusCode = data.task.status;
+                    const statusText = data.task.status_display || '';
 
-                const statusConfig = {
-                    0: { bg: 'bg-success text-white', icon: 'bi-plus-circle-fill', title: 'Создана' },
-                    1: { bg: 'bg-warning text-dark', icon: 'bi-gear-fill', title: 'В работе' },
-                    2: { bg: 'bg-secondary text-white', icon: 'bi-check-circle-fill', title: 'Выполнена' },
-                    3: { bg: 'bg-danger text-white', icon: 'bi-exclamation-triangle-fill', title: 'Дедлайн' }
-                };
+                    const statusConfig = {
+                        0: {bg: 'bg-success text-white', icon: 'bi-plus-circle-fill', title: 'Создана'},
+                        1: {bg: 'bg-warning text-dark', icon: 'bi-gear-fill', title: 'В работе'},
+                        2: {bg: 'bg-secondary text-white', icon: 'bi-check-circle-fill', title: 'Выполнена'},
+                        3: {bg: 'bg-danger text-white', icon: 'bi-exclamation-triangle-fill', title: 'Дедлайн'}
+                    };
 
-                // Корректная проверка: ищем ключ в объекте, если его нет (undefined) — берем статус 0
-                const config = (statusCode in statusConfig) ? statusConfig[statusCode] : statusConfig[0];
+                    // Корректная проверка: ищем ключ в объекте, если его нет (undefined) — берем статус 0
+                    const config = (statusCode in statusConfig) ? statusConfig[statusCode] : statusConfig[0];
 
-                statusCell.innerHTML = `
+                    statusCell.innerHTML = `
                     <span class="badge rounded-pill ${config.bg} px-2 py-1 d-inline-flex align-items-center gap-1" title="${config.title}">
                         <i class="bi ${config.icon}"></i> ${statusText}
                     </span>
                 `.trim();
+                }
+
+                // 5. Периодичность задачи
+                const periodicityCell = row.querySelector('.task-periodicity-cell');
+                if (periodicityCell) {
+                    const totalSeconds = data.task.periodicity_seconds || 0;
+
+                    if (totalSeconds > 0) {
+                        // Если период есть: красим иконку в желтый и добавляем текст
+                        const textValue = window.formatDurationFromSeconds(totalSeconds);
+                        periodicityCell.innerHTML = `
+                        <i class="bi bi-arrow-repeat me-1 text-warning"></i> ${textValue}
+                    `.trim();
+                    } else {
+                        // Если периода нет: выводим только одиночную серую иконку
+                        periodicityCell.innerHTML = `
+                        <i class="bi bi-arrow-repeat text-muted"></i>
+                    `.trim();
+                    }
+                }
+
+                // 6. Проверка изменения закладки (если задачу перенесли в другую закладку, удаляем строку)
+                const currentBookmarkElement = document.querySelector('.editable-bookmark-name');
+                const currentBookmarkId = currentBookmarkElement ? currentBookmarkElement.getAttribute('data-id') : "";
+
+                if (data.task.bookmark_id && currentBookmarkId && String(data.task.bookmark_id) !== String(currentBookmarkId)) {
+                    row.remove();
+                }
             }
 
-            // 5. Проверка изменения закладки (если задачу перенесли в другую закладку, удаляем строку)
-            const currentBookmarkElement = document.querySelector('.editable-bookmark-name');
-            const currentBookmarkId = currentBookmarkElement ? currentBookmarkElement.getAttribute('data-id') : "";
+            // --- СБРОС ВЫДЕЛЕНИЙ ---
+            const taskCheckbox = document.querySelector(`.task-checkbox[data-id="${taskId}"]`);
+            if (taskCheckbox) taskCheckbox.checked = false;
 
-            if (data.task.bookmark_id && currentBookmarkId && String(data.task.bookmark_id) !== String(currentBookmarkId)) {
-                row.remove();
+            const selectAllCheckbox = document.getElementById('select-all-tasks');
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+            document.getElementById('btn-delete-selected')?.classList.add('d-none');
+            document.getElementById('btn-edit-selected')?.classList.add('d-none');
+
+            const selectedCountSpan = document.getElementById('selected-count');
+            if (selectedCountSpan) selectedCountSpan.textContent = '0';
+
+            // Закрываем модалку
+            const modalElement = document.getElementById('editTaskModal');
+            if (modalElement) {
+                const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                if (modalInstance) modalInstance.hide();
             }
-        }
-
-        // --- СБРОС ВЫДЕЛЕНИЙ ---
-        const taskCheckbox = document.querySelector(`.task-checkbox[data-id="${taskId}"]`);
-        if (taskCheckbox) taskCheckbox.checked = false;
-
-        const selectAllCheckbox = document.getElementById('select-all-tasks');
-        if (selectAllCheckbox) selectAllCheckbox.checked = false;
-
-        document.getElementById('btn-delete-selected')?.classList.add('d-none');
-        document.getElementById('btn-edit-selected')?.classList.add('d-none');
-
-        const selectedCountSpan = document.getElementById('selected-count');
-        if (selectedCountSpan) selectedCountSpan.textContent = '0';
-
-        // Закрываем модалку
-        const modalElement = document.getElementById('editTaskModal');
-        if (modalElement) {
-            const modalInstance = bootstrap.Modal.getInstance(modalElement);
-            if (modalInstance) modalInstance.hide();
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        alert('Произошла ошибка при сохранении. Проверьте консоль.');
-    });
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+            alert('Произошла ошибка при сохранении. Проверьте консоль.');
+        });
 }
+

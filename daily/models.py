@@ -55,6 +55,7 @@ class Task(models.Model):
         title (str): Наименование задачи или контрагента (Столбец B).
         created_at (datetime): Дата и время автоматического создания записи (Столбец C).
         reminder_at (datetime, optional): Дата и время напоминания (Столбец D).
+        periodicity (timedelta): Периодичность повторения задачи.
         comment (str, optional): Дополнительный текстовый комментарий к задаче (Столбец E).
         status_flag (int): Числовой признак для внутренней логики управления (Столбец F).
         bookmark (Bookmark): Ссылка на объект закладки, к которой привязана задача.
@@ -78,6 +79,15 @@ class Task(models.Model):
     # db_index=True добавлен для быстрого поиска задач, по которым нужно отправить пуш
     reminder_at = models.DateTimeField(
         null=True, blank=True, db_index=True, verbose_name="Время напоминания"
+    )
+
+    # Столбец E: Периодичность повторения задачи
+    periodicity = models.DurationField(
+        default=None,
+        null=True,
+        blank=True,
+        verbose_name="Периодичность повторения",
+        help_text="Введите период повторения"
     )
 
     # Столбец E: Комментарий к задаче

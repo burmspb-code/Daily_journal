@@ -15,6 +15,7 @@ from users.models import CustomUser
 
 User = get_user_model()
 
+
 class UserRegisterSerializer(serializers.ModelSerializer):
     """Сериализатор для создания нового пользователя."""
 
@@ -68,3 +69,74 @@ class EmailVerificationSerializer(serializers.Serializer):
 
     uidb64 = serializers.CharField(required=True, allow_blank=False)
     token = serializers.CharField(required=True, allow_blank=False)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """
+    Сериализатор для запроса сброса пароля через REST API.
+    Принимает email пользователя, на который будет отправлено письмо.
+    """
+    email = serializers.EmailField(
+        write_only=True,
+        help_text="Email-адрес учетной записи, для которой необходимо сбросить пароль."
+    )
+
+    def validate_email(self, value):
+        """
+        Дополнительная валидация email.
+        Приводим к нижнему регистру для исключения ошибок разного регистра.
+        """
+        return value.lower().strip()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """
+    Сериализатор для подтверждения сброса пароля через REST API.
+    Валидирует UID, токен Django и подготавливает новый пароль к сохранению.
+    """
+    uid = serializers.CharField(
+        write_only=True,
+        help_text="Закодированный в base64 идентификатор пользователя (uidb64)."
+    )
+    token = serializers.CharField(
+        write_only=True,
+        help_text="Одноразовый защищенный токен восстановления из email-письма."
+    )
+    new_password = serializers.CharField(
+        write_only=True,
+        style={'input_type': 'password'},
+        help_text="Новый пароль, который будет установлен для учетной записи."
+    )
+
+    def validate(self, attrs):
+        uidb64 = attrs.get('uid')
+        token = attrs.get('token')
+        new_password = attrs.get('new_password')
+
+        # Декодируем uidb64 и пытаемся найти пользователя в базе данных
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            raise serializers.ValidationError(
+                {"uid": "Неверный идентификатор пользователя или пользователь не существует."}
+            )
+
+        # Проверяем, валиден ли токен безопасности для этого конкретного пользователя
+        if not default_token_generator.check_token(user, token):
+            raise serializers.ValidationError(
+                {"token": "Токен восстановления недействителен, изменен или его срок действия истек."}
+            )
+
+        # Дополнительно: здесь можно запустить встроенные правила сложности паролей Django
+        # from django.contrib.auth.password_validation import validate_password
+        # try:
+        #     validate_password(new_password, user)
+        # except Exception as e:
+        #     raise serializers.ValidationError({"new_password": list(e.messages)})
+
+        # Сохраняем проверенные объекты в контекст сериализатора, чтобы View-класс легко их забрал
+        self.context["user"] = user
+        self.context["new_password"] = new_password
+
+        return attrs

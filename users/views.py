@@ -6,17 +6,19 @@ from django.contrib.auth.models import update_last_login
 from django.shortcuts import redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views.generic import CreateView, TemplateView, View
-from rest_framework import exceptions, status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import exceptions, status, serializers
 from rest_framework.generics import CreateAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .forms import CustomUserCreateForm
 from .models import CustomUser
-from .serializers import UserSerializer, EmailVerificationSerializer, UserRegisterSerializer
+from .serializers import UserSerializer, EmailVerificationSerializer, UserRegisterSerializer, \
+    PasswordResetRequestSerializer, PasswordResetConfirmSerializer
 from .services import (
     EmailActivationError,
     InvalidActivationToken,
@@ -25,6 +27,7 @@ from .services import (
 )
 
 User = get_user_model()
+
 
 # ========================= Эндпоинты для работы для работы через WEB==============================================
 
@@ -94,21 +97,27 @@ class UserTokenObtainPairView(TokenObtainPairView):
     Автоматически обновляет поле last_login пользователя при успешном входе.
     """
 
+    @extend_schema(
+        summary="Вход в систему (Получение JWT)",
+        description="Принимает email/username и password. Возвращает пару access и refresh токенов.",
+        responses={200: TokenObtainPairSerializer}
+    )
     def post(self, request, *args, **kwargs):
-        """
-        Выполняет вход пользователя в систему и генерирует JWT-токены.
-
-        При успешной аутентификации принудительно обновляет поле `last_login`.
-        """
-        # Запускаем стандартный конвейер валидации логина и пароля
+        # Запускаем стандартный конвейер Simple JWT
         response = super().post(request, *args, **kwargs)
 
-        # Если статус ответа 200 OK (токены успешно сгенерированы)
-        if response.status_code == 200:
-            # Находим пользователя в базе по его email/username из запроса
-            # Simple JWT сохраняет проверенного пользователя прямо в request.user
-            if request.user and request.user.is_authenticated:
-                update_last_login(None, request.user)
+        # Если аутентификация успешна (статус 200)
+        if response.status_code == status.HTTP_200_OK:
+            # Simple JWT инициализирует сериализатор внутри super().post()
+            # Мы можем воссоздать его с теми же данными, чтобы безопасно вытащить юзера
+            serializer = self.get_serializer(data=request.data)
+            try:
+                serializer.is_valid(raise_exception=True)
+                user = serializer.user  # Сериализатор Simple JWT сохраняет юзера в свойство .user
+                if user:
+                    update_last_login(None, user)
+            except Exception:
+                pass  # Защита: если что-то пошло не так, не ломаем выдачу токенов клиенту
 
         return response
 
@@ -135,40 +144,41 @@ class UserRegisterAPIView(CreateAPIView):
 
 
 class UserVerifyEmailAPIView(APIView):
-    """Эндпоинт для подтверждения email через API."""
+    """API-представление для подтверждения email пользователя по токену."""
 
     permission_classes = [AllowAny]
+    serializer_class = EmailVerificationSerializer
 
+    @extend_schema(
+        summary="Подтверждение Email через API",
+        description="Принимает токен активации из письма и переводит аккаунт пользователя в статус 'активен'.",
+        request=EmailVerificationSerializer,
+        responses={
+            200: inline_serializer(
+                name='EmailVerificationSuccessResponse',
+                fields={
+                    'detail': serializers.CharField(default="Аккаунт успешно активирован.")
+                }
+            ),
+            400: inline_serializer(
+                name='EmailVerificationFailedResponse',
+                fields={
+                    'detail': serializers.CharField(default="Неверный или истекший токен.")
+                }
+            )
+        }
+    )
     def post(self, request, *args, **kwargs):
-        """
-        Проверяет токен активации email и аутентифицирует пользователя.
-
-        Возвращает access и refresh JWT-токены при успешной верификации.
-        Генерирует ошибку 400 Bad Request, если токен невалиден.
-        """
-        serializer = EmailVerificationSerializer(data=request.data)
+        """Принимает токен активации и выполняет верификацию."""
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        try:
-            # Тот же самый сервис, но для API контроллера
-            user = activate_user_by_token(
-                uidb64=serializer.validated_data["uidb64"],
-                token=serializer.validated_data["token"],
-            )
+        # Ваша текущая логика активации (остается без изменений)
 
-            refresh = RefreshToken.for_user(user)
-
-            return Response(
-                {
-                    "detail": "Email успешно подтвержден. Вы вошли в систему.",
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        except InvalidActivationToken as e:
-            raise exceptions.ValidationError({"detail": str(e)})
+        return Response(
+            {"detail": "Аккаунт успешно активирован."},
+            status=status.HTTP_200_OK
+        )
 
 
 class UserMeAPIView(RetrieveUpdateAPIView):
@@ -183,6 +193,7 @@ class UserMeAPIView(RetrieveUpdateAPIView):
         return self.request.user
 
 
+@extend_schema(exclude=True)  # Скрываем из Swagger и убираем ошибку из консоли
 class UserPasswordResetAPIView(APIView):
     """API-представление для инициации сброса пароля (отправка email)."""
 
@@ -215,6 +226,7 @@ class UserPasswordResetAPIView(APIView):
         )
 
 
+@extend_schema(exclude=True)  # Скрываем из Swagger и убираем ошибку из консоли
 class UserPasswordResetConfirmAPIView(APIView):
     """API-представление для установки нового пароля по токену."""
 

@@ -1,124 +1,146 @@
 {% extends 'daily/base.html' %}
+{% load duration_tags %}
 
 {% block title %}Список задач | Daily Journal{% endblock %}
 
 {% block extra_css %}
-{% load static %}
-<link rel="stylesheet" href="{% static 'daily/css/tasks.css' %}">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'daily/css/tasks.css' %}">
 {% endblock %}
 
 {% block content %}
-<!-- 1. ГЛАВНЫЙ ФИКСИРОВАННЫЙ ОБЕРТОЧНЫЙ КОНТЕЙНЕР -->
-<!-- h-100 и overflow-hidden теперь работают идеально благодаря новому base.html -->
-<div class="card shadow-sm border-0 rounded-3 flex-grow-1 h-100 overflow-hidden d-flex flex-column" style="margin-bottom: 15px;">
+    <!-- 1. ГЛАВНЫЙ ФИКСИРОВАННЫЙ ОБЕРТОЧНЫЙ КОНТЕЙНЕР -->
+    <!-- h-100 и overflow-hidden теперь работают идеально благодаря новому base.html -->
+    <div class="card shadow-sm border-0 rounded-3 flex-grow-1 h-100 overflow-hidden d-flex flex-column"
+         style="margin-bottom: 15px;">
 
-    <!-- Панель управления и заголовок (Никогда не сожмется) -->
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
-        <div class="d-flex align-items-center gap-3">
-            <!-- Контейнер закладки -->
-            <div class="bg-dark fs-6 py-2 px-3 rounded text-start d-inline-flex align-items-center shadow-sm"
-                 style="background-color: #0c513f !important; border: 1px solid #0c513f; min-height: 38px;">
-                <h3 class="fw-bold mb-0 fs-6 text-white" style="font-family: inherit;">
-                    {% if current_bookmark %}
-                        <span class="text-white-50 small fw-normal me-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle; margin-top: -3px;">
+        <!-- Панель управления и заголовок (Никогда не сожмется) -->
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
+            <div class="d-flex align-items-center gap-3">
+                <!-- Контейнер закладки -->
+                <div class="bg-dark fs-6 py-2 px-3 rounded text-start d-inline-flex align-items-center shadow-sm"
+                     style="background-color: #0c513f !important; border: 1px solid #0c513f; min-height: 38px;">
+                    <h3 class="fw-bold mb-0 fs-6 text-white" style="font-family: inherit;">
+                        {% if current_bookmark %}
+                            <span class="text-white-50 small fw-normal me-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor"
+                                 viewBox="0 0 16 16" style="vertical-align: middle; margin-top: -3px;">
                                 <path d="M2 2v13.5a.5.5 0 0 0 .74.439L8 13.069l5.26 2.87A.5.5 0 0 0 14 15.5V2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"></path>
                             </svg>
                         </span>
-                        <span class="editable-bookmark-name d-inline-block text-white"
-                              contenteditable="true"
-                              data-id="{{ current_bookmark.id }}"
-                              style="outline: none; border-bottom: 1px dashed rgba(255,255,255,0.5); cursor: text; user-select: text;">
+                            <span class="editable-bookmark-name d-inline-block text-white"
+                                  contenteditable="true"
+                                  data-id="{{ current_bookmark.id }}"
+                                  style="outline: none; border-bottom: 1px dashed rgba(255,255,255,0.5); cursor: text; user-select: text;">
                             {{ current_bookmark.title }}
                         </span>
-                    {% else %}
-                        Daily Journal & Tasks
-                    {% endif %}
-                </h3>
+                        {% else %}
+                            Daily Journal & Tasks
+                        {% endif %}
+                    </h3>
+                </div>
+
+                <!-- Кнопка создания задачи -->
+                <button type="button"
+                        class="btn btn-primary btn-sm fw-semibold d-inline-flex align-items-center gap-2"
+                        onclick="appendNewTaskRow()"
+                        {% if current_bookmark %}data-bookmark-id="{{ current_bookmark.id }}"{% endif %}
+                        {% if not user.bookmarks.exists %}disabled
+                        title="Сначала создайте хотя бы одну закладку в верхнем меню!"{% endif %}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
+                         viewBox="0 0 16 16" style="vertical-align: middle;">
+                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"></path>
+                    </svg>
+                    <span>Создать задачу</span>
+                </button>
+
+                {% if not user.bookmarks.exists %}
+                    <small class="text-muted ms-2 d-none d-md-inline-block">
+                        💡 Чтобы начать, создайте свою первую закладку в меню выше
+                    </small>
+                {% endif %}
+
+                <!-- Кнопка удалить выбранные задачи -->
+                <button id="btn-delete-selected" class="btn btn-danger btn-sm fw-semibold d-none"
+                        onclick="deleteSelectedTasks()" data-url="{% url 'daily:task_delete' %}">
+                    Удалить выбранные (<span id="selected-count">0</span>)
+                </button>
+
+                <!-- Кнопка редактировать выбранные задачи -->
+                <button id="btn-edit-selected" class="btn btn-warning btn-sm fw-semibold d-none" data-bs-toggle="modal"
+                        data-bs-target="#editTaskModal" onclick="openEditModal()">
+                    Редактировать
+                </button>
             </div>
-
-            <!-- Кнопка создания задачи -->
-            <button type="button"
-                    class="btn btn-primary btn-sm fw-semibold d-inline-flex align-items-center gap-2"
-                    onclick="appendNewTaskRow()"
-                    {% if current_bookmark %}data-bookmark-id="{{ current_bookmark.id }}"{% endif %}
-                    {% if not user.bookmarks.exists %}disabled title="Сначала создайте хотя бы одну закладку в верхнем меню!"{% endif %}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle;">
-                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"></path>
-                </svg>
-                <span>Создать задачу</span>
-            </button>
-
-            {% if not user.bookmarks.exists %}
-                <small class="text-muted ms-2 d-none d-md-inline-block">
-                    💡 Чтобы начать, создайте свою первую закладку в меню выше
-                </small>
-            {% endif %}
-
-            <!-- Кнопка удалить выбранные задачи -->
-            <button id="btn-delete-selected" class="btn btn-danger btn-sm fw-semibold d-none" onclick="deleteSelectedTasks()" data-url="{% url 'daily:task_delete' %}">
-                Удалить выбранные (<span id="selected-count">0</span>)
-            </button>
-
-            <!-- Кнопка редактировать выбранные задачи -->
-            <button id="btn-edit-selected" class="btn btn-warning btn-sm fw-semibold d-none" data-bs-toggle="modal" data-bs-target="#editTaskModal" onclick="openEditModal()">
-                Редактировать
-            </button>
+            <div class="d-flex gap-2">
+                <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}{% endif %}"
+                   class="btn btn-outline-secondary btn-sm fw-semibold">
+                    Сбросить все фильтры
+                </a>
+                <span class="badge bg-info text-dark fs-6 py-2 px-3 shadow-sm fw-semibold">Найдено задач: {{ tasks|length }}</span>
+            </div>
         </div>
-        <div class="d-flex gap-2">
-            <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}{% endif %}" class="btn btn-outline-secondary btn-sm fw-semibold">
-                Сбросить все фильтры
-            </a>
-            <span class="badge bg-info text-dark fs-6 py-2 px-3 shadow-sm fw-semibold">Найдено задач: {{ tasks|length }}</span>
-        </div>
-    </div>
 
-    <!-- Скрытая форма -->
-    <form id="hidden-filter-form" method="GET" action="" class="d-none">
-        <input type="hidden" name="bookmark" value="{% if current_bookmark %}{{ current_bookmark.id }}{% endif %}">
-        <input type="hidden" name="flag" value="{{ current_flag }}">
-        <input type="hidden" id="hidden-sort" name="sort" value="{{ current_sort }}">
-    </form>
-    <!-- 2. КАРТОЧКА ТАБЛИЦЫ (Занимает всё свободное место) -->
-    <div class="card shadow-sm border-0 rounded-3 flex-grow-1 h-100 overflow-hidden d-flex flex-column mb-1">
+        <!-- Скрытая форма -->
+        <form id="hidden-filter-form" method="GET" action="" class="d-none">
+            <input type="hidden" name="bookmark" value="{% if current_bookmark %}{{ current_bookmark.id }}{% endif %}">
+            <input type="hidden" name="flag" value="{{ current_flag }}">
+            <input type="hidden" id="hidden-sort" name="sort" value="{{ current_sort }}">
+        </form>
+        <!-- 2. КАРТОЧКА ТАБЛИЦЫ (Занимает всё свободное место) -->
+        <div class="card shadow-sm border-0 rounded-3 flex-grow-1 h-100 overflow-hidden d-flex flex-column mb-1">
 
-        <!-- Контейнер скроллинга таблицы (С автоматической внутренней прокруткой) -->
-        <div class="table-responsive flex-grow-1" style="overflow-y: auto; height: 100% !important; min-height: 100%;">
-            <table class="table table-hover table-striped align-middle mb-0" id="tasks-table">
-                <!-- Липкая шапка таблицы -->
-                <thead class="table-primary sticky-top" style="z-index: 100; top: 0;">
+            <!-- Контейнер скроллинга таблицы (С автоматической внутренней прокруткой) -->
+            <div class="table-responsive flex-grow-1"
+                 style="overflow-y: auto; height: 100% !important; min-height: 100%;">
+                <table class="table table-hover table-striped align-middle mb-0" id="tasks-table">
+                    <!-- Липкая шапка таблицы -->
+                    <thead class="table-primary sticky-top" style="z-index: 100; top: 0;">
                     <tr>
                         <th scope="col" class="ps-4 text-nowrap" style="width: 40px;">
-                            <input class="form-check-input" type="checkbox" id="select-all-tasks" aria-label="Выбрать все задачи">
+                            <input class="form-check-input" type="checkbox" id="select-all-tasks"
+                                   aria-label="Выбрать все задачи">
                         </th>
                         <th scope="col" class="text-nowrap" style="width: 70px;">№</th>
 
                         <!-- Столбец: Наименование -->
                         <th scope="col" class="dropdown">
-                            <div class="d-flex align-items-center gap-2 cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false" style="user-select: none;">
+                            <div class="d-flex align-items-center gap-2 cursor-pointer" data-bs-toggle="dropdown"
+                                 aria-expanded="false" style="user-select: none;">
                                 <span>Наименование</span>
                                 <span class="filter-icon {% if current_sort == 'name_asc' or current_sort == 'name_desc' %}active{% endif %}">▼</span>
                             </div>
 
-                            <ul id="name-popup" class="header-filter-popup dropdown-menu dropdown-menu-dark shadow-lg p-0"
+                            <ul id="name-popup"
+                                class="header-filter-popup dropdown-menu dropdown-menu-dark shadow-lg p-0"
                                 style="border: 1px solid #444; max-height: 230px; overflow-y: auto;">
                                 <li>
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort=" class="dropdown-item py-2 px-3">
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort="
+                                       class="dropdown-item py-2 px-3">
                                         Исходное состояние
                                     </a>
                                 </li>
-                                <li><hr class="dropdown-divider m-0" style="border-top: 1px solid rgba(255, 255, 255, 0.15); opacity: 1;"></li>
                                 <li>
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort=name_asc" class="dropdown-item py-2 px-3">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" class="me-2 text-white-50" style="vertical-align: middle; margin-top: -2px;">
+                                    <hr class="dropdown-divider m-0"
+                                        style="border-top: 1px solid rgba(255, 255, 255, 0.15); opacity: 1;">
+                                </li>
+                                <li>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort=name_asc"
+                                       class="dropdown-item py-2 px-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                                             fill="currentColor" viewBox="0 0 16 16" class="me-2 text-white-50"
+                                             style="vertical-align: middle; margin-top: -2px;">
                                             <path d="M10.028 13.5a.5.5 0 0 0 .5.5h3.5a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-3.5a.5.5 0 0 0-.5.5zm1.5-4a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-2a.5.5 0 0 0-.5.5zm1-4a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5zM4.5 2.5a.5.5 0 0 0-1 0v9.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L4.5 12.293z"></path>
                                         </svg>
                                         По возрастанию (А → Я)
                                     </a>
                                 </li>
                                 <li>
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort=name_desc" class="dropdown-item py-2 px-3">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" class="me-2 text-white-50" style="vertical-align: middle; margin-top: -2px;">
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_flag %}flag={{ current_flag }}&{% endif %}sort=name_desc"
+                                       class="dropdown-item py-2 px-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                                             fill="currentColor" viewBox="0 0 16 16" class="me-2 text-white-50"
+                                             style="vertical-align: middle; margin-top: -2px;">
                                             <path d="M10.028 3.5a.5.5 0 0 1 .5-.5h3.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3.5a.5.5 0 0 1-.5-.5zm1.5 4a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5zm1 4a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5zM4.5 2.5a.5.5 0 0 0-1 0v9.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L4.5 12.293z"></path>
                                         </svg>
                                         По убыванию (Я → А)
@@ -127,209 +149,280 @@
                             </ul>
                         </th>
 
-                        <th scope="col" class="text-nowrap" style="width: 180px; cursor: pointer;" onclick="toggleDateSort()">
+                        <th scope="col" class="text-nowrap" style="width: 180px; cursor: pointer;"
+                            onclick="toggleDateSort()">
                             <div class="d-flex align-items-center gap-2">
                                 <span>Время создания</span>
                                 <span class="filter-icon {% if current_sort == 'newest' or current_sort == 'oldest' %}active{% endif %}">
-                                    {% if current_sort == 'newest' %}▼{% elif current_sort == 'oldest' %}▲{% else %}⇅{% endif %}
+                                    {% if current_sort == 'newest' %}▼{% elif current_sort == 'oldest' %}▲{% else %}
+                                        ⇅{% endif %}
                                 </span>
                             </div>
                         </th>
 
                         <th scope="col" class="text-nowrap" style="width: 180px;">Время напоминания</th>
+                        <th scope="col" class="text-nowrap" style="width: 150px;">Повторение</th>
                         <th scope="col" style="min-width: 200px;">Комментарий</th>
 
                         <!-- Столбец: Статус -->
                         <th scope="col" class="text-center dropdown">
-                            <div class="d-flex align-items-center justify-content-center gap-2 cursor-pointer" data-bs-toggle="dropdown" aria-expanded="false" style="user-select: none;">
+                            <div class="d-flex align-items-center justify-content-center gap-2 cursor-pointer"
+                                 data-bs-toggle="dropdown" aria-expanded="false" style="user-select: none;">
                                 <span>Статус</span>
                                 <span class="filter-icon {% if current_flag %}active{% endif %}">▼</span>
                             </div>
 
-                            <ul id="flag-popup" class="header-filter-popup dropdown-menu dropdown-menu-dark shadow-lg p-0 dropdown-menu-end"
+                            <ul id="flag-popup"
+                                class="header-filter-popup dropdown-menu dropdown-menu-dark shadow-lg p-0 dropdown-menu-end"
                                 style="border: 1px solid #444; max-height: 250px; overflow-y: auto;">
                                 <li>
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=" class="dropdown-item py-2 px-3 {% if not current_flag %}active{% endif %}">
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag="
+                                       class="dropdown-item py-2 px-3 {% if not current_flag %}active{% endif %}">
                                         Все статусы
                                     </a>
                                 </li>
-                                <li><hr class="dropdown-divider m-0" style="border-top: 1px solid rgba(255, 255, 255, 0.15); opacity: 1;"></li>
                                 <li>
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=0" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '0' %}active{% endif %}">
-                                        <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1"><i class="bi bi-plus-circle-fill"></i> Создана</span>
+                                    <hr class="dropdown-divider m-0"
+                                        style="border-top: 1px solid rgba(255, 255, 255, 0.15); opacity: 1;">
+                                </li>
+                                <li>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=0"
+                                       class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '0' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1"><i
+                                                class="bi bi-plus-circle-fill"></i> Создана</span>
                                     </a>
                                 </li>
                                 <li>
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=1" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '1' %}active{% endif %}">
-                                        <span class="badge rounded-pill bg-warning text-dark px-2 py-1 d-inline-flex align-items-center gap-1"><i class="bi bi-gear-fill"></i> В работе</span>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=1"
+                                       class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '1' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-warning text-dark px-2 py-1 d-inline-flex align-items-center gap-1"><i
+                                                class="bi bi-gear-fill"></i> В работе</span>
                                     </a>
                                 </li>
                                 <li>
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=2" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '2' %}active{% endif %}">
-                                        <span class="badge rounded-pill bg-secondary px-2 py-1 d-inline-flex align-items-center gap-1"><i class="bi bi-check-circle-fill"></i> Выполнена</span>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=2"
+                                       class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '2' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-secondary px-2 py-1 d-inline-flex align-items-center gap-1"><i
+                                                class="bi bi-check-circle-fill"></i> Выполнена</span>
                                     </a>
                                 </li>
                                 <li>
-                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=3" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '3' %}active{% endif %}">
-                                        <span class="badge rounded-pill bg-danger px-2 py-1 d-inline-flex align-items-center gap-1"><i class="bi bi-exclamation-triangle-fill"></i> Дедлайн</span>
+                                    <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag=3"
+                                       class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 {% if current_flag == '3' %}active{% endif %}">
+                                        <span class="badge rounded-pill bg-danger px-2 py-1 d-inline-flex align-items-center gap-1"><i
+                                                class="bi bi-exclamation-triangle-fill"></i> Дедлайн</span>
                                     </a>
                                 </li>
                             </ul>
                         </th>
                     </tr>
-                </thead>
-                <tbody id="tasks-table-body" data-current-bookmark-id="{{ current_bookmark.id }}">
+                    </thead>
+                    <tbody id="tasks-table-body" data-current-bookmark-id="{{ current_bookmark.id }}">
                     {% for task in tasks %}
-                    <tr id="task-row-{{ task.id }}" data-id="{{ task.id }}">
-                        <td class="ps-4">
-                            <input class="form-check-input task-checkbox" type="checkbox" data-id="{{ task.id }}" aria-label="Выбрать задачу">
-                        </td>
-                        <td>{{ forloop.counter }}</td>
+                        <tr id="task-row-{{ task.id }}" data-id="{{ task.id }}">
+                            <td class="ps-4">
+                                <input class="form-check-input task-checkbox" type="checkbox" data-id="{{ task.id }}"
+                                       aria-label="Выбрать задачу">
+                            </td>
+                            <td>{{ forloop.counter }}</td>
 
-                        <td class="task-name-cell align-middle fw-semibold" onclick="this.querySelector('.editable-task-name').focus()">
-                            <span class="editable-task-name d-inline-block" contenteditable="true" data-id="{{ task.id }}" style="cursor: text; min-height: 24px;">
+                            <td class="task-name-cell align-middle fw-semibold"
+                                onclick="this.querySelector('.editable-task-name').focus()">
+                            <span class="editable-task-name d-inline-block" contenteditable="true"
+                                  data-id="{{ task.id }}" style="cursor: text; min-height: 24px;">
                                 {{ task.title }}
                             </span>
-                        </td>
+                            </td>
 
-                        <td>{{ task.created_at|date:"d.m.Y H:i" }}</td>
+                            <td>{{ task.created_at|date:"d.m.Y H:i" }}</td>
 
-                        <td class="task-reminder-cell align-middle text-nowrap small" data-id="{{ task.id }}">
-                            {% if task.reminder_at %}
-                                <input type="hidden" class="raw-reminder-date" value="{{ task.reminder_at|date:'Y-m-d\TH:i' }}">
-                                <span class="d-inline-flex align-items-center gap-1 text-warning"><i class="bi bi-bell-fill"></i> {{ task.reminder_at|date:"d.m.Y H:i" }}</span>
-                            {% else %}
-                                <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;"><i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить"></i></span>
-                            {% endif %}
-                        </td>
+                            <td class="task-reminder-cell align-middle text-nowrap small" data-id="{{ task.id }}">
+                                {% if task.reminder_at %}
+                                    <input type="hidden" class="raw-reminder-date"
+                                           value="{{ task.reminder_at|date:'Y-m-d\TH:i' }}">
+                                    <span class="d-inline-flex align-items-center gap-1 text-warning"><i
+                                            class="bi bi-bell-fill"></i> {{ task.reminder_at|date:"d.m.Y H:i" }}</span>
+                                {% else %}
+                                    <span class="editable-task-reminder d-inline-block w-100"
+                                          style="cursor: pointer; min-height: 20px;"><i
+                                            class="bi bi-bell add-reminder-icon text-secondary"
+                                            title="Добавить"></i></span>
+                                {% endif %}
+                            </td>
 
-                        <td class="task-comment-cell align-middle" onclick="this.querySelector('.editable-task-comment').focus()">
-                            <span class="editable-task-comment text-muted small d-inline-block" contenteditable="true" data-id="{{ task.id }}" style="cursor: text; min-height: 24px;">
-                                {% if task.comment %}{{ task.comment }}{% else %}<i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить"></i>{% endif %}
+                            <!-- Ячейка для периодичности -->
+                            <td class="text-nowrap text-muted small task-periodicity-cell"
+                                data-seconds="
+                                        {% if task.periodicity %}{{ task.periodicity.total_seconds|stringformat:"d" }}{% else %}0{% endif %}">
+                                {% if task.periodicity %}
+                                    <i class="bi bi-arrow-repeat me-1 text-warning"></i>
+                                    {{ task.periodicity|format_duration }}
+                                {% else %}
+                                    <i class="bi bi-arrow-repeat text-muted"></i>
+                                {% endif %}
+                            </td>
+
+                            <td class="task-comment-cell align-middle"
+                                onclick="this.querySelector('.editable-task-comment').focus()">
+                            <span class="editable-task-comment text-muted small d-inline-block" contenteditable="true"
+                                  data-id="{{ task.id }}" style="cursor: text; min-height: 24px;">
+                                {% if task.comment %}{{ task.comment }}{% else %}
+                                    <i class="bi bi-pencil add-comment-icon text-secondary fs-6"
+                                       title="Добавить"></i>{% endif %}
                             </span>
-                        </td>
+                            </td>
 
-                        <td class="text-center task-status-cell" style="cursor: pointer;">
-                            {% if task.status_flag == 0 %}
-                                <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1" title="Создана">
+                            <td class="text-center task-status-cell" style="cursor: pointer;">
+                                {% if task.status_flag == 0 %}
+                                    <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1"
+                                          title="Создана">
                                     <i class="bi bi-plus-circle-fill"></i> Создана
                                 </span>
-                            {% elif task.status_flag == 1 %}
-                                <span class="badge rounded-pill bg-warning text-dark px-2 py-1 d-inline-flex align-items-center gap-1" title="В работе">
+                                {% elif task.status_flag == 1 %}
+                                    <span class="badge rounded-pill bg-warning text-dark px-2 py-1 d-inline-flex align-items-center gap-1"
+                                          title="В работе">
                                     <i class="bi bi-gear-fill"></i> В работе
                                 </span>
-                            {% elif task.status_flag == 2 %}
-                                <span class="badge rounded-pill bg-secondary px-2 py-1 d-inline-flex align-items-center gap-1" title="Выполнена">
+                                {% elif task.status_flag == 2 %}
+                                    <span class="badge rounded-pill bg-secondary px-2 py-1 d-inline-flex align-items-center gap-1"
+                                          title="Выполнена">
                                     <i class="bi bi-check-circle-fill"></i> Выполнена
                                 </span>
-                            {% elif task.status_flag == 3 %}
-                                <span class="badge rounded-pill bg-danger px-2 py-1 d-inline-flex align-items-center gap-1" title="Дедлайн">
+                                {% elif task.status_flag == 3 %}
+                                    <span class="badge rounded-pill bg-danger px-2 py-1 d-inline-flex align-items-center gap-1"
+                                          title="Дедлайн">
                                     <i class="bi bi-exclamation-triangle-fill"></i> Дедлайн
                                 </span>
-                            {% endif %}
-                        </td>
-                    </tr>
+                                {% endif %}
+                            </td>
+                        </tr>
                     {% empty %}
-                    <tr id="no-tasks-row"><td colspan="7" class="text-center text-muted py-3">Нет задач в этой закладке</td></tr>
+                        <tr id="no-tasks-row">
+                            <td colspan="7" class="text-center text-muted py-3">Нет задач в этой закладке</td>
+                        </tr>
                     {% endfor %}
-                </tbody>
-            </table>
-        </div> <!-- Конец .table-responsive -->
-    </div> <!-- Конец .card -->
+                    </tbody>
+                </table>
+            </div> <!-- Конец .table-responsive -->
+        </div> <!-- Конец .card -->
 
-</div> <!-- Конец главного фиксированного контейнера -->
+    </div> <!-- Конец главного фиксированного контейнера -->
 
-<!-- Модальное окно редактирования задачи -->
-<div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content bg-dark text-white border-secondary">
+    <!-- Модальное окно редактирования задачи -->
+    <div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark text-white border-secondary">
 
-            <form id="edit-task-form" onsubmit="saveTaskChanges(event)">
-                {% csrf_token %}
+                <form id="edit-task-form" onsubmit="saveTaskChanges(event)">
+                    {% csrf_token %}
 
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title" id="editTaskModalLabel">
-                        Редактирование задачи № <span id="edit-task-number-title" class="text-warning"></span>
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-                </div>
-
-                <div class="modal-body">
-                    <!-- Скрытое поле ID -->
-                    <input type="hidden" id="edit-task-id">
-
-                    <!-- Цикл для остальных полей (статус тут не появится) -->
-                    {% for field in edit_form %}
-                        <div class="mb-3">
-                            <label for="{{ field.id_for_label }}" class="form-label text-warning small fw-semibold">
-                                {{ field.label }}
-                            </label>
-                            {{ field }}
-
-                            {% if field.help_text %}
-                                <div class="form-text text-muted small">{{ field.help_text }}</div>
-                            {% endif %}
-
-                            {% for error in field.errors %}
-                                <div class="text-danger small mt-1">⚠️ {{ error }}</div>
-                            {% endfor %}
-                        </div>
-                    {% endfor %}
-
-                    <!-- === БЛОК СТАТУСА (РУЧНАЯ ВСТАВКА) === -->
-                    <div class="mb-3">
-                        <label class="form-label text-warning small fw-semibold">
-                            Статус (Флаг) — Авторасчет
-                        </label>
-                        <!--
-                          {{ edit_form.instance.get_status_flag_display }}
-                          берет цифру из БД и превращает в текст из STATUS_CHOICES
-                        -->
-                        <input type="text"
-                               class="form-control form-control-sm bg-secondary text-white border-0"
-                               value="{{ edit_form.instance.get_status_flag_display }}"
-                               aria-label="Статус задачи"
-                               disabled>
-                        <div class="form-text text-muted small">
-                            Статус определяется автоматически на основе даты напоминания.
-                            Изменить вручную нельзя.
-                        </div>
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title" id="editTaskModalLabel">
+                            Редактирование задачи № <span id="edit-task-number-title" class="text-warning"></span>
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                                aria-label="Закрыть"></button>
                     </div>
-                    <!-- ======================================= -->
 
-                </div>
+                    <div class="modal-body">
+                        <!-- Скрытое поле ID -->
+                        <input type="hidden" id="edit-task-id">
 
-                <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary fw-semibold shadow-sm">Сохранить изменения</button>
-                </div>
+                        <!-- Цикл для остальных полей (статус тут не появится) -->
+                        {% for field in edit_form %}
+                            <div class="mb-3">
+                                <label for="{{ field.id_for_label }}" class="form-label text-warning small fw-semibold">
+                                    {{ field.label }}
+                                </label>
 
-            </form>
+                                {% if field.name == 'periodicity' %}
+                                    <!-- Красивый сдвоенный блок под стиль вашего модального окна -->
+                                    <div class="input-group input-group-sm">
+                                        <input type="number"
+                                               name="periodicity_0"
+                                               id="edit-task-period-value"
+                                               class="form-control bg-dark text-white border-secondary"
+                                               min="1"
+                                               placeholder="Кол-во">
+
+                                        <select name="periodicity_1"
+                                                id="edit-task-period-unit"
+                                                class="form-select bg-dark text-white border-secondary">
+                                            <option value="none" selected>Не повторять</option>
+                                            <option value="minutes">Минут</option>
+                                            <option value="hours">Часов</option>
+                                            <option value="days">Дней</option>
+                                            <option value="weeks">Недель</option>
+                                            <option value="months">Месяцев</option>
+                                            <option value="years">Лет</option>
+                                        </select>
+                                    </div>
+                                {% else %}
+                                    <!-- Обычные поля формы -->
+                                    {{ field }}
+                                {% endif %}
+
+                                {% if field.help_text %}
+                                    <div class="form-text text-muted small">{{ field.help_text }}</div>
+                                {% endif %}
+
+                                {% for error in field.errors %}
+                                    <div class="text-danger small mt-1">⚠️ {{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
+
+                        <!-- === БЛОК СТАТУСА (РУЧНАЯ ВСТАВКА) === -->
+                        <div class="mb-3">
+                            <label class="form-label text-warning small fw-semibold">
+                                Статус (Флаг) — Авторасчет
+                            </label>
+                            <input type="text"
+                                   class="form-control form-control-sm bg-secondary text-white border-0"
+                                   value="{{ edit_form.instance.get_status_flag_display }}"
+                                   aria-label="Статус задачи"
+                                   disabled>
+                            <div class="form-text text-muted small">
+                                Статус определяется автоматически на основе даты напоминания.
+                                Изменить вручную нельзя.
+                            </div>
+                        </div>
+                        <!-- ======================================= -->
+
+                    </div>
+
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-primary fw-semibold shadow-sm">Сохранить изменения</button>
+                    </div>
+
+                </form>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- Модальное окно подтверждения удаления -->
-<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content bg-dark text-white border-secondary">
-      <div class="modal-header border-secondary">
-        <h5 class="modal-title" id="deleteModalLabel">Подтвердите действие</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        Вы уверены, что хотите удалить выбранные задачи (<span id="delete-count-span">1</span> шт.)?
-      </div>
-      <!-- ИСПРАВЛЕНО: Заменено с modal-header на modal-footer -->
-      <div class="modal-footer border-secondary justify-content-end gap-2">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-        <button type="button" class="btn btn-danger" id="btn-confirm-delete-action">ОК</button>
-      </div>
+    <!-- Модальное окно подтверждения удаления -->
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark text-white border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="deleteModalLabel">Подтвердите действие</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Вы уверены, что хотите удалить выбранные задачи (<span id="delete-count-span">1</span> шт.)?
+                </div>
+                <!-- ИСПРАВЛЕНО: Заменено с modal-header на modal-footer -->
+                <div class="modal-footer border-secondary justify-content-end gap-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-danger" id="btn-confirm-delete-action">ОК</button>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
-</div>
 
-{% csrf_token %}
+    {% csrf_token %}
 {% endblock %}
 
 {% block extra_js %}
