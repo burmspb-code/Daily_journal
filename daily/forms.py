@@ -14,24 +14,29 @@ class DarkDurationWidget(forms.MultiWidget):
     def __init__(self, attrs=None):
         # Конфигурируем два внутренних инпута в вашем фирменном темном стиле
         widgets = [
-            forms.NumberInput(attrs={
-                'class': 'form-control bg-dark text-white border-secondary',
-                'min': '1',
-                'placeholder': 'Кол-во',
-                'id': 'edit-task-period-value'
-            }),
-            forms.Select(attrs={
-                'class': 'form-select bg-dark text-white border-secondary',
-                'id': 'edit-task-period-unit'
-            }, choices=[
-                ('none', 'Не повторять'),
-                ('minutes', 'Минут'),
-                ('hours', 'Часов'),
-                ('days', 'Дней'),
-                ('weeks', 'Недель'),
-                ('months', 'Месяцев'),
-                ('years', 'Лет'),
-            ])
+            forms.NumberInput(
+                attrs={
+                    "class": "form-control bg-dark text-white border-secondary",
+                    "min": "1",
+                    "placeholder": "Кол-во",
+                    "id": "edit-task-period-value",
+                }
+            ),
+            forms.Select(
+                attrs={
+                    "class": "form-select bg-dark text-white border-secondary",
+                    "id": "edit-task-period-unit",
+                },
+                choices=[
+                    ("none", "Не повторять"),
+                    ("minutes", "Минут"),
+                    ("hours", "Часов"),
+                    ("days", "Дней"),
+                    ("weeks", "Недель"),
+                    ("months", "Месяцев"),
+                    ("years", "Лет"),
+                ],
+            ),
         ]
         super().__init__(widgets, attrs)
 
@@ -39,14 +44,20 @@ class DarkDurationWidget(forms.MultiWidget):
         """Разбивает timedelta из базы данных на число и тип периода."""
         if isinstance(value, timedelta):
             seconds = value.total_seconds()
-            if seconds == 0: return [None, 'none']
-            if seconds % 31536000 == 0: return [int(seconds / 31536000), 'years']
-            if seconds % 2592000 == 0: return [int(seconds / 2592000), 'months']
-            if seconds % 604800 == 0: return [int(seconds / 604800), 'weeks']
-            if seconds % 86400 == 0: return [int(seconds / 86400), 'days']
-            if seconds % 3600 == 0: return [int(seconds / 3600), 'hours']
-            return [int(seconds / 60), 'minutes']
-        return [None, 'none']
+            if seconds == 0:
+                return [None, "none"]
+            if seconds % 31536000 == 0:
+                return [int(seconds / 31536000), "years"]
+            if seconds % 2592000 == 0:
+                return [int(seconds / 2592000), "months"]
+            if seconds % 604800 == 0:
+                return [int(seconds / 604800), "weeks"]
+            if seconds % 86400 == 0:
+                return [int(seconds / 86400), "days"]
+            if seconds % 3600 == 0:
+                return [int(seconds / 3600), "hours"]
+            return [int(seconds / 60), "minutes"]
+        return [None, "none"]
 
     def value_from_datadict(self, data, files, name):
         """Собирает отправленные данные обратно в timedelta, поддерживая любые префиксы имён."""
@@ -67,18 +78,24 @@ class DarkDurationWidget(forms.MultiWidget):
             val_1 = data.get(f"{name}_1")
 
         # Если период установлен в "Не повторять" или отсутствует
-        if val_1 == 'none' or not val_1:
+        if val_1 == "none" or not val_1:
             return None
 
         try:
             amount = int(val_0)
-            if val_1 == 'minutes': return timedelta(minutes=amount)
-            if val_1 == 'hours': return timedelta(hours=amount)
-            if val_1 == 'days': return timedelta(days=amount)
-            if val_1 == 'weeks': return timedelta(weeks=amount)
-            if val_1 == 'months': return timedelta(days=amount * 30)
-            if val_1 == 'years': return timedelta(days=amount * 365)
-        except (ValueError, TypeError):
+            if val_1 == "minutes":
+                return timedelta(minutes=amount)
+            if val_1 == "hours":
+                return timedelta(hours=amount)
+            if val_1 == "days":
+                return timedelta(days=amount)
+            if val_1 == "weeks":
+                return timedelta(weeks=amount)
+            if val_1 == "months":
+                return timedelta(days=amount * 30)
+            if val_1 == "years":
+                return timedelta(days=amount * 365)
+        except ValueError, TypeError:
             return None
 
 
@@ -143,14 +160,14 @@ class TaskEditForm(TaskForm):
 
         # Переопределяем виджеты жестко на уровне мета-данных Django
         widgets = {
-            'periodicity': DarkDurationWidget(),
+            "periodicity": DarkDurationWidget(),
             # Явно принуждаем Django использовать виджет даты и времени HTML5
-            'reminder_at': forms.DateTimeInput(
+            "reminder_at": forms.DateTimeInput(
                 format="%Y-%m-%dT%H:%M",
                 attrs={
-                    'type': 'datetime-local',
-                    'class': 'form-control form-control-sm bg-secondary text-white border-0'
-                }
+                    "type": "datetime-local",
+                    "class": "form-control form-control-sm bg-secondary text-white border-0",
+                },
             ),
         }
 

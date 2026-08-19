@@ -320,12 +320,13 @@ th.position-relative {
 }
 
 /* ==========================================================================
-   6. ИКОНКИ ДЕЙСТВИЙ (КОММЕНТАРИИ И НАПОМИНАНИЯ)
+   6. ИКОНКИ ДЕЙСТВИЙ (КОММЕНТАРИИ, НАПОМИНАНИЯ И ПОВТОРЕНИЯ)
    ========================================================================== */
 
-/* Базовое состояние иконок-карандашей и колокольчиков */
+/* Базовое состояние иконок-карандашей, колокольчиков и стрелочек повторения */
 .add-comment-icon,
-.add-reminder-icon {
+.add-reminder-icon,
+.task-periodicity-cell .bi-arrow-repeat {
     opacity: 0.4;
     transition: all 0.2s ease-in-out;
 }
@@ -334,11 +335,53 @@ th.position-relative {
     font-size: 0.95rem;
 }
 
-/* Подсветка золотом при наведении на саму иконку ИЛИ на всю родительскую ячейку таблицы */
+/* Если периодичность УЖЕ задана (иконка горит желтым из Django через класс text-warning),
+   возвращаем ей полную непрозрачность */
+.task-periodicity-cell .bi-arrow-repeat.text-warning {
+    opacity: 1;
+}
+
+/* Подсветка золотом при наведении на комментарии и напоминания */
 .task-comment-cell:hover .add-comment-icon,
 .add-comment-icon:hover,
 .task-reminder-cell:hover .add-reminder-icon,
 .add-reminder-icon:hover {
     opacity: 1;
     color: #ffc107 !important;
+}
+
+/* ==========================================================================
+   ДИНАМИЧЕСКИЙ HOVER ДЛЯ ПОВТОРЕНИЙ (ПРЕДОХРАНИТЕЛЬ)
+   ========================================================================== */
+
+/* Растягиваем область клика на всю доступную ширину ячейки, чтобы ховер не терялся */
+.task-periodicity-cell .inline-periodicity-trigger {
+    width: 100%;
+    display: inline-flex !important;
+    align-items: center;
+}
+
+/* Эффект наведения и палец (pointer) включаются НА ВСЕМ ПОЛЕ ТРИГГЕРА,
+   только если в строке НЕТ пустого колокольчика (.bi-bell) или (.add-reminder-icon) */
+tr:not(:has(.task-reminder-cell .bi-bell)):not(:has(.task-reminder-cell .add-reminder-icon)) .task-periodicity-cell:hover .inline-periodicity-trigger {
+    cursor: pointer !important; /* Курсор руки теперь активен на всей площади поля периода! */
+}
+
+tr:not(:has(.task-reminder-cell .bi-bell)):not(:has(.task-reminder-cell .add-reminder-icon)) .task-periodicity-cell:hover .bi-arrow-repeat,
+tr:not(:has(.task-reminder-cell .bi-bell)):not(:has(.task-reminder-cell .add-reminder-icon)) .task-periodicity-cell:hover .period-text {
+    opacity: 1;
+    color: #ffc107 !important; /* Синхронно подсвечиваем золотом */
+}
+
+/* Если времени нет — принудительно оставляем дефолтный курсор-стрелку на всей ячейке,
+   гасим прозрачность стрелочек и полностью запрещаем желтый цвет при наведении */
+tr:has(.task-reminder-cell .bi-bell) .task-periodicity-cell .inline-periodicity-trigger,
+tr:has(.task-reminder-cell .add-reminder-icon) .task-periodicity-cell .inline-periodicity-trigger {
+    cursor: default !important; /* Обычная стрелка мыши на всей площади */
+}
+
+tr:has(.task-reminder-cell .bi-bell) .task-periodicity-cell:hover .bi-arrow-repeat,
+tr:has(.task-reminder-cell .add-reminder-icon) .task-periodicity-cell:hover .bi-arrow-repeat {
+    opacity: 0.4 !important;
+    color: #6c757d !important; /* Иконка намертво остается серой */
 }

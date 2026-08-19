@@ -29,6 +29,7 @@ import {
     setPeriodicityFields,
     formatDurationFromSeconds
 } from './taskPeriodicity.js';
+import { initInlinePeriodicity } from './inline-periodicity-editor.js';
 
 // ==========================================
 // 2. ГЛОБАЛЬНАЯ РЕГИСТРАЦИЯ ДЛЯ HTML / HTMX
@@ -48,6 +49,7 @@ window.initPeriodicityListeners = initPeriodicityListeners;
 window.handleFieldsToggle = handleFieldsToggle;
 window.setPeriodicityFields = setPeriodicityFields;
 window.formatDurationFromSeconds = formatDurationFromSeconds;
+window.initInlinePeriodicity = initInlinePeriodicity;
 
 // ==========================================
 // 3. ГЛОБАЛЬНЫЕ ЭЛЕМЕНТЫ ИНТЕРФЕЙСА
@@ -59,8 +61,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const selectedCountSpan = document.getElementById('selected-count');
     const tasksTable = document.getElementById('tasks-table');
 
-    // ИНИЦИАЛИЗАЦИЯ МОДУЛЯ НАПОМИНАНИЙ
+    // Автоматическая инициализация модулей
     initReminderEditing();
+    initInlinePeriodicity(); // <--- ДОБАВЛЕНО: Запускаем инлайн-редактор при старте страницы!
 
     // === ГРУППОВЫЕ ОПЕРАЦИИ И ЧЕКБОКСЫ ===
     function updateActionButtons() {
@@ -77,12 +80,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (count === 1) {
             if (btnEdit) {
                 btnEdit.classList.remove('d-none');
-
-                // Передаем ID отмеченной задачи в HTMX-атрибут кнопки
                 const taskId = checkedBoxes[0].getAttribute('data-id');
                 btnEdit.setAttribute('hx-get', `/daily/task/edit-modal/${taskId}/`);
 
-                // Заставляем HTMX обновить триггеры на этой кнопке
                 if (typeof htmx !== 'undefined') {
                     htmx.process(btnEdit);
                 }
@@ -103,7 +103,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Делегирование событий: автоматически слушает и старые, и новые чекбоксы
     if (tasksTable) {
         tasksTable.addEventListener('change', function (e) {
             if (e.target.classList.contains('task-checkbox')) {
@@ -118,6 +117,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // === ДИНАМИЧЕСКИЕ ДРОПДАУНЫ (АВТОЗАКРЫТИЕ) ===
     const allDropdowns = document.querySelectorAll('.dropdown');
     allDropdowns.forEach(dropdownWrapper => {
+
+        // ПРЕДОХРАНИТЕЛЬ: Если этот дропдаун находится внутри ячейки таблицы инлайн-выбора,
+        // полностью игнорируем его и не вешаем автозакрытие по уходу мыши!
+        if (dropdownWrapper.closest('.task-periodicity-cell')) return;
+
         let closeTimeout = null;
 
         dropdownWrapper.addEventListener('mouseleave', function () {

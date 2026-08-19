@@ -72,6 +72,10 @@ function saveInlineDate(input, taskId) {
     })
     .then(data => {
         if (data.status === 'success') {
+            const row = cell.closest('tr');
+            // Находим сопряженную ячейку периодичности в этой же строке
+            const periodicityCell = row ? row.querySelector('.task-periodicity-cell') : null;
+
             if (data.task.reminder_at) {
                 const dateObj = new Date(data.task.reminder_at);
                 const formattedDate = dateObj.toLocaleString('ru-RU', {
@@ -85,10 +89,23 @@ function saveInlineDate(input, taskId) {
                         <i class="bi bi-bell-fill"></i> ${formattedDate}
                     </span>`;
             } else {
+                // СРАБОТАЛА КНОПКА "УДАЛИТЬ" В КАЛЕНДАРЕ
                 cell.innerHTML = `
                     <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
                         <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i>
                     </span>`;
+
+                // СИНХРОННО СБРАСЫВАЕМ И БЛОКИРУЕМ ПЕРИОДИЧНОСТЬ НА ЭКРАНЕ
+                if (periodicityCell) {
+                    // 1. Сбрасываем сохраненные секунды в DOM в 0
+                    periodicityCell.setAttribute('data-seconds', '0');
+
+                    // 2. Стираем надпись периода (например, "1 г.") и возвращаем серую иконку
+                    const trigger = periodicityCell.querySelector('.inline-periodicity-trigger');
+                    if (trigger) {
+                        trigger.innerHTML = `<i class="bi bi-arrow-repeat text-muted"></i>`;
+                    }
+                }
             }
 
             if (typeof updateRowStatusBadge === "function") {

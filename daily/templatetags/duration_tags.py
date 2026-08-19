@@ -18,7 +18,7 @@ def format_duration(value):
             из контекста шаблона Django.
 
     Returns:
-        str: Строка с отформатированным текстовым представлением периода (например, "Каждые 5 дн.").
+        str: Строка с отформатированным текстовым представлением периода (например, "5 дн.").
             Возвращает длинное тире "—", если:
             - Передан пустой объект (None);
             - Переданный тип данных отличается от datetime.timedelta;
@@ -34,9 +34,9 @@ def format_duration(value):
         Внутри Python:
         >>> from datetime import timedelta
         >>> format_duration(timedelta(minutes=15))
-        'Каждые 15 мин.'
+        '15 мин.'
         >>> format_duration(timedelta(days=2))
-        'Каждые 2 дн.'
+        '2 дн.'
         >>> format_duration(None)
         '—'
 
@@ -48,10 +48,19 @@ def format_duration(value):
         return "—"
 
     seconds = value.total_seconds()
-    if seconds == 0: return "—"
-    if seconds % 31536000 == 0: return f"Каждые {int(seconds / 31536000)} г."
-    if seconds % 2592000 == 0: return f"Каждые {int(seconds / 2592000)} мес."
-    if seconds % 604800 == 0: return f"Каждые {int(seconds / 604800)} нед."
-    if seconds % 86400 == 0: return f"Каждые {int(seconds / 86400)} дн."
-    if seconds % 3600 == 0: return f"Каждые {int(seconds / 3600)} час."
-    return f"Каждые {int(seconds / 60)} мин."
+    if seconds == 0:
+        return "—"
+
+    # ИСПРАВЛЕНО: Убрано слово "Каждые " и сокращено "час." до "ч." для минимализма
+    if seconds % 31536000 == 0:
+        return f"{int(seconds / 31536000)} г."
+    if seconds % 2592000 == 0:
+        return f"{int(seconds / 2592000)} мес."
+    if seconds % 604800 == 0:
+        return f"{int(seconds / 604800)} нед."
+    if seconds % 86400 == 0:
+        return f"{int(seconds / 86400)} дн."
+    if seconds % 3600 == 0:
+        return f"{int(seconds / 3600)} ч."
+
+    return f"{int(seconds / 60)} мин."

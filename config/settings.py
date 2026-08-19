@@ -36,11 +36,10 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    'drf_spectacular_sidecar',  # Отвечает за локальные шаблоны и статику UI
-    'drf_spectacular',
+    "drf_spectacular_sidecar",  # Отвечает за локальные шаблоны и статику UI
+    "drf_spectacular",
     "daily",  # Основно пользовательское приложение
     "users",
-
 ]
 
 MIDDLEWARE = [
@@ -189,7 +188,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema"
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 SIMPLE_JWT = {
@@ -198,25 +197,25 @@ SIMPLE_JWT = {
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Daily_Journal API',
-    'DESCRIPTION': 'Автодокументация REST API V1 для мобильных приложений и фронтенда проекта Daily Journal.',
-    'VERSION': '1.0.0',
-    'SERVE_INCLUDE_SCHEMA': False,
-
+    "TITLE": "Daily_Journal API",
+    "DESCRIPTION": "Автодокументация REST API V1 для мобильных приложений и фронтенда проекта Daily Journal.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
     # Указываем использовать локальные файлы из sidecar вместо внешних CDN:
-    'SWAGGER_UI_DIST': 'SIDECAR',
-    'REDOC_DIST': 'SIDECAR',
-
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
     # Включаем поддержку авторизации по кнопке "Authorize" в Swagger
-    'SECURITY': [{
-        'jwtAuth': [],
-    }],
-    'SECURITY_SCHEMES': {
-        'jwtAuth': {
-            'type': 'apiKey',
-            'in': 'header',
-            'name': 'Authorization',
-            'description': 'Вставьте JWT токен в формате: Bearer <ваш_токен>'
+    "SECURITY": [
+        {
+            "jwtAuth": [],
+        }
+    ],
+    "SECURITY_SCHEMES": {
+        "jwtAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "Authorization",
+            "description": "Вставьте JWT токен в формате: Bearer <ваш_токен>",
         },
     },
 }

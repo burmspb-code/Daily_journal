@@ -250,26 +250,67 @@
                                 {% endif %}
                             </td>
 
-                            <!-- Ячейка для периодичности -->
-                            <td class="text-nowrap text-muted small task-periodicity-cell"
-                                data-seconds="
-                                        {% if task.periodicity %}{{ task.periodicity.total_seconds|stringformat:"d" }}{% else %}0{% endif %}">
-                                {% if task.periodicity %}
-                                    <i class="bi bi-arrow-repeat me-1 text-warning"></i>
-                                    {{ task.periodicity|format_duration }}
-                                {% else %}
-                                    <i class="bi bi-arrow-repeat text-muted"></i>
-                                {% endif %}
+                            <!-- Ячейка для периодичности с поддержкой инлайн-редактирования -->
+                            <!-- ИСПРАВЛЕНО: Добавлен обязательный класс 'dropdown' для работы Bootstrap Dropdown -->
+                            <td class="text-nowrap text-muted small task-periodicity-cell dropdown position-relative"
+                                data-id="{{ task.id }}"
+                                data-seconds="{% if task.periodicity %}{{ task.periodicity.total_seconds|stringformat:'d' }}{% else %}0{% endif %}">
+
+                                <!-- Триггер для открытия меню (область клика) -->
+                                <div class="inline-periodicity-trigger d-inline-block cursor-pointer"
+                                     data-bs-toggle="dropdown"
+                                     data-bs-auto-close="outside"
+                                     aria-expanded="false"
+                                     style="cursor: pointer;">
+                                    {% if task.periodicity %}
+                                        <i class="bi bi-arrow-repeat me-1 text-warning"></i>
+                                        <span class="period-text">{{ task.periodicity|format_duration }}</span>
+                                    {% else %}
+                                        <i class="bi bi-arrow-repeat text-muted"></i>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Всплывающее мини-окно Bootstrap Dropdown (Второй вариант) -->
+                                <div class="dropdown-menu p-3 shadow-lg border" style="min-width: 260px; z-index: 1050;">
+                                    <div class="mb-2 text-center border-bottom pb-2">
+                                        <strong class="text-dark small">Повторение задачи</strong>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="input-group input-group-sm">
+                                            <!-- Поле ввода значения -->
+                                            <input type="number" class="form-control inline-period-value" min="1" placeholder="Период" style="max-width: 80px;">
+
+                                            <!-- Селект выбора единицы времени -->
+                                            <select class="form-select inline-period-unit">
+                                                <option value="none">Нет</option>
+                                                <option value="minutes">Минуты</option>
+                                                <option value="hours">Часы</option>
+                                                <option value="days">Дни</option>
+                                                <option value="weeks">Недели</option>
+                                                <option value="months">Месяцы</option>
+                                                <option value="years">Годы</option> <!-- ДОБАВЛЕНО: Полная синхронизация с JS модулем -->
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Кнопки управления -->
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary w-100 btn-inline-period-cancel">Отмена</button>
+                                        <button type="button" class="btn btn-sm btn-primary w-100 btn-inline-period-save">ОК</button>
+                                    </div>
+                                </div>
                             </td>
+
 
                             <td class="task-comment-cell align-middle"
                                 onclick="this.querySelector('.editable-task-comment').focus()">
-                            <span class="editable-task-comment text-muted small d-inline-block" contenteditable="true"
+                                <span class="editable-task-comment text-muted small d-inline-block" contenteditable="true"
                                   data-id="{{ task.id }}" style="cursor: text; min-height: 24px;">
-                                {% if task.comment %}{{ task.comment }}{% else %}
-                                    <i class="bi bi-pencil add-comment-icon text-secondary fs-6"
-                                       title="Добавить"></i>{% endif %}
-                            </span>
+                                    {% if task.comment %}{{ task.comment }}{% else %}
+                                    <i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить"></i>
+                                    {% endif %}
+                                </span>
                             </td>
 
                             <td class="text-center task-status-cell" style="cursor: pointer;">

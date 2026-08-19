@@ -62,9 +62,12 @@ export function openEditModal() {
         }
     }
 
-    // Наполняем элементы модального окна перед показом
-    document.getElementById('edit-task-id').value = taskId;
-    document.getElementById('edit-task-number-title').innerText = rowNumber;
+    // ИСПРАВЛЕНО: Безопасное наполнение элементов модального окна перед показом (защита от null)
+    const editTaskIdInput = document.getElementById('edit-task-id');
+    if (editTaskIdInput) editTaskIdInput.value = taskId;
+
+    const editTaskNumberTitle = document.getElementById('edit-task-number-title');
+    if (editTaskNumberTitle) editTaskNumberTitle.innerText = rowNumber;
 
     // Заполняем инпуты по ID, сгенерированным Django Forms ({% for field in form %})
     if (document.getElementById('id_title')) document.getElementById('id_title').value = title;
@@ -89,6 +92,13 @@ export function openEditModal() {
     } else {
         console.error("Критическая ошибка: функция window.setPeriodicityFields не инициализирована.");
     }
+
+    // Запускаем предохранитель через 50мс, когда DOM формы гарантированно готов
+    setTimeout(() => {
+        if (typeof window.handleFieldsToggle === 'function') {
+            window.handleFieldsToggle();
+        }
+    }, 50);
 }
 
 // Функция 2: Сохранение изменений
@@ -117,6 +127,16 @@ export function saveTaskChanges(event) {
     const formData = new FormData(form);
     formData.set('id', taskId); // Явно гарантируем передачу 'id'
     formData.set('title', newTitle); // Явно гарантируем передачу 'title'
+
+    // === ЖЕЛЕЗОБЕТОННЫЙ ПРЕДОХРАНИТЕЛЬ ПРИ ОТПРАВКЕ ===
+    const reminderInput = document.getElementById('id_reminder_at');
+    const isReminderEmpty = !reminderInput || reminderInput.value.trim() === "";
+
+    if (isReminderEmpty) {
+        // Если время напоминания пустое — намертво стираем период в отправляемом запросе!
+        formData.set('periodicity_0', '');      // Очищаем числовое поле
+        formData.set('periodicity_1', 'none');  // Сбрасываем селект в "Не повторять"
+    }
 
     // 3. Отправляем запрос
     fetch('/daily/task/update/', {
@@ -205,22 +225,44 @@ export function saveTaskChanges(event) {
                 `.trim();
                 }
 
-                // 5. Периодичность задачи
+                // 5. Периодичность задачи (Полная синхронизация при сохранении из модального окна)
                 const periodicityCell = row.querySelector('.task-periodicity-cell');
                 if (periodicityCell) {
+                    // Извлекаем секунды из ответа бэкенда Django
                     const totalSeconds = data.task.periodicity_seconds || 0;
 
+                    // ОБЯЗАТЕЛЬНО: Синхронизируем data-seconds атрибут ячейки
+                    periodicityCell.setAttribute('data-seconds', String(totalSeconds));
+
+                    // Сохраняем HTML-код существующего дропдауна, чтобы не сломать инлайн-выбор в будущем
+                    const existingDropdownMenu = periodicityCell.querySelector('.dropdown-menu')?.outerHTML || '';
+
                     if (totalSeconds > 0) {
-                        // Если период есть: красим иконку в желтый и добавляем текст
-                        const textValue = window.formatDurationFromSeconds(totalSeconds);
+                        // ЕСЛИ ПЕРИОД ЕСТЬ: снимаем блокировку наведения
+                        periodicityCell.classList.remove('periodicity-locked');
+
+                        const textValue = window.formatDurationFromSeconds ? window.formatDurationFromSeconds(totalSeconds) : `${totalSeconds} сек.`;
+
                         periodicityCell.innerHTML = `
-                        <i class="bi bi-arrow-repeat me-1 text-warning"></i> ${textValue}
-                    `.trim();
+                            <div class="inline-periodicity-trigger d-inline-block cursor-pointer" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="cursor: pointer;">
+                                <i class="bi bi-arrow-repeat me-1 text-warning"></i>
+                                <span class="period-text">${textValue}</span>
+                            </div>
+                            ${existingDropdownMenu}
+                        `.trim();
                     } else {
-                        // Если периода нет: выводим только одиночную серую иконку
+                        // ЕСЛИ ПЕРИОДА НЕТ (например, стерли дату в форме модального окна):
+                        // 1. Намертво блокируем наведение и курсор в CSS
+                        periodicityCell.classList.add('periodicity-locked');
+
+                        // 2. Очищаем текст периода и принудительно ставим СЕРУЮ иконку text-muted
                         periodicityCell.innerHTML = `
-                        <i class="bi bi-arrow-repeat text-muted"></i>
-                    `.trim();
+                            <div class="inline-periodicity-trigger d-inline-block" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                                <i class="bi bi-arrow-repeat text-muted"></i>
+                                <span class="period-text"></span>
+                            </div>
+                            ${existingDropdownMenu}
+                        `.trim();
                     }
                 }
 

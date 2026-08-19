@@ -17,8 +17,13 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .forms import CustomUserCreateForm
 from .models import CustomUser
-from .serializers import UserSerializer, EmailVerificationSerializer, UserRegisterSerializer, \
-    PasswordResetRequestSerializer, PasswordResetConfirmSerializer
+from .serializers import (
+    UserSerializer,
+    EmailVerificationSerializer,
+    UserRegisterSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetConfirmSerializer,
+)
 from .services import (
     EmailActivationError,
     InvalidActivationToken,
@@ -30,6 +35,7 @@ User = get_user_model()
 
 
 # ========================= Эндпоинты для работы для работы через WEB==============================================
+
 
 class UserRegisterView(CreateView):
     """Представление для регистрации нового пользователя через веб-форму."""
@@ -91,6 +97,7 @@ class EmailConfirmView(View):
 
 # ========================= Эндпоинты для работы для работы с API ===============================================
 
+
 class UserTokenObtainPairView(TokenObtainPairView):
     """
     Кастомный эндпоинт для получения JWT-токенов (входа в систему).
@@ -100,7 +107,7 @@ class UserTokenObtainPairView(TokenObtainPairView):
     @extend_schema(
         summary="Вход в систему (Получение JWT)",
         description="Принимает email/username и password. Возвращает пару access и refresh токенов.",
-        responses={200: TokenObtainPairSerializer}
+        responses={200: TokenObtainPairSerializer},
     )
     def post(self, request, *args, **kwargs):
         # Запускаем стандартный конвейер Simple JWT
@@ -113,7 +120,9 @@ class UserTokenObtainPairView(TokenObtainPairView):
             serializer = self.get_serializer(data=request.data)
             try:
                 serializer.is_valid(raise_exception=True)
-                user = serializer.user  # Сериализатор Simple JWT сохраняет юзера в свойство .user
+                user = (
+                    serializer.user
+                )  # Сериализатор Simple JWT сохраняет юзера в свойство .user
                 if user:
                     update_last_login(None, user)
             except Exception:
@@ -139,7 +148,9 @@ class UserRegisterAPIView(CreateAPIView):
             register_inactive_user(self.request, save_callback=serializer.save)
         except EmailActivationError:
             raise exceptions.ValidationError(
-                {"detail": "Ошибка отправки письма. Проверьте email или повторите позже."}
+                {
+                    "detail": "Ошибка отправки письма. Проверьте email или повторите позже."
+                }
             )
 
 
@@ -155,18 +166,22 @@ class UserVerifyEmailAPIView(APIView):
         request=EmailVerificationSerializer,
         responses={
             200: inline_serializer(
-                name='EmailVerificationSuccessResponse',
+                name="EmailVerificationSuccessResponse",
                 fields={
-                    'detail': serializers.CharField(default="Аккаунт успешно активирован.")
-                }
+                    "detail": serializers.CharField(
+                        default="Аккаунт успешно активирован."
+                    )
+                },
             ),
             400: inline_serializer(
-                name='EmailVerificationFailedResponse',
+                name="EmailVerificationFailedResponse",
                 fields={
-                    'detail': serializers.CharField(default="Неверный или истекший токен.")
-                }
-            )
-        }
+                    "detail": serializers.CharField(
+                        default="Неверный или истекший токен."
+                    )
+                },
+            ),
+        },
     )
     def post(self, request, *args, **kwargs):
         """Принимает токен активации и выполняет верификацию."""
@@ -176,8 +191,7 @@ class UserVerifyEmailAPIView(APIView):
         # Ваша текущая логика активации (остается без изменений)
 
         return Response(
-            {"detail": "Аккаунт успешно активирован."},
-            status=status.HTTP_200_OK
+            {"detail": "Аккаунт успешно активирован."}, status=status.HTTP_200_OK
         )
 
 
@@ -221,7 +235,9 @@ class UserPasswordResetAPIView(APIView):
             pass
 
         return Response(
-            {"detail": "Если этот адрес зарегистрирован в системе, на него отправлено письмо."},
+            {
+                "detail": "Если этот адрес зарегистрирован в системе, на него отправлено письмо."
+            },
             status=status.HTTP_200_OK,
         )
 

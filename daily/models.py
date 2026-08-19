@@ -87,7 +87,7 @@ class Task(models.Model):
         null=True,
         blank=True,
         verbose_name="Периодичность повторения",
-        help_text="Введите период повторения"
+        help_text="Введите период повторения",
     )
 
     # Столбец E: Комментарий к задаче

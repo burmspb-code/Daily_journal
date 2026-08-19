@@ -1,4 +1,4 @@
-// === Модуль для управления полями периодичности задачи ===
+// === Модуль для управления полями периодичности задачи в модальном окне ===
 
 const SECONDS_IN = {
     YEAR: 31536000,
@@ -13,26 +13,43 @@ const SECONDS_IN = {
  * Инициализирует логику переключения состояния полей (активно/заблокировано).
  */
 export function initPeriodicityListeners() {
-    // Слушаем изменения в селекте периодичности
+    // 1. Слушаем изменения в селекте периодичности Django-формы
     document.addEventListener('change', function(e) {
-        if (e.target && e.target.id === 'edit-task-period-unit') {
+        if (e.target && e.target.id === 'id_periodicity_1') {
             handleFieldsToggle();
         }
     });
 
-    // ПРЕДОХРАНИТЕЛЬ: Слушаем ввод/удаление даты в реальном времени
+    // 2. ПРЕДОХРАНИТЕЛЬ: Ловим клавиатурный ввод в поле даты
     document.addEventListener('input', function(e) {
         if (e.target && e.target.id === 'id_reminder_at') {
             handleFieldsToggle();
         }
     });
 
-    // ВАЖНО: Разблокируем поля прямо перед отправкой формы!
-    // Иначе заблокированные (disabled) поля не попадут в FormData и Django выдаст ошибку.
+    // 3. Ловим выбор даты мышкой через стандартный календарь
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.id === 'id_reminder_at') {
+            handleFieldsToggle();
+        }
+    });
+
+    // 4. ЖЕЛЕЗОБЕТОННАЯ СТРАХОВКА: Ловим потерю фокуса и закрытие системного календаря.
+    // Событие 'blur' не всплывает стандартным образом, поэтому используем третий аргумент true (capture phase)
+    document.addEventListener('blur', function(e) {
+        if (e.target && e.target.id === 'id_reminder_at') {
+            // Небольшой таймаут, чтобы браузер успел очистить value перед проверкой
+            setTimeout(() => {
+                handleFieldsToggle();
+            }, 10);
+        }
+    }, true);
+
+    // 5. Разблокируем поля перед отправкой формы, чтобы данные улетели в Django
     document.addEventListener('submit', function(e) {
         if (e.target && e.target.id === 'edit-task-form') {
-            const unitSelect = document.getElementById('edit-task-period-unit');
-            const valueInput = document.getElementById('edit-task-period-value');
+            const valueInput = document.getElementById('id_periodicity_0');
+            const unitSelect = document.getElementById('id_periodicity_1');
             if (unitSelect) unitSelect.disabled = false;
             if (valueInput) valueInput.disabled = false;
         }
@@ -40,45 +57,30 @@ export function initPeriodicityListeners() {
 }
 
 /**
- * Управляет доступностью полей периодичности.
- * Предохранитель срабатывает, если поле "Время напоминания" пустое.
+ * Управляет доступностью полей периодичности в модальном окне.
  */
 export function handleFieldsToggle() {
     const reminderInput = document.getElementById('id_reminder_at');
-    const unitSelect = document.getElementById('edit-task-period-unit');
-    const valueInput = document.getElementById('edit-task-period-value');
+    const valueInput = document.getElementById('id_periodicity_0');
+    const unitSelect = document.getElementById('id_periodicity_1');
 
     if (!unitSelect || !valueInput) return;
 
-    // Проверяем, заполнено ли время напоминания
     const hasReminder = reminderInput && reminderInput.value.trim() !== "";
 
     if (!hasReminder) {
-        // ПРЕДОХРАНИТЕЛЬ СРАБОТАЛ: Если даты нет, намертво блокируем оба поля
-        unitSelect.value = 'none';
+        // Просто блокируем элементы, если даты изначально нет при открытии
         unitSelect.disabled = true;
-        unitSelect.classList.add('bg-secondary');
-
-        valueInput.value = '';
         valueInput.disabled = true;
-        valueInput.classList.add('bg-secondary');
-        valueInput.removeAttribute('required');
         return;
     }
 
-    // Если дата есть, возвращаем стандартное поведение селекта
     unitSelect.disabled = false;
-    unitSelect.classList.remove('bg-secondary');
-
     if (unitSelect.value === 'none') {
         valueInput.value = '';
         valueInput.disabled = true;
-        valueInput.classList.add('bg-secondary');
-        valueInput.removeAttribute('required');
     } else {
         valueInput.disabled = false;
-        valueInput.classList.remove('bg-secondary');
-        valueInput.setAttribute('required', 'required');
     }
 }
 
@@ -86,17 +88,20 @@ export function handleFieldsToggle() {
  * Заполняет поля периодичности в модальном окне на основе переданных секунд из БД.
  */
 export function setPeriodicityFields(totalSeconds) {
-    const valueInput = document.getElementById('edit-task-period-value');
-    const unitSelect = document.getElementById('edit-task-period-unit');
+    // ИСПРАВЛЕНО: Указываем точные ID вашей Django-формы
+    const valueInput = document.getElementById('id_periodicity_0');
+    const unitSelect = document.getElementById('id_periodicity_1');
 
     if (!valueInput || !unitSelect) return;
 
     if (!totalSeconds || totalSeconds <= 0) {
         valueInput.value = '';
         unitSelect.value = 'none';
-        handleFieldsToggle(); // handleFieldsToggle сама заблокирует поля, если даты нет
+        handleFieldsToggle();
         return;
     }
+
+    const SECONDS_IN = { YEAR: 31536000, MONTH: 2592000, WEEK: 604800, DAY: 86400, HOUR: 3600, MINUTE: 60 };
 
     if (totalSeconds % SECONDS_IN.YEAR === 0) {
         valueInput.value = totalSeconds / SECONDS_IN.YEAR;
@@ -118,7 +123,6 @@ export function setPeriodicityFields(totalSeconds) {
         unitSelect.value = 'minutes';
     }
 
-    // Проверяем финальное состояние (учитывая предохранитель)
     handleFieldsToggle();
 }
 

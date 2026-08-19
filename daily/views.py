@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import timedelta  # Не забудьте импортировать вверху файла
+from datetime import timedelta
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
@@ -10,29 +10,29 @@ from django.utils.dateparse import parse_datetime
 from django.views import View
 from django.views.generic import ListView, CreateView, DeleteView
 from drf_spectacular.utils import extend_schema, inline_serializer
-from rest_framework import serializers
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.authentication import SessionAuthentication
-from rest_framework.generics import ListAPIView
-from rest_framework.generics import RetrieveUpdateDestroyAPIView, ListCreateAPIView
+from rest_framework.generics import (
+    RetrieveUpdateDestroyAPIView,
+    ListCreateAPIView,
+    ListAPIView,
+)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from .forms import TaskEditForm
-from .forms import TaskForm, BookmarkForm
-from .models import Bookmark
-from .models import Task
+from .forms import TaskEditForm, TaskForm, BookmarkForm
+from .models import Bookmark, Task
 from .paginators import TaskListAPIViewPagination
-from .serializers import BookmarkUpdateSerializer
-from .serializers import TaskSerializer, BookmarkSerializer
+from .serializers import BookmarkUpdateSerializer, TaskSerializer, BookmarkSerializer
 from .services import TaskService
 
 logger = logging.getLogger(__name__)
 
 
 # ========================= Эндпоинты для работы для работы через WEB===============================================
+
 
 class TaskListView(LoginRequiredMixin, ListView):
     """Представление для вывода списка задач на веб-страницу.
@@ -41,6 +41,7 @@ class TaskListView(LoginRequiredMixin, ListView):
     (задачи, закладки, состояния фильтров). Инкапсулирует логику веб-интерфейса,
     добавляя HTML-форму редактирования.
     """
+
     model = Task
     template_name = "daily/task_list.html"
     context_object_name = "tasks"
@@ -213,6 +214,11 @@ class TaskUpdateView(LoginRequiredMixin, View):
                 task.is_notified = False
                 updated_fields.extend(["reminder_at", "is_notified"])
 
+                # Если дата удалена, намертво стираем периодичность из БД
+                if new_reminder is None and task.periodicity is not None:
+                    task.periodicity = None
+                    updated_fields.append("periodicity")
+
         # Обновляем периодичность повторения
         if "periodicity_1" in request.POST:
             val_0 = request.POST.get("periodicity_0", "").strip()
@@ -222,20 +228,22 @@ class TaskUpdateView(LoginRequiredMixin, View):
             if val_1 != "none" and val_0:
                 try:
                     amount = int(val_0)
-                    if val_1 == 'minutes':
+                    if val_1 == "minutes":
                         new_periodicity = timedelta(minutes=amount)
-                    elif val_1 == 'hours':
+                    elif val_1 == "hours":
                         new_periodicity = timedelta(hours=amount)
-                    elif val_1 == 'days':
+                    elif val_1 == "days":
                         new_periodicity = timedelta(days=amount)
-                    elif val_1 == 'weeks':
+                    elif val_1 == "weeks":
                         new_periodicity = timedelta(weeks=amount)
-                    elif val_1 == 'months':
+                    elif val_1 == "months":
                         new_periodicity = timedelta(days=amount * 30)
-                    elif val_1 == 'years':
+                    elif val_1 == "years":
                         new_periodicity = timedelta(days=amount * 365)
-                except (ValueError, TypeError):
-                    return JsonResponse({"error": "Некорректное значение интервала"}, status=400)
+                except ValueError, TypeError:
+                    return JsonResponse(
+                        {"error": "Некорректное значение интервала"}, status=400
+                    )
 
             # Если значение изменилось, фиксируем для записи в БД
             if task.periodicity != new_periodicity:
@@ -267,6 +275,53 @@ class TaskUpdateView(LoginRequiredMixin, View):
                 },
             }
         )
+
+
+class UpdateTaskPeriodicityView(LoginRequiredMixin, View):
+    """
+    Класс для быстрого инлайн-обновления периодичности задачи из таблицы.
+    Ожидает POST-запрос с 'id' и 'periodicity_seconds'.
+    """
+
+    def post(self, request, *args, **kwargs):
+        task_id = request.POST.get("id")
+        seconds_raw = request.POST.get("periodicity_seconds")
+
+        if not task_id:
+            return JsonResponse(
+                {"success": False, "error": "ID задачи не указан"}, status=400
+            )
+
+        try:
+            # Ищем задачу, проверяя владение (безопасность)
+            task = Task.objects.get(id=task_id, owner=request.user)
+        except Task.DoesNotExist:
+            return JsonResponse(
+                {"success": False, "error": "Задача не найдена или доступ запрещен"},
+                status=404,
+            )
+
+        try:
+            seconds = int(seconds_raw) if seconds_raw else 0
+
+            if seconds > 0:
+                task.periodicity = timedelta(seconds=seconds)
+            else:
+                task.periodicity = None  # Вариант "Нет (Сбросить)"
+
+            # Обновляем СТРОГО одну колонку в БД, это быстро и безопасно
+            task.save(update_fields=["periodicity"])
+
+            return JsonResponse({"success": True})
+
+        except ValueError:
+            return JsonResponse(
+                {"success": False, "error": "Некорректное значение секунд"}, status=400
+            )
+        except Exception as e:
+            return JsonResponse(
+                {"success": False, "error": f"Ошибка сервера: {str(e)}"}, status=500
+            )
 
 
 class TaskDeleteView(LoginRequiredMixin, DeleteView):
@@ -323,9 +378,7 @@ class BookmarkCreateView(LoginRequiredMixin, CreateView):
 
     model = Bookmark
     form_class = BookmarkForm
-    template_name = (
-        "daily/bookmark_form.html"  # Укажите путь к HTML-шаблону формы
-    )
+    template_name = "daily/bookmark_form.html"  # Укажите путь к HTML-шаблону формы
     context_object_name = "bookmark"
 
     def get_success_url(self):
@@ -349,24 +402,31 @@ class BookmarkCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-@extend_schema(exclude=True)  # Полностью исключает это веб-представление из Swagger/Redoc
+@extend_schema(
+    exclude=True
+)  # Полностью исключает это веб-представление из Swagger/Redoc
 class BookmarkUpdateWebResponseView(APIView):
     """
     Эндпоинт для инлайн-редактирования названия ЗАКЛАДКИ внутри WEB-интерфейса.
     Принимает POST-запрос с FormData (id и title) с текущей страницы.
     Аутентификация по сессии браузера + обязательная CSRF-защита.
     """
+
     permission_classes = [IsAuthenticated]
-    authentication_classes = [SessionAuthentication]  # Завязано на вошедшего в браузер юзера
+    authentication_classes = [
+        SessionAuthentication
+    ]  # Завязано на вошедшего в браузер юзера
 
     def post(self, request, *args, **kwargs):
-        bookmark_id = request.data.get('id')
+        bookmark_id = request.data.get("id")
 
         # Находим закладку строго для текущего пользователя сайта
         try:
             bookmark = Bookmark.objects.get(id=bookmark_id, owner=request.user)
-        except (Bookmark.DoesNotExist, ValueError):
-            return Response({"error": "Закладка не найдена"}, status=status.HTTP_404_NOT_FOUND)
+        except Bookmark.DoesNotExist, ValueError:
+            return Response(
+                {"error": "Закладка не найдена"}, status=status.HTTP_404_NOT_FOUND
+            )
 
         # Передаем данные в сериализатор для валидации поля 'title'
         serializer = BookmarkUpdateSerializer(bookmark, data=request.data, partial=True)
@@ -376,11 +436,14 @@ class BookmarkUpdateWebResponseView(APIView):
             return Response({"status": "success"}, status=status.HTTP_200_OK)
 
         # Если название пустое, DRF вернет структурированную ошибку 400
-        return Response({"error": serializer.errors.get('title', ['Ошибка валидации'])[0]},
-                        status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"error": serializer.errors.get("title", ["Ошибка валидации"])[0]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 # ========================= Эндпоинты для работы с API ===============================================
+
 
 class TaskListAPIView(ListAPIView):
     """API-представление для получения списка задач в формате JSON.
@@ -388,6 +451,7 @@ class TaskListAPIView(ListAPIView):
     клиенту не только массив задач, но и метаданные интерфейса (список закладок,
     активную закладку и примененные фильтры) в одном ответе.
     """
+
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = TaskListAPIViewPagination
@@ -400,27 +464,27 @@ class TaskListAPIView(ListAPIView):
         description="Возвращает массив задач текущего пользователя с учетом пагинации, а также метаданные фильтров и закладок.",
         responses={
             200: inline_serializer(
-                name='TaskListWithMetaResponse',
+                name="TaskListWithMetaResponse",
                 fields={
-                    'meta': inline_serializer(
-                        name='TaskListMeta',
+                    "meta": inline_serializer(
+                        name="TaskListMeta",
                         fields={
-                            'current_filters': inline_serializer(
-                                name='TaskListFilters',
+                            "current_filters": inline_serializer(
+                                name="TaskListFilters",
                                 fields={
-                                    'title': serializers.CharField(allow_null=True),
-                                    'flag': serializers.CharField(allow_null=True),
-                                    'sort': serializers.CharField(allow_null=True),
-                                }
+                                    "title": serializers.CharField(allow_null=True),
+                                    "flag": serializers.CharField(allow_null=True),
+                                    "sort": serializers.CharField(allow_null=True),
+                                },
                             ),
-                            'bookmarks': BookmarkSerializer(many=True),
-                            'current_bookmark': BookmarkSerializer(allow_null=True),
-                        }
+                            "bookmarks": BookmarkSerializer(many=True),
+                            "current_bookmark": BookmarkSerializer(allow_null=True),
+                        },
                     ),
-                    'tasks': TaskSerializer(many=True)
-                }
+                    "tasks": TaskSerializer(many=True),
+                },
             )
-        }
+        },
     )
     def list(self, request, *args, **kwargs):
         """Формирует структурированный JSON-ответ со списком задач и метаданными."""
@@ -438,10 +502,13 @@ class TaskListAPIView(ListAPIView):
             tasks_data = self.get_serializer(queryset, many=True).data
 
         # Сериализуем метаданные закладок
-        bookmarks_serialized = BookmarkSerializer(service_context["bookmarks"], many=True).data
+        bookmarks_serialized = BookmarkSerializer(
+            service_context["bookmarks"], many=True
+        ).data
         current_bookmark_serialized = (
             BookmarkSerializer(service_context["current_bookmark"]).data
-            if service_context["current_bookmark"] else None
+            if service_context["current_bookmark"]
+            else None
         )
 
         # Формируем единый чистый JSON-ответ
@@ -472,7 +539,9 @@ class BookmarkUpdateExternalApiView(RetrieveUpdateDestroyAPIView):
 
     serializer_class = BookmarkUpdateSerializer
     permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]  # Защита токеном, а не сессией браузера
+    authentication_classes = [
+        JWTAuthentication
+    ]  # Защита токеном, а не сессией браузера
 
     def get_queryset(self):
         return Bookmark.objects.filter(owner=self.request.user)
@@ -492,7 +561,7 @@ class BookmarkListCreateAPIView(ListCreateAPIView):
         """Фильтруем список под текущего пользователя."""
         # ЗАЩИТА ДЛЯ SWAGGER: если схему генерирует робот, отдаем пустой кверисет
         if getattr(self, "swagger_fake_view", False) or "spectacular" in str(
-                self.request
+            self.request
         ):
             return Bookmark.objects.none()
         return Bookmark.objects.filter(owner=self.request.user)

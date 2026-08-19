@@ -71,7 +71,7 @@ class TaskService:
             current_bookmark=current_bookmark,
             title_query=title_param,
             flag_query=flag_param,
-            sort_query=sort_param
+            sort_query=sort_param,
         )
 
         return {
@@ -84,7 +84,9 @@ class TaskService:
         }
 
     @staticmethod
-    def _get_filtered_tasks_queryset(user, current_bookmark, title_query: str, flag_query: str, sort_query: str) -> QuerySet:
+    def _get_filtered_tasks_queryset(
+        user, current_bookmark, title_query: str, flag_query: str, sort_query: str
+    ) -> QuerySet:
         """Внутренний метод для фильтрации и сортировки QuerySet задач.
 
         Выполняет SQL JOIN с таблицами Bookmark и User. Исключает повторные

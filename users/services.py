@@ -20,15 +20,19 @@ from users.models import CustomUser
 
 class EmailActivationError(Exception):
     """Исключение для ошибок отправки письма активации."""
+
     pass
 
 
 class InvalidActivationToken(Exception):
     """Исключение для неверного или просроченного токена."""
+
     pass
 
 
-def register_inactive_user(request: HttpRequest, save_callback: Callable[[], User]) -> User:
+def register_inactive_user(
+    request: HttpRequest, save_callback: Callable[[], User]
+) -> User:
     """Бизнес-логика регистрации неактивного пользователя и отправки email.
 
     Args:
@@ -72,7 +76,9 @@ def register_inactive_user(request: HttpRequest, save_callback: Callable[[], Use
             # Отменяем транзакцию в БД
             transaction.set_rollback(True)
             # Выбрасываем понятное сервису исключение
-            raise EmailActivationError("Сбой SMTP при отправке письма подтверждения.") from e
+            raise EmailActivationError(
+                "Сбой SMTP при отправке письма подтверждения."
+            ) from e
 
 
 def activate_user_by_token(uidb64: str, token: str) -> CustomUser:
@@ -80,11 +86,18 @@ def activate_user_by_token(uidb64: str, token: str) -> CustomUser:
     try:
         uid = force_str(urlsafe_base64_decode(uidb64))
         user = CustomUser.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, CustomUser.DoesNotExist):  # Исправлен синтаксис
+    except (
+        TypeError,
+        ValueError,
+        OverflowError,
+        CustomUser.DoesNotExist,
+    ):  # Исправлен синтаксис
         raise InvalidActivationToken("Неверный идентификатор пользователя.")
 
     if not default_token_generator.check_token(user, token):
-        raise InvalidActivationToken("Токен недействителен или его срок действия истек.")
+        raise InvalidActivationToken(
+            "Токен недействителен или его срок действия истек."
+        )
 
     # Переносим логику смены статусов в сервис
     user.is_active = True
