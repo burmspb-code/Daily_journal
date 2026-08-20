@@ -61,15 +61,44 @@ document.addEventListener('DOMContentLoaded', function () {
     const selectedCountSpan = document.getElementById('selected-count');
     const tasksTable = document.getElementById('tasks-table');
 
-    // Автоматическая инициализация модулей
+    // Автоматическая初始化 модулей
     initReminderEditing();
     initInlinePeriodicity(); // <--- ДОБАВЛЕНО: Запускаем инлайн-редактор при старте страницы!
 
+    // =========================================================================
+    // ИСПРАВЛЕНО: Автоматически заполняет инлайн-поля в таблице при открытии Dropdown (БЕЗ СЕКУНД)
+    // =========================================================================
+    document.addEventListener('show.bs.dropdown', function (event) {
+        const cell = event.target.closest('.task-periodicity-cell');
+        if (!cell) return;
+
+        // Напрямую забираем значение и единицу времени из новых data-атрибутов
+        const rawValue = cell.getAttribute('data-value') || '';
+        const rawUnit = cell.getAttribute('data-unit') || 'none';
+
+        if (typeof window.setPeriodicityFields === 'function') {
+            // Передаем чистые данные без математических преобразований
+            window.setPeriodicityFields(rawValue, rawUnit, cell);
+        }
+    });
+    // =========================================================================
+
+    // Слушаем, когда HTMX вставил свежую форму с сервера, и настраиваем блокировку полей периода
+    document.addEventListener('htmx:afterSwap', function (event) {
+        const periodValueInput = document.getElementById('id_periodicity_0');
+        if (periodValueInput && typeof window.handleFieldsToggle === 'function') {
+            // Запускаем проверку: если там "none", поле количества заблокируется
+            window.handleFieldsToggle(periodValueInput);
+        }
+    });
+
     // === ГРУППОВЫЕ ОПЕРАЦИИ И ЧЕКБОКСЫ ===
     function updateActionButtons() {
+        // Находим все отмеченные чекбоксы
         const checkedBoxes = document.querySelectorAll('.task-checkbox:checked');
         const count = checkedBoxes.length;
 
+        // Управление кнопкой удаления
         if (count > 0) {
             if (btnDelete) btnDelete.classList.remove('d-none');
             if (selectedCountSpan) selectedCountSpan.textContent = count;
@@ -77,14 +106,23 @@ document.addEventListener('DOMContentLoaded', function () {
             if (btnDelete) btnDelete.classList.add('d-none');
         }
 
+        // Управление кнопкой редактирования (работает СТРОГО когда выбран 1 чекбокс)
         if (count === 1) {
             if (btnEdit) {
-                btnEdit.classList.remove('d-none');
+                // ИСПРАВЛЕНО: Извлекаем ID задачи из ПЕРВОГО элемента коллекции checkedBoxes
                 const taskId = checkedBoxes[0].getAttribute('data-id');
-                btnEdit.setAttribute('hx-get', `/daily/task/edit-modal/${taskId}/`);
 
-                if (typeof htmx !== 'undefined') {
-                    htmx.process(btnEdit);
+                if (taskId) {
+                    // 1. Записываем правильный URL в атрибут hx-get
+                    btnEdit.setAttribute('hx-get', `/daily/task/edit-modal/${taskId}/`);
+
+                    // 2. Показываем кнопку на экране
+                    btnEdit.classList.remove('d-none');
+
+                    // 3. Заставляем HTMX принудительно перечитать измененный атрибут hx-get
+                    if (typeof htmx !== 'undefined') {
+                        htmx.process(btnEdit);
+                    }
                 }
             }
         } else {
@@ -144,3 +182,4 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 });
+

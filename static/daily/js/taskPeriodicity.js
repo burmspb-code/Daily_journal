@@ -1,51 +1,27 @@
-// === Модуль для управления полями периодичности задачи в модальном окне ===
-
-const SECONDS_IN = {
-    YEAR: 31536000,
-    MONTH: 2592000,
-    WEEK: 604800,
-    DAY: 86400,
-    HOUR: 3600,
-    MINUTE: 60
-};
+// === Модуль управления полями периодичности ===
 
 /**
  * Инициализирует логику переключения состояния полей (активно/заблокировано).
  */
 export function initPeriodicityListeners() {
-    // 1. Слушаем изменения в селекте периодичности Django-формы
+    // Слушаем изменения в селекте единиц времени или в поле даты
     document.addEventListener('change', function(e) {
-        if (e.target && e.target.id === 'id_periodicity_1') {
-            handleFieldsToggle();
+        if (e.target && (e.target.id === 'id_periodicity_1' || e.target.classList.contains('inline-period-unit'))) {
+            handleFieldsToggle(e.target);
+        }
+        if (e.target && (e.target.id === 'id_reminder_at' || e.target.classList.contains('raw-reminder-date'))) {
+            handleFieldsToggle(e.target);
         }
     });
 
-    // 2. ПРЕДОХРАНИТЕЛЬ: Ловим клавиатурный ввод в поле даты
+    // Ловим ручной ввод даты
     document.addEventListener('input', function(e) {
-        if (e.target && e.target.id === 'id_reminder_at') {
-            handleFieldsToggle();
+        if (e.target && (e.target.id === 'id_reminder_at' || e.target.classList.contains('raw-reminder-date'))) {
+            handleFieldsToggle(e.target);
         }
     });
 
-    // 3. Ловим выбор даты мышкой через стандартный календарь
-    document.addEventListener('change', function(e) {
-        if (e.target && e.target.id === 'id_reminder_at') {
-            handleFieldsToggle();
-        }
-    });
-
-    // 4. ЖЕЛЕЗОБЕТОННАЯ СТРАХОВКА: Ловим потерю фокуса и закрытие системного календаря.
-    // Событие 'blur' не всплывает стандартным образом, поэтому используем третий аргумент true (capture phase)
-    document.addEventListener('blur', function(e) {
-        if (e.target && e.target.id === 'id_reminder_at') {
-            // Небольшой таймаут, чтобы браузер успел очистить value перед проверкой
-            setTimeout(() => {
-                handleFieldsToggle();
-            }, 10);
-        }
-    }, true);
-
-    // 5. Разблокируем поля перед отправкой формы, чтобы данные улетели в Django
+    // Разблокируем элементы перед отправкой, чтобы Django-форма не пропустила данные
     document.addEventListener('submit', function(e) {
         if (e.target && e.target.id === 'edit-task-form') {
             const valueInput = document.getElementById('id_periodicity_0');
@@ -57,19 +33,32 @@ export function initPeriodicityListeners() {
 }
 
 /**
- * Управляет доступностью полей периодичности в модальном окне.
+ * Управляет доступностью полей периодичности в зависимости от наличия даты напоминания.
  */
-export function handleFieldsToggle() {
-    const reminderInput = document.getElementById('id_reminder_at');
-    const valueInput = document.getElementById('id_periodicity_0');
-    const unitSelect = document.getElementById('id_periodicity_1');
+export function handleFieldsToggle(targetElement) {
+    let reminderInput, valueInput, unitSelect;
+
+    // Проверяем контекст: таблица или модальное окно
+    if (targetElement && (targetElement.classList.contains('inline-period-unit') || targetElement.classList.contains('inline-period-value') || targetElement.closest('.task-periodicity-cell'))) {
+        const cell = targetElement.closest('.task-periodicity-cell') || targetElement.closest('td');
+        const row = cell ? cell.closest('tr') : null;
+
+        valueInput = cell ? cell.querySelector('.inline-period-value') : null;
+        unitSelect = cell ? cell.querySelector('.inline-period-unit') : null;
+        reminderInput = row ? row.querySelector('.raw-reminder-date') : null;
+    } else {
+        // Главное модальное окно редактирования задачи
+        reminderInput = document.getElementById('id_reminder_at');
+        valueInput = document.getElementById('id_periodicity_0');
+        unitSelect = document.getElementById('id_periodicity_1');
+    }
 
     if (!unitSelect || !valueInput) return;
 
     const hasReminder = reminderInput && reminderInput.value.trim() !== "";
 
+    // Если даты напоминания нет — принудительно отключаем повторение
     if (!hasReminder) {
-        // Просто блокируем элементы, если даты изначально нет при открытии
         unitSelect.disabled = true;
         valueInput.disabled = true;
         return;
@@ -85,64 +74,33 @@ export function handleFieldsToggle() {
 }
 
 /**
- * Заполняет поля периодичности в модальном окне на основе переданных секунд из БД.
+ * ПРЯМОЕ заполнение полей для инлайн-редактора в таблице (без конвертации секунд).
  */
-export function setPeriodicityFields(totalSeconds) {
-    // ИСПРАВЛЕНО: Указываем точные ID вашей Django-формы
-    const valueInput = document.getElementById('id_periodicity_0');
-    const unitSelect = document.getElementById('id_periodicity_1');
+export function setPeriodicityFields(rawValue, rawUnit, targetContainer = null) {
+    let valueInput, unitSelect;
+
+    if (targetContainer) {
+        // Работаем строго внутри ячейки таблицы
+        valueInput = targetContainer.querySelector('.inline-period-value');
+        unitSelect = targetContainer.querySelector('.inline-period-unit');
+    } else {
+        // Модальное окно (используется для подстраховки)
+        valueInput = document.getElementById('id_periodicity_0');
+        unitSelect = document.getElementById('id_periodicity_1');
+    }
 
     if (!valueInput || !unitSelect) return;
 
-    if (!totalSeconds || totalSeconds <= 0) {
-        valueInput.value = '';
-        unitSelect.value = 'none';
-        handleFieldsToggle();
-        return;
-    }
+    // Просто копируем чистые строки из data-атрибутов HTML-шаблона таблицы
+    valueInput.value = rawValue || '';
+    unitSelect.value = rawUnit || 'none';
 
-    const SECONDS_IN = { YEAR: 31536000, MONTH: 2592000, WEEK: 604800, DAY: 86400, HOUR: 3600, MINUTE: 60 };
-
-    if (totalSeconds % SECONDS_IN.YEAR === 0) {
-        valueInput.value = totalSeconds / SECONDS_IN.YEAR;
-        unitSelect.value = 'years';
-    } else if (totalSeconds % SECONDS_IN.MONTH === 0) {
-        valueInput.value = totalSeconds / SECONDS_IN.MONTH;
-        unitSelect.value = 'months';
-    } else if (totalSeconds % SECONDS_IN.WEEK === 0) {
-        valueInput.value = totalSeconds / SECONDS_IN.WEEK;
-        unitSelect.value = 'weeks';
-    } else if (totalSeconds % SECONDS_IN.DAY === 0) {
-        valueInput.value = totalSeconds / SECONDS_IN.DAY;
-        unitSelect.value = 'days';
-    } else if (totalSeconds % SECONDS_IN.HOUR === 0) {
-        valueInput.value = totalSeconds / SECONDS_IN.HOUR;
-        unitSelect.value = 'hours';
-    } else {
-        valueInput.value = Math.floor(totalSeconds / SECONDS_IN.MINUTE);
-        unitSelect.value = 'minutes';
-    }
-
-    handleFieldsToggle();
+    handleFieldsToggle(valueInput);
 }
 
 /**
- * Преобразует секунды из базы данных в красивую строку для отображения в таблице (ТЗ).
+ * Заглушка-предохранитель, чтобы сторонние модули (inline-periodicity-editor.js) не падали при импорте.
  */
 export function formatDurationFromSeconds(totalSeconds) {
-    if (!totalSeconds || totalSeconds <= 0) return '';
-
-    if (totalSeconds % SECONDS_IN.YEAR === 0) {
-        return `${totalSeconds / SECONDS_IN.YEAR} г.`;
-    } else if (totalSeconds % SECONDS_IN.MONTH === 0) {
-        return `${totalSeconds / SECONDS_IN.MONTH} мес.`;
-    } else if (totalSeconds % SECONDS_IN.WEEK === 0) {
-        return `${totalSeconds / SECONDS_IN.WEEK} нед.`;
-    } else if (totalSeconds % SECONDS_IN.DAY === 0) {
-        return `${totalSeconds / SECONDS_IN.DAY} дн.`;
-    } else if (totalSeconds % SECONDS_IN.HOUR === 0) {
-        return `${totalSeconds / SECONDS_IN.HOUR} ч.`;
-    } else {
-        return `${Math.floor(totalSeconds / SECONDS_IN.MINUTE)} мин.`;
-    }
+    return '';
 }

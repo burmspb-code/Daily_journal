@@ -30,6 +30,8 @@ urlpatterns = [
     path("task/create/", TaskCreateView.as_view(), name="task_create"),
     # Маршрут инлайн редактирования задачи
     path("task/update/", TaskUpdateView.as_view(), name="task_update"),
+    # Маршрут для редактирование через модальное окно для GET (HTMX)
+    path('task/edit-modal/<int:task_id>/', TaskUpdateView.as_view(), name='task_edit_modal'),
     # Маршрут инлайн радактирования периода напоминания
     path(
         "task/update-periodicity/",

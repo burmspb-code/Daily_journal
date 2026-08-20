@@ -1,22 +1,11 @@
 // === Модуль для инлайн-управления периодичностью прямо в таблице задач ===
-import { formatDurationFromSeconds } from './taskPeriodicity.js';
 import { getCookie } from './secondary-system-functions.js';
-
-// Полностью синхронизируем константы с вашим основным модулем
-const SECONDS_IN = {
-    years: 31536000,
-    months: 2592000,
-    weeks: 604800,
-    days: 86400,
-    hours: 3600,
-    minutes: 60
-};
 
 export function initInlinePeriodicity() {
     const tableBody = document.getElementById('tasks-table-body');
     if (!tableBody) return;
 
-    // 1. Инициализация (заполнение) полей при открытии дропдауна из data-seconds
+    // 1. Инициализация (заполнение) полей при открытии дропдауна из data-value и data-unit
     tableBody.addEventListener('show.bs.dropdown', function (e) {
         const cell = e.target.closest('.task-periodicity-cell');
         if (!cell) return;
@@ -24,8 +13,6 @@ export function initInlinePeriodicity() {
         const row = cell.closest('tr');
 
         // НАДЕЖНЫЙ ПРЕДОХРАНИТЕЛЬ: Ищем заполненное время напоминания в этой строке
-        // Проверяем наличие активного желтого колокольчика (.bi-bell-fill)
-        // ИЛИ наличие скрытого инпута с сохраненной датой (.raw-reminder-date)
         const hasActiveReminder = row.querySelector('.task-reminder-cell .bi-bell-fill') ||
                                   row.querySelector('.task-reminder-cell .raw-reminder-date')?.value;
 
@@ -34,46 +21,24 @@ export function initInlinePeriodicity() {
             return;
         }
 
-        // Считываем секунды из data-seconds ячейки
-        const totalSeconds = parseInt(cell.getAttribute('data-seconds'), 10) || 0;
+        // ИСПРАВЛЕНО: Считываем чистые значения напрямую из новых data-атрибутов без математики
+        const rawValue = cell.getAttribute('data-value') || '';
+        const rawUnit = cell.getAttribute('data-unit') || 'none';
+
         const valueInput = cell.querySelector('.inline-period-value');
         const unitSelect = cell.querySelector('.inline-period-unit');
 
         if (!valueInput || !unitSelect) return;
 
-        // Раскладываем секунды по инпутам по вашей схеме (от большего к меньшему)
-        if (totalSeconds <= 0) {
-            valueInput.value = '';
-            unitSelect.value = 'none';
-            valueInput.disabled = true;
-        } else if (totalSeconds % SECONDS_IN.years === 0) {
-            valueInput.value = totalSeconds / SECONDS_IN.years;
-            unitSelect.value = 'years';
-            valueInput.disabled = false;
-        } else if (totalSeconds % SECONDS_IN.months === 0) {
-            valueInput.value = totalSeconds / SECONDS_IN.months;
-            unitSelect.value = 'months';
-            valueInput.disabled = false;
-        } else if (totalSeconds % SECONDS_IN.weeks === 0) {
-            valueInput.value = totalSeconds / SECONDS_IN.weeks;
-            unitSelect.value = 'weeks';
-            valueInput.disabled = false;
-        } else if (totalSeconds % SECONDS_IN.days === 0) {
-            valueInput.value = totalSeconds / SECONDS_IN.days;
-            unitSelect.value = 'days';
-            valueInput.disabled = false;
-        } else if (totalSeconds % SECONDS_IN.hours === 0) {
-            valueInput.value = totalSeconds / SECONDS_IN.hours;
-            unitSelect.value = 'hours';
-            valueInput.disabled = false;
-        } else {
-            valueInput.value = Math.floor(totalSeconds / SECONDS_IN.minutes);
-            unitSelect.value = 'minutes';
-            valueInput.disabled = false;
-        }
+        // Напрямую прокидываем значения в инпуты
+        valueInput.value = rawValue;
+        unitSelect.value = rawUnit;
+
+        // Управляем блокировкой поля ввода
+        valueInput.disabled = (rawUnit === 'none');
     });
 
-    // 2. Логика второго варианта: Активация/Блокировка инпута при изменении селекта
+    // 2. Логика: Активация/Блокировка инпута при изменении селекта
     tableBody.addEventListener('change', function (e) {
         if (e.target.classList.contains('inline-period-unit')) {
             const cell = e.target.closest('.task-periodicity-cell');
@@ -85,7 +50,7 @@ export function initInlinePeriodicity() {
                     valueInput.disabled = true;
                 } else {
                     valueInput.disabled = false;
-                    // Если поле было пустым, подставляем удобную единицу "1"
+                    // Если поле было пустым, подставляем удобную дефолтную единицу "1"
                     if (!valueInput.value) valueInput.value = '1';
                     valueInput.focus();
                 }
@@ -96,7 +61,11 @@ export function initInlinePeriodicity() {
     // 3. Обработка кнопки "Отмена"
     tableBody.addEventListener('click', function (e) {
         if (e.target.classList.contains('btn-inline-period-cancel')) {
-            closeDropdown(e.target);
+            const toggleBtn = e.target.closest('.task-periodicity-cell')?.querySelector('[data-bs-toggle="dropdown"]');
+            if (toggleBtn) {
+                const bsDropdown = bootstrap.Dropdown.getOrCreateInstance(toggleBtn);
+                if (bsDropdown) bsDropdown.hide();
+            }
         }
     });
 
@@ -110,23 +79,71 @@ export function initInlinePeriodicity() {
         const valueInput = cell.querySelector('.inline-period-value');
         const unitSelect = cell.querySelector('.inline-period-unit');
 
-        const value = parseInt(valueInput.value, 10) || 0;
-        const unit = unitSelect.value;
+        const pValue = parseInt(valueInput.value, 10) || 0;
+        const pUnit = unitSelect.value;
 
         // Если период выбран, но число невалидно
-        if (unit !== 'none' && value <= 0) {
+        if (pUnit !== 'none' && pValue <= 0) {
             alert('Пожалуйста, укажите значение периода больше нуля');
             valueInput.focus();
             return;
         }
 
-        // Вычисляем итоговые секунды
-        let totalSeconds = 0;
-        if (unit !== 'none' && value > 0) {
-            totalSeconds = value * SECONDS_IN[unit];
-        }
+        // ИСПРАВЛЕНО: Формируем FormData со свойствами под новые поля модели Django
+        const formData = new FormData();
+        formData.append('task_id', taskId);
+        formData.append('periodicity_value', pUnit === 'none' ? '' : pValue);
+        formData.append('periodicity_unit', pUnit);
 
-        saveInlinePeriodicity(taskId, totalSeconds, cell);
+        // Отправка AJAX-запроса на бэкенд
+        fetch('/daily/task/update-periodicity/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Ошибка сервера (400 Bad Request или 500)');
+            return response.json();
+        })
+        .then(data => {
+            // ИСПРАВЛЕНО: Обновляем новые data-атрибуты ячейки
+            cell.setAttribute('data-value', pUnit === 'none' ? '' : pValue);
+            cell.setAttribute('data-unit', pUnit);
+
+            // Обновляем видимый текст в строке таблицы
+            const textSpan = cell.querySelector('.period-text');
+            const triggerDiv = cell.querySelector('.inline-periodicity-trigger');
+
+            if (pUnit !== 'none' && pValue > 0) {
+                const selectedText = unitSelect.options[unitSelect.selectedIndex].text.toLowerCase();
+
+                if (textSpan) {
+                    textSpan.textContent = `${pValue} ${selectedText}`;
+                } else {
+                    // Если до этого периода не было (был серый значок), пересоздаем внутренний HTML триггера
+                    triggerDiv.innerHTML = `
+                        <i class="bi bi-arrow-repeat me-1 text-warning"></i>
+                        <span class="period-text">${pValue} ${selectedText}</span>
+                    `;
+                }
+            } else {
+                // Если сбросили в "Нет"
+                triggerDiv.innerHTML = '<i class="bi bi-arrow-repeat text-muted"></i>';
+            }
+
+            // Закрываем выпадающий список Bootstrap
+            const toggleBtn = cell.querySelector('[data-bs-toggle="dropdown"]');
+            if (toggleBtn) {
+                const bsDropdown = bootstrap.Dropdown.getOrCreateInstance(toggleBtn);
+                if (bsDropdown) bsDropdown.hide();
+            }
+        })
+        .catch(error => {
+            console.error("Ошибка инлайн-сохранения:", error);
+            alert("Не удалось сохранить изменения. Подробности в консоли.");
+        });
     });
 }
 
@@ -135,20 +152,21 @@ export function initInlinePeriodicity() {
  */
 function closeDropdown(element) {
     const cell = element.closest('.task-periodicity-cell');
-    const trigger = cell?.querySelector('.inline-periodicity-trigger');
+    const trigger = cell?.querySelector('[data-bs-toggle="dropdown"]');
     if (trigger) {
-        const dropdownInstance = bootstrap.Dropdown.getInstance(trigger);
+        const dropdownInstance = bootstrap.Dropdown.getOrCreateInstance(trigger);
         dropdownInstance?.hide();
     }
 }
 
 /**
- * Отправка AJAX POST-запроса на бэкенд класса
+ * Отправка AJAX POST-запроса на бэкенд класса (БЕЗ СЕКУНД)
  */
-function saveInlinePeriodicity(taskId, seconds, cell) {
+function saveInlinePeriodicity(taskId, value, unit, cell) {
     const formData = new FormData();
-    formData.set('id', taskId);
-    formData.set('periodicity_seconds', seconds);
+    formData.set('task_id', taskId); // Передаем корректное имя ID
+    formData.set('periodicity_value', unit === 'none' ? '' : value); // Передаем чистое число
+    formData.set('periodicity_unit', unit);   // Передаем единицу времени (строку)
 
     fetch('/daily/task/update-periodicity/', {
         method: 'POST',
@@ -158,7 +176,7 @@ function saveInlinePeriodicity(taskId, seconds, cell) {
         }
     })
     .then(response => {
-        if (!response.ok) throw new Error('Ошибка сервера');
+        if (!response.ok) throw new Error('Ошибка сервера (400 Bad Request или 500)');
         return response.json();
     })
     .then(data => {
@@ -167,22 +185,30 @@ function saveInlinePeriodicity(taskId, seconds, cell) {
             return;
         }
 
-        // УСПЕХ: Обновляем data-seconds в DOM ячейки
-        cell.setAttribute('data-seconds', seconds);
+        // УСПЕХ: Обновляем новые data-атрибуты в DOM ячейки таблицы
+        cell.setAttribute('data-value', unit === 'none' ? '' : value);
+        cell.setAttribute('data-unit', unit);
 
-        // Перерисовываем содержимое триггера
+        // Находим элементы управления внутри ячейки для извлечения красивого текста
+        const unitSelect = cell.querySelector('.inline-period-unit');
         const trigger = cell.querySelector('.inline-periodicity-trigger');
-        if (seconds > 0) {
-            const textValue = formatDurationFromSeconds(seconds);
-            trigger.innerHTML = `
-                <i class="bi bi-arrow-repeat me-1 text-warning"></i>
-                <span class="period-text">${textValue}</span>
-            `.trim();
-        } else {
-            trigger.innerHTML = `<i class="bi bi-arrow-repeat text-muted"></i>`;
+
+        if (trigger) {
+            if (unit !== 'none' && value > 0 && unitSelect) {
+                // Извлекаем человекочитаемый текст из селекта (например, "минуты", "часы")
+                const selectedText = unitSelect.options[unitSelect.selectedIndex].text.toLowerCase();
+
+                trigger.innerHTML = `
+                    <i class="bi bi-arrow-repeat me-1 text-warning"></i>
+                    <span class="period-text">${value} ${selectedText}</span>
+                `.trim();
+            } else {
+                // Если сбросили в значение "Нет"
+                trigger.innerHTML = `<i class="bi bi-arrow-repeat text-muted"></i>`;
+            }
         }
 
-        // Закрываем окошко
+        // Закрываем окошко выпадающего меню
         closeDropdown(cell);
     })
     .catch(error => {

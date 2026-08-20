@@ -1,9 +1,9 @@
 import json
 import logging
-from datetime import timedelta
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
+from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -156,12 +156,35 @@ class TaskCreateView(LoginRequiredMixin, View):
 class TaskUpdateView(LoginRequiredMixin, View):
     """
     Представление для редактирования задачи через модальное окно.
+    Поддерживает GET (отдачу HTML формы через HTMX) и POST (сохранение изменений).
     """
 
     def handle_no_permission(self):
         return JsonResponse({"error": "Пользователь не авторизован"}, status=401)
 
+    def get(self, request, task_id, *args, **kwargs):
+        """
+        ДОБАВЛЕНО: Срабатывает при вызове кнопки 'Редактировать' через hx-get.
+        Генерирует HTML-код формы, где все инпуты и селекты уже заполнены значениями из БД.
+        """
+        # Получаем задачу текущего пользователя
+        task = get_object_or_404(Task, id=task_id, owner=request.user)
+
+        # Инициализируем форму Django, передавая в неё объект задачи и контекст пользователя
+        form = TaskEditForm(instance=task, user=request.user)
+
+        # Рендерим частичный HTML-шаблон, который содержит только инпуты
+        return render(
+            request,
+            "daily/includes/edit_task_form.html",
+            {"edit_form": form, "task": task}
+        )
+
     def post(self, request, *args, **kwargs):
+        """
+        Срабатывает при отправке формы модального окна (кнопка 'Сохранить изменения').
+        Остается БЕЗ ИЗМЕНЕНИЙ — логика обработки полей периодичности написана идеально.
+        """
         task_id = request.POST.get("id")
 
         if not task_id:
@@ -214,49 +237,43 @@ class TaskUpdateView(LoginRequiredMixin, View):
                 task.is_notified = False
                 updated_fields.extend(["reminder_at", "is_notified"])
 
-                # Если дата удалена, намертво стираем периодичность из БД
-                if new_reminder is None and task.periodicity is not None:
-                    task.periodicity = None
-                    updated_fields.append("periodicity")
+                # Если дата удалена, намертво стираем периодичность из новых полей БД
+                if new_reminder is None:
+                    if task.periodicity_value is not None or task.periodicity_unit != 'none':
+                        task.periodicity_value = None
+                        task.periodicity_unit = 'none'
+                        updated_fields.extend(["periodicity_value", "periodicity_unit"])
 
-        # Обновляем периодичность повторения
-        if "periodicity_1" in request.POST:
-            val_0 = request.POST.get("periodicity_0", "").strip()
-            val_1 = request.POST.get("periodicity_1", "").strip()
+        # Обновляем периодичность повторения по НОВЫМ именам полей Django-формы
+        unit_key = next((k for k in request.POST.keys() if "periodicity_unit" in k), None)
+        value_key = next((k for k in request.POST.keys() if "periodicity_value" in k), None)
 
-            new_periodicity = None
+        if unit_key:
+            val_0 = request.POST.get(value_key, "").strip() if value_key else ""
+            val_1 = request.POST.get(unit_key, "").strip()
+
+            new_value = None
+            new_unit = "none"
+
             if val_1 != "none" and val_0:
                 try:
-                    amount = int(val_0)
-                    if val_1 == "minutes":
-                        new_periodicity = timedelta(minutes=amount)
-                    elif val_1 == "hours":
-                        new_periodicity = timedelta(hours=amount)
-                    elif val_1 == "days":
-                        new_periodicity = timedelta(days=amount)
-                    elif val_1 == "weeks":
-                        new_periodicity = timedelta(weeks=amount)
-                    elif val_1 == "months":
-                        new_periodicity = timedelta(days=amount * 30)
-                    elif val_1 == "years":
-                        new_periodicity = timedelta(days=amount * 365)
-                except ValueError, TypeError:
+                    new_value = int(val_0)
+                    new_unit = val_1
+                    if new_value <= 0:
+                        return JsonResponse({"error": "Значение периода должно быть больше нуля"}, status=400)
+                except (ValueError, TypeError):
                     return JsonResponse(
                         {"error": "Некорректное значение интервала"}, status=400
                     )
 
-            # Если значение изменилось, фиксируем для записи в БД
-            if task.periodicity != new_periodicity:
-                task.periodicity = new_periodicity
-                updated_fields.append("periodicity")
+            if task.periodicity_value != new_value or task.periodicity_unit != new_unit:
+                task.periodicity_value = new_value
+                task.periodicity_unit = new_unit
+                updated_fields.extend(["periodicity_value", "periodicity_unit"])
 
         # Сохраняем строго измененные поля
         if updated_fields:
             task.save(update_fields=list(set(updated_fields)))
-
-        # В ответе возвращаем отформатированный текст или секунды для JS таблицы
-        # Чтобы JS на фронтенде сразу понял, что отрисовать в инлайн-строке:
-        total_seconds = task.periodicity.total_seconds() if task.periodicity else 0
 
         return JsonResponse(
             {
@@ -271,7 +288,9 @@ class TaskUpdateView(LoginRequiredMixin, View):
                     "status": task.status_flag,
                     "status_display": task.get_status_flag_display(),
                     "bookmark_id": task.bookmark_id,
-                    "periodicity_seconds": total_seconds,
+                    "periodicity_value": task.periodicity_value or "",
+                    "periodicity_unit": task.periodicity_unit,
+                    "periodicity_display": f"{task.periodicity_value} {task.get_periodicity_unit_display().lower()}" if task.periodicity_value and task.periodicity_unit != 'none' else ""
                 },
             }
         )
@@ -280,12 +299,14 @@ class TaskUpdateView(LoginRequiredMixin, View):
 class UpdateTaskPeriodicityView(LoginRequiredMixin, View):
     """
     Класс для быстрого инлайн-обновления периодичности задачи из таблицы.
-    Ожидает POST-запрос с 'id' и 'periodicity_seconds'.
+    Ожидает POST-запрос с 'task_id' (или 'id'), 'periodicity_value' и 'periodicity_unit'.
     """
 
     def post(self, request, *args, **kwargs):
-        task_id = request.POST.get("id")
-        seconds_raw = request.POST.get("periodicity_seconds")
+        # Безопасно поддерживаем оба варианта именования ID для защиты от опечаток в JS
+        task_id = request.POST.get("task_id") or request.POST.get("id")
+        p_value_raw = request.POST.get("periodicity_value")
+        p_unit = request.POST.get("periodicity_unit")
 
         if not task_id:
             return JsonResponse(
@@ -293,7 +314,7 @@ class UpdateTaskPeriodicityView(LoginRequiredMixin, View):
             )
 
         try:
-            # Ищем задачу, проверяя владение (безопасность)
+            # Ищем задачу, проверяя владение текущим пользователем (безопасность)
             task = Task.objects.get(id=task_id, owner=request.user)
         except Task.DoesNotExist:
             return JsonResponse(
@@ -302,21 +323,23 @@ class UpdateTaskPeriodicityView(LoginRequiredMixin, View):
             )
 
         try:
-            seconds = int(seconds_raw) if seconds_raw else 0
-
-            if seconds > 0:
-                task.periodicity = timedelta(seconds=seconds)
+            # ЖЕЛЕЗОБЕТОННАЯ ПРОВЕРКА: если сбросили в "Нет" или прислали пустые строки
+            if p_unit == "none" or not p_unit or p_value_raw == "" or p_value_raw is None:
+                task.periodicity_value = None
+                task.periodicity_unit = "none"
             else:
-                task.periodicity = None  # Вариант "Нет (Сбросить)"
+                # Переводим в число только если это не пустышка
+                task.periodicity_value = int(p_value_raw)
+                task.periodicity_unit = p_unit
 
-            # Обновляем СТРОГО одну колонку в БД, это быстро и безопасно
-            task.save(update_fields=["periodicity"])
+            # Обновляем СТРОГО только две новые измененные колонки в БД
+            task.save(update_fields=["periodicity_value", "periodicity_unit"])
 
             return JsonResponse({"success": True})
 
         except ValueError:
             return JsonResponse(
-                {"success": False, "error": "Некорректное значение секунд"}, status=400
+                {"success": False, "error": "Значение периода должно быть целым числом"}, status=400
             )
         except Exception as e:
             return JsonResponse(

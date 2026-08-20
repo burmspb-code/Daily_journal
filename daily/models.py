@@ -69,28 +69,42 @@ class Task(models.Model):
         COMPLETED = 2, "Выполнена"
         OVERDUE = 3, "Просрочена"
 
-    # Столбец B: Наименование контрагента/задачи
+    # Наименование контрагента/задачи
     title = models.CharField(max_length=255, verbose_name="Наименование")
 
     # Столбец C: Время создания
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Время создания")
 
-    # Столбец D: Время напоминания (разрешаем null для строк со звездочкой)
+    # Время напоминания (разрешаем null для строк со звездочкой)
     # db_index=True добавлен для быстрого поиска задач, по которым нужно отправить пуш
     reminder_at = models.DateTimeField(
         null=True, blank=True, db_index=True, verbose_name="Время напоминания"
     )
 
-    # Столбец E: Периодичность повторения задачи
-    periodicity = models.DurationField(
-        default=None,
+    # Количественное значение периода
+    periodicity_value = models.PositiveIntegerField(
         null=True,
         blank=True,
-        verbose_name="Периодичность повторения",
-        help_text="Введите период повторения",
+        verbose_name="Значение периода"
     )
 
-    # Столбец E: Комментарий к задаче
+    # Показатель периода
+    periodicity_unit = models.CharField(
+        max_length=10,
+        default='none',
+        choices=[
+            ('none', 'Не повторять'),
+            ('minutes', 'Минут'),
+            ('hours', 'Часов'),
+            ('days', 'Дней'),
+            ('weeks', 'Недель'),
+            ('months', 'Месяцев'),
+            ('years', 'Лет'),
+        ],
+        verbose_name="Единица времени"
+    )
+
+    # Комментарий к задаче
     comment = models.TextField(null=True, blank=True, verbose_name="Комментарий")
 
     # Столбец F: Признак для логики управления данными (по умолчанию 0)

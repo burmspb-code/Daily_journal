@@ -66,11 +66,15 @@
                     Удалить выбранные (<span id="selected-count">0</span>)
                 </button>
 
-                <!-- Кнопка редактировать выбранные задачи -->
-                <button id="btn-edit-selected" class="btn btn-warning btn-sm fw-semibold d-none" data-bs-toggle="modal"
-                        data-bs-target="#editTaskModal" onclick="openEditModal()">
+                <!-- Кнопка редактировать выбранные задачи с поддержкой HTMX-загрузки -->
+                <button id="btn-edit-selected"
+                        class="btn btn-warning btn-sm fw-semibold d-none"
+                        data-bs-toggle="modal"
+                        data-bs-target="#editTaskModal"
+                        onclick="openEditModal()">
                     Редактировать
                 </button>
+
             </div>
             <div class="d-flex gap-2">
                 <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}{% endif %}"
@@ -238,23 +242,29 @@
 
                             <td class="task-reminder-cell align-middle text-nowrap small" data-id="{{ task.id }}">
                                 {% if task.reminder_at %}
-                                    <input type="hidden" class="raw-reminder-date"
+                                    <!-- ИСПРАВЛЕНО: Убран ID для предотвращения дублирования. Оставлен класс для чтения JS -->
+                                    <input type="hidden"
+                                           class="raw-reminder-date"
                                            value="{{ task.reminder_at|date:'Y-m-d\TH:i' }}">
-                                    <span class="d-inline-flex align-items-center gap-1 text-warning"><i
-                                            class="bi bi-bell-fill"></i> {{ task.reminder_at|date:"d.m.Y H:i" }}</span>
+
+                                    <span class="d-inline-flex align-items-center gap-1 text-warning">
+                                        <i class="bi bi-bell-fill"></i> {{ task.reminder_at|date:"d.m.Y H:i" }}
+                                    </span>
                                 {% else %}
-                                    <span class="editable-task-reminder d-inline-block w-100"
-                                          style="cursor: pointer; min-height: 20px;"><i
-                                            class="bi bi-bell add-reminder-icon text-secondary"
-                                            title="Добавить"></i></span>
+                                    <!-- ИСПРАВЛЕНО: Убран ID. Наличие даты JS теперь проверяет по отсутствию инпута или пустому значению класса -->
+                                    <input type="hidden" class="raw-reminder-date" value="">
+
+                                    <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                                        <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить"></i>
+                                    </span>
                                 {% endif %}
                             </td>
 
                             <!-- Ячейка для периодичности с поддержкой инлайн-редактирования -->
-                            <!-- ИСПРАВЛЕНО: Добавлен обязательный класс 'dropdown' для работы Bootstrap Dropdown -->
                             <td class="text-nowrap text-muted small task-periodicity-cell dropdown position-relative"
                                 data-id="{{ task.id }}"
-                                data-seconds="{% if task.periodicity %}{{ task.periodicity.total_seconds|stringformat:'d' }}{% else %}0{% endif %}">
+                                data-value="{% if task.periodicity_value %}{{ task.periodicity_value }}{% else %}{% endif %}"
+                                data-unit="{{ task.periodicity_unit }}">
 
                                 <!-- Триггер для открытия меню (область клика) -->
                                 <div class="inline-periodicity-trigger d-inline-block cursor-pointer"
@@ -262,15 +272,15 @@
                                      data-bs-auto-close="outside"
                                      aria-expanded="false"
                                      style="cursor: pointer;">
-                                    {% if task.periodicity %}
+                                    {% if task.periodicity_value and task.periodicity_unit != 'none' %}
                                         <i class="bi bi-arrow-repeat me-1 text-warning"></i>
-                                        <span class="period-text">{{ task.periodicity|format_duration }}</span>
+                                        <span class="period-text">{{ task.periodicity_value }} {{ task.get_periodicity_unit_display }}</span>
                                     {% else %}
                                         <i class="bi bi-arrow-repeat text-muted"></i>
                                     {% endif %}
                                 </div>
 
-                                <!-- Всплывающее мини-окно Bootstrap Dropdown (Второй вариант) -->
+                                <!-- Всплывающее мини-окно Bootstrap Dropdown -->
                                 <div class="dropdown-menu p-3 shadow-lg border" style="min-width: 260px; z-index: 1050;">
                                     <div class="mb-2 text-center border-bottom pb-2">
                                         <strong class="text-dark small">Повторение задачи</strong>
@@ -278,18 +288,30 @@
 
                                     <div class="mb-3">
                                         <div class="input-group input-group-sm">
-                                            <!-- Поле ввода значения -->
-                                            <input type="number" class="form-control inline-period-value" min="1" placeholder="Период" style="max-width: 80px;">
+                                            <!-- Скрытый лейбл для валидатора и доступности числового инпута -->
+                                            <label for="inline_period_value_{{ task.id }}" class="visually-hidden">Период</label>
+                                            <!-- Поле ввода значения (Уникальные id и name для валидности разметки) -->
+                                            <input type="number"
+                                                   id="inline_period_value_{{ task.id }}"
+                                                   name="inline_period_value_{{ task.id }}"
+                                                   class="form-control inline-period-value"
+                                                   min="1"
+                                                   placeholder="Период"
+                                                   style="max-width: 80px;">
 
-                                            <!-- Селект выбора единицы времени -->
-                                            <select class="form-select inline-period-unit">
+                                            <!-- Скрытый лейбл для валидатора и доступности селекта -->
+                                            <label for="inline_period_unit_{{ task.id }}" class="visually-hidden">Единица времени</label>
+                                            <!-- Селект выбора единицы времени (Уникальные id и name для валидности разметки) -->
+                                            <select id="inline_period_unit_{{ task.id }}"
+                                                    name="inline_period_unit_{{ task.id }}"
+                                                    class="form-select inline-period-unit">
                                                 <option value="none">Нет</option>
                                                 <option value="minutes">Минуты</option>
                                                 <option value="hours">Часы</option>
                                                 <option value="days">Дни</option>
                                                 <option value="weeks">Недели</option>
                                                 <option value="months">Месяцы</option>
-                                                <option value="years">Годы</option> <!-- ДОБАВЛЕНО: Полная синхронизация с JS модулем -->
+                                                <option value="years">Годы</option>
                                             </select>
                                         </div>
                                     </div>
@@ -349,92 +371,41 @@
 
     </div> <!-- Конец главного фиксированного контейнера -->
 
-    <!-- Модальное окно редактирования задачи -->
-    <div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true">
+    <!-- Модальное окно редактирования задачи (Железно темный матовый каркас) -->
+    <div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true"
+         style="backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bg-dark text-white border-secondary">
+            <!-- КРИТИЧЕСКИ ВАЖНО: Стили прописаны жестко на корневом уровне, белый фон больше не появится -->
+            <div class="modal-content text-white shadow-lg"
+                 style="background-color: rgba(28, 34, 43, 0.96) !important;
+                        backdrop-filter: blur(16px) !important;
+                        -webkit-backdrop-filter: blur(16px) !important;
+                        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                        border-radius: 14px !important;">
 
                 <form id="edit-task-form" onsubmit="saveTaskChanges(event)">
                     {% csrf_token %}
 
-                    <div class="modal-header border-secondary">
-                        <h5 class="modal-title" id="editTaskModalLabel">
-                            Редактирование задачи № <span id="edit-task-number-title" class="text-warning"></span>
+                    <div class="modal-header border-bottom border-light border-opacity-10 px-4 py-3">
+                        <h5 class="modal-title fw-bold text-white fs-5" id="editTaskModalLabel">
+                            Редактирование задачи <span id="edit-task-number-title" class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 ms-1 px-2.5 py-1 fs-6"></span>
                         </h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                                aria-label="Закрыть"></button>
+                        <button type="button" class="btn-close btn-close-white opacity-50" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                     </div>
 
-                    <div class="modal-body">
-                        <!-- Скрытое поле ID -->
-                        <input type="hidden" id="edit-task-id">
-
-                        <!-- Цикл для остальных полей (статус тут не появится) -->
-                        {% for field in edit_form %}
-                            <div class="mb-3">
-                                <label for="{{ field.id_for_label }}" class="form-label text-warning small fw-semibold">
-                                    {{ field.label }}
-                                </label>
-
-                                {% if field.name == 'periodicity' %}
-                                    <!-- Красивый сдвоенный блок под стиль вашего модального окна -->
-                                    <div class="input-group input-group-sm">
-                                        <input type="number"
-                                               name="periodicity_0"
-                                               id="edit-task-period-value"
-                                               class="form-control bg-dark text-white border-secondary"
-                                               min="1"
-                                               placeholder="Кол-во">
-
-                                        <select name="periodicity_1"
-                                                id="edit-task-period-unit"
-                                                class="form-select bg-dark text-white border-secondary">
-                                            <option value="none" selected>Не повторять</option>
-                                            <option value="minutes">Минут</option>
-                                            <option value="hours">Часов</option>
-                                            <option value="days">Дней</option>
-                                            <option value="weeks">Недель</option>
-                                            <option value="months">Месяцев</option>
-                                            <option value="years">Лет</option>
-                                        </select>
-                                    </div>
-                                {% else %}
-                                    <!-- Обычные поля формы -->
-                                    {{ field }}
-                                {% endif %}
-
-                                {% if field.help_text %}
-                                    <div class="form-text text-muted small">{{ field.help_text }}</div>
-                                {% endif %}
-
-                                {% for error in field.errors %}
-                                    <div class="text-danger small mt-1">⚠️ {{ error }}</div>
-                                {% endfor %}
-                            </div>
-                        {% endfor %}
-
-                        <!-- === БЛОК СТАТУСА (РУЧНАЯ ВСТАВКА) === -->
-                        <div class="mb-3">
-                            <label class="form-label text-warning small fw-semibold">
-                                Статус (Флаг) — Авторасчет
-                            </label>
-                            <input type="text"
-                                   class="form-control form-control-sm bg-secondary text-white border-0"
-                                   value="{{ edit_form.instance.get_status_flag_display }}"
-                                   aria-label="Статус задачи"
-                                   disabled>
-                            <div class="form-text text-muted small">
-                                Статус определяется автоматически на основе даты напоминания.
-                                Изменить вручную нельзя.
-                            </div>
+                    <!-- Контейнер с идеально отцентрованным золотым спиннером на ТЕМНОМ фоне -->
+                    <div class="modal-body px-4 py-5 d-flex flex-column align-items-center justify-content-center" style="min-height: 250px;">
+                        <div class="spinner-border text-warning mb-3" role="status" style="width: 2.5rem; height: 2.5rem; border-width: 0.23em;">
+                            <span class="visually-hidden">Загрузка...</span>
                         </div>
-                        <!-- ======================================= -->
-
+                        <div class="text-white-50 opacity-75 small fw-bold tracking-wider" style="font-size: 0.72rem; letter-spacing: 0.12em;">
+                            ЗАГРУЗКА ДАННЫХ...
+                        </div>
                     </div>
 
-                    <div class="modal-footer border-secondary">
-                        <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Отмена</button>
-                        <button type="submit" class="btn btn-primary fw-semibold shadow-sm">Сохранить изменения</button>
+                    <div class="modal-footer border-top border-light border-opacity-10 px-4 py-3">
+                        <button type="button" class="btn btn-sm btn-link text-white-50 text-decoration-none fw-semibold" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-sm btn-warning fw-bold text-dark px-4 shadow-sm" style="border-radius: 6px;">Сохранить изменения</button>
                     </div>
 
                 </form>
