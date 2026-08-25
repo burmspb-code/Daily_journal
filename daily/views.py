@@ -164,7 +164,7 @@ class TaskUpdateView(LoginRequiredMixin, View):
 
     def get(self, request, task_id, *args, **kwargs):
         """
-        ДОБАВЛЕНО: Срабатывает при вызове кнопки 'Редактировать' через hx-get.
+        Срабатывает при вызове кнопки 'Редактировать' через hx-get.
         Генерирует HTML-код формы, где все инпуты и селекты уже заполнены значениями из БД.
         """
         # Получаем задачу текущего пользователя
@@ -183,7 +183,6 @@ class TaskUpdateView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         """
         Срабатывает при отправке формы модального окна (кнопка 'Сохранить изменения').
-        Остается БЕЗ ИЗМЕНЕНИЙ — логика обработки полей периодичности написана идеально.
         """
         task_id = request.POST.get("id")
 
@@ -245,31 +244,33 @@ class TaskUpdateView(LoginRequiredMixin, View):
                         updated_fields.extend(["periodicity_value", "periodicity_unit"])
 
         # Обновляем периодичность повторения по НОВЫМ именам полей Django-формы
-        unit_key = next((k for k in request.POST.keys() if "periodicity_unit" in k), None)
-        value_key = next((k for k in request.POST.keys() if "periodicity_value" in k), None)
+        # Пропускаем этот блок, если напоминание было удалено (периодичность уже очищена выше)
+        if "reminder_at" not in request.POST or request.POST.get("reminder_at", "").strip():
+            unit_key = next((k for k in request.POST.keys() if "periodicity_unit" in k), None)
+            value_key = next((k for k in request.POST.keys() if "periodicity_value" in k), None)
 
-        if unit_key:
-            val_0 = request.POST.get(value_key, "").strip() if value_key else ""
-            val_1 = request.POST.get(unit_key, "").strip()
+            if unit_key:
+                val_0 = request.POST.get(value_key, "").strip() if value_key else ""
+                val_1 = request.POST.get(unit_key, "").strip()
 
-            new_value = None
-            new_unit = "none"
+                new_value = None
+                new_unit = "none"
 
-            if val_1 != "none" and val_0:
-                try:
-                    new_value = int(val_0)
-                    new_unit = val_1
-                    if new_value <= 0:
-                        return JsonResponse({"error": "Значение периода должно быть больше нуля"}, status=400)
-                except (ValueError, TypeError):
-                    return JsonResponse(
-                        {"error": "Некорректное значение интервала"}, status=400
-                    )
+                if val_1 != "none" and val_0:
+                    try:
+                        new_value = int(val_0)
+                        new_unit = val_1
+                        if new_value <= 0:
+                            return JsonResponse({"error": "Значение периода должно быть больше нуля"}, status=400)
+                    except (ValueError, TypeError):
+                        return JsonResponse(
+                            {"error": "Некорректное значение интервала"}, status=400
+                        )
 
-            if task.periodicity_value != new_value or task.periodicity_unit != new_unit:
-                task.periodicity_value = new_value
-                task.periodicity_unit = new_unit
-                updated_fields.extend(["periodicity_value", "periodicity_unit"])
+                if task.periodicity_value != new_value or task.periodicity_unit != new_unit:
+                    task.periodicity_value = new_value
+                    task.periodicity_unit = new_unit
+                    updated_fields.extend(["periodicity_value", "periodicity_unit"])
 
         # Сохраняем строго измененные поля
         if updated_fields:
@@ -323,7 +324,6 @@ class UpdateTaskPeriodicityView(LoginRequiredMixin, View):
             )
 
         try:
-            # ЖЕЛЕЗОБЕТОННАЯ ПРОВЕРКА: если сбросили в "Нет" или прислали пустые строки
             if p_unit == "none" or not p_unit or p_value_raw == "" or p_value_raw is None:
                 task.periodicity_value = None
                 task.periodicity_unit = "none"
