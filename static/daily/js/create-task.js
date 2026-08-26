@@ -18,7 +18,7 @@ export function appendNewTaskRow() {
     newRow.innerHTML = `
         <td class="ps-4"><input class="form-check-input" type="checkbox" disabled></td>
         <td><span class="text-muted">${nextNumber}</span></td>
-        <td colspan="4">
+        <td colspan="5">
             <input type="text" id="inline-task-input" class="form-control form-control-sm border-primary shadow-sm" placeholder="Напишите название задачи и нажмите Enter..." style="outline: none;">
         </td>
         <td class="text-center">
@@ -93,6 +93,18 @@ export function saveInlineTask(title, bookmarkId, rowNumber) {
             <td>${data.created_at}</td>
             <td class="task-reminder-cell align-middle text-nowrap small" data-id="${data.id}">
                 <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;"><i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i></span>
+            </td>
+            <td class="text-nowrap text-muted small task-periodicity-cell dropdown position-relative"
+                data-id="${data.id}"
+                data-value=""
+                data-unit="none">
+                <div class="inline-periodicity-trigger d-inline-block cursor-pointer"
+                     data-bs-toggle="dropdown"
+                     data-bs-auto-close="outside"
+                     aria-expanded="false"
+                     style="cursor: pointer;">
+                    <i class="bi bi-arrow-repeat text-muted"></i>
+                </div>
             </td>
             <td class="task-comment-cell align-middle" onclick="this.querySelector('.editable-task-comment').focus()">
                 <span class="editable-task-comment text-muted small d-inline-block" contenteditable="true" data-id="${data.id}" style="cursor: text; min-height: 24px;"><i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить комментарий"></i></span>

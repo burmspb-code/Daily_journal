@@ -152,6 +152,18 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Слушаем событие успешного сохранения задачи от сервера
+    document.addEventListener('taskUpdated', function () {
+        // 1. Находим все чекбоксы и снимаем галочки (сбросит тот самый 1 выбранный чекбокс)
+        const currentCheckboxes = document.querySelectorAll('.task-checkbox');
+        currentCheckboxes.forEach(cb => cb.checked = false);
+
+        // 2. Пересчитываем кнопки (count станет 0, кнопка редактирования автоматически скроется)
+        if (typeof updateActionButtons === 'function') {
+            updateActionButtons();
+        }
+    });
+
     // === ДИНАМИЧЕСКИЕ ДРОПДАУНЫ (АВТОЗАКРЫТИЕ) ===
     const allDropdowns = document.querySelectorAll('.dropdown');
     allDropdowns.forEach(dropdownWrapper => {

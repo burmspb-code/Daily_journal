@@ -276,7 +276,7 @@ class TaskUpdateView(LoginRequiredMixin, View):
         if updated_fields:
             task.save(update_fields=list(set(updated_fields)))
 
-        return JsonResponse(
+        response = JsonResponse(
             {
                 "status": "success",
                 "task": {
@@ -295,6 +295,11 @@ class TaskUpdateView(LoginRequiredMixin, View):
                 },
             }
         )
+
+        # Добавляем кастомный HTTP-заголовок для HTMX, что редактирование завершено
+        response['HX-Trigger'] = 'taskUpdated'
+
+        return response
 
 
 class UpdateTaskPeriodicityView(LoginRequiredMixin, View):

@@ -21,6 +21,13 @@ export function initPeriodicityListeners() {
         }
     });
 
+    // Ловим потерю фокуса с поля даты (для календаря)
+    document.addEventListener('blur', function(e) {
+        if (e.target && (e.target.id === 'id_reminder_at' || e.target.classList.contains('raw-reminder-date'))) {
+            handleFieldsToggle(e.target);
+        }
+    }, true);  // true для capture phase
+
     // Разблокируем элементы перед отправкой, чтобы Django-форма не пропустила данные
     document.addEventListener('submit', function(e) {
         if (e.target && e.target.id === 'edit-task-form') {
@@ -57,14 +64,16 @@ export function handleFieldsToggle(targetElement) {
 
     const hasReminder = reminderInput && reminderInput.value.trim() !== "";
 
-    // Если даты напоминания нет — принудительно отключаем повторение
+    // Селект единиц времени всегда доступен для выбора
+    unitSelect.disabled = false;
+
+    // Если даты напоминания нет — блокируем только поле количества
     if (!hasReminder) {
-        unitSelect.disabled = true;
         valueInput.disabled = true;
         return;
     }
 
-    unitSelect.disabled = false;
+    // Если есть дата напоминания, управляем полем количества на основе выбора
     if (unitSelect.value === 'none') {
         valueInput.value = '';
         valueInput.disabled = true;

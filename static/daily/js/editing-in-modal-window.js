@@ -55,9 +55,29 @@ export function openEditModal() {
         modalBody.innerHTML = htmlMarkup;
 
         // Включаем предохранитель полей периода
-        const periodValueInput = document.getElementById('id_periodicity_0');
-        if (periodValueInput && typeof window.handleFieldsToggle === 'function') {
-            window.handleFieldsToggle(periodValueInput);
+        const reminderInput = document.getElementById('id_reminder_at');
+        const unitSelect = document.getElementById('id_periodicity_1');
+        const valueInput = document.getElementById('id_periodicity_0');
+
+        // Если у задачи уже есть периодичность (не 'none'), разблокируем поля
+        if (unitSelect && unitSelect.value && unitSelect.value !== 'none') {
+            if (valueInput) valueInput.disabled = false;
+            unitSelect.disabled = false;
+        } else if (reminderInput && typeof window.handleFieldsToggle === 'function') {
+            // Иначе проверяем по дате напоминания
+            window.handleFieldsToggle(reminderInput);
+        }
+
+        // Добавляем слушатель изменения селекта единиц времени для разблокировки поля количества
+        if (unitSelect && valueInput) {
+            unitSelect.addEventListener('change', function() {
+                if (this.value !== 'none') {
+                    valueInput.disabled = false;
+                } else {
+                    valueInput.value = '';
+                    valueInput.disabled = true;
+                }
+            });
         }
     })
     .catch(error => {
@@ -190,6 +210,9 @@ export function saveTaskChanges(event) {
                 const modalInstance = bootstrap.Modal.getInstance(modalElement);
                 modalInstance?.hide();
             }
+
+            // Отправляем событие для снятия галочек с чекбоксов
+            document.dispatchEvent(new Event('taskUpdated'));
         } else {
             alert('Ошибка при сохранении: ' + (data.error || 'Неизвестный сбой на бэкенде.'));
         }

@@ -11,6 +11,7 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -72,8 +73,6 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 # Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -86,8 +85,6 @@ DATABASES = {
 }
 
 # Password validation
-# https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
@@ -104,8 +101,6 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-# https://docs.djangoproject.com/en/6.0/topics/i18n/
-
 LANGUAGE_CODE = "ru-ru"
 
 TIME_ZONE = "Europe/Moscow"
@@ -115,8 +110,6 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.0/howto/static-files/
-
 STATIC_URL = "static/"
 
 STATICFILES_DIRS = [
@@ -125,6 +118,8 @@ STATICFILES_DIRS = [
 
 # Указываем Django использовать кастомную модель вместо встроенной
 AUTH_USER_MODEL = "users.CustomUser"
+
+# ================== НАСТРОЙКИ отправки почтовых рассылок =======================
 
 # Временно комментируем SMTP и включаем вывод в консоль:
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
@@ -148,6 +143,8 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
 # Email для получения уведомлений о просмотрах
 EMAIL_ADMIN_NOTIFICATION = os.getenv("EMAIL_ADMIN_NOTIFICATION")
 
+# ==============================================================================
+
 # Настройки перенаправления для системы аутентификации
 LOGIN_REDIRECT_URL = "daily:task_list"  # Куда направлять после успешного входа
 LOGIN_URL = "users:login"  # Куда отправлять неавторизованного пользователя
@@ -159,9 +156,7 @@ PHONENUMBER_DEFAULT_REGION = "RU"
 # Время жизни токена для восстановления пароля и активации аккаунта (24 часа)
 PASSWORD_RESET_TIMEOUT = 24 * 60 * 60  # 86400 секунд
 
-# ==============================================================================
-# НАСТРОЙКИ CELERY И REDIS
-# ==============================================================================
+# ==================== НАСТРОЙКИ CELERY И REDIS ================================
 
 # URL-адрес для подключения к Redis (брокер сообщений)
 CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
@@ -170,13 +165,20 @@ CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
 CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
 
 # Часовой пояс для планировщика Celery (должен совпадать с Django)
-CELERY_TIMEZONE = TIME_ZONE  # Берём значение из переменной TIME_ZONE вашего проекта
+CELERY_TIMEZONE = TIME_ZONE  # Берём значение из переменной TIME_ZONE проекта
 
 # Включаем отслеживание запуска задач
 CELERY_TASK_TRACK_STARTED = True
 
 # Тайм-аут для хранения результатов задач в Redis (в секундандах - 1 день)
 CELERY_RESULT_EXPIRES = 86400
+
+CELERY_BEAT_SCHEDULE = {
+    "check-reminders-every-minute": {
+        "task": "daily.tasks.check_daily_reminders",
+        "schedule": crontab(minute="*"),  # Проверка каждую минуту
+    },
+}
 
 # ==============================================================================
 

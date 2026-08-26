@@ -72,7 +72,7 @@ class Task(models.Model):
     # Наименование контрагента/задачи
     title = models.CharField(max_length=255, verbose_name="Наименование")
 
-    # Столбец C: Время создания
+    # Время создания
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Время создания")
 
     # Время напоминания (разрешаем null для строк со звездочкой)
@@ -107,7 +107,7 @@ class Task(models.Model):
     # Комментарий к задаче
     comment = models.TextField(null=True, blank=True, verbose_name="Комментарий")
 
-    # Столбец F: Признак для логики управления данными (по умолчанию 0)
+    # Признак для логики управления данными (по умолчанию 0)
     status_flag = models.IntegerField(
         default=StatusChoices.CREATED,
         choices=StatusChoices.choices,
