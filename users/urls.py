@@ -7,6 +7,13 @@
 
 from django.contrib.auth import views as auth_views
 from django.urls import path
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExample, inline_serializer
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+    SpectacularRedocView,
+)
+from rest_framework import serializers
 from rest_framework_simplejwt.views import TokenBlacklistView, TokenRefreshView
 
 from users.apps import UsersConfig
@@ -88,11 +95,56 @@ urlpatterns = [
     ),
     path(
         "api/v1/auth/token/refresh/",
-        TokenRefreshView.as_view(),
+        extend_schema_view(
+            post=extend_schema(
+                summary="Обновление JWT-токена доступа (Access Token)",
+                description="Принимает валидный `refresh` токен и возвращает новую пару токенов.",
+                responses={
+                    200: inline_serializer(
+                        name="TokenRefreshResponse",
+                        fields={
+                            "access": serializers.CharField(),
+                            "refresh": serializers.CharField(required=False)
+                        }
+                    ),
+                    401: inline_serializer(
+                        name="TokenRefreshErrorResponse",
+                        fields={"detail": serializers.CharField(default="Token is invalid or expired")}
+                    )
+                },
+                tags=["Аутентификация"],
+            )
+        )(TokenRefreshView.as_view()),
         name="api_token_refresh",
     ),
     path(
-        "api/v1/auth/logout/", TokenBlacklistView.as_view(), name="api_token_blacklist"
+        "api/v1/auth/logout/",
+        extend_schema_view(
+            post=extend_schema(
+                summary="Выход из системы (Инвалидация токена)",
+                description="Принимает `refresh` токен и заносит его в черный список базы данных. После этого токен становится недействительным.",
+                responses={
+                    200: inline_serializer(
+                        name="TokenBlacklistSuccessResponse",
+                        fields={} # Пустой JSON {} при успешном выходе
+                    ),
+                    401: inline_serializer(
+                        name="TokenBlacklistErrorResponse",
+                        fields={"detail": serializers.CharField(default="Token is invalid or expired")}
+                    )
+                },
+                examples=[
+                    OpenApiExample(
+                        name="Успешный выход",
+                        value={},
+                        response_only=True,
+                        status_codes=["200"],
+                    )
+                ],
+                tags=["Аутентификация"],
+            )
+        )(TokenBlacklistView.as_view()),
+        name="api_token_blacklist",
     ),
     # Регистрация и верификация через API
     path("api/v1/register/", UserRegisterAPIView.as_view(), name="api_register"),
@@ -113,5 +165,13 @@ urlpatterns = [
         "api/v1/password-reset/confirm/",
         UserPasswordResetConfirmAPIView.as_view(),
         name="api_password_reset_confirm",
+    ),
+    # Схема API в формате OpenAPI
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    # Интерактивный интерфейс Swagger UI
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="docs"),
+    # Альтернативный интерфейс Redoc
+    path(
+        "api/docs/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"
     ),
 ]

@@ -6,10 +6,10 @@ from django.contrib.auth.models import update_last_login
 from django.shortcuts import redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views.generic import CreateView, TemplateView, View
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer, OpenApiResponse
 from rest_framework import exceptions, status, serializers
-from rest_framework.generics import CreateAPIView, RetrieveUpdateAPIView
-from rest_framework.permissions import AllowAny
+from rest_framework.generics import CreateAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -35,7 +35,6 @@ User = get_user_model()
 
 
 # ========================= Эндпоинты для работы для работы через WEB==============================================
-
 
 class UserRegisterView(CreateView):
     """Представление для регистрации нового пользователя через веб-форму."""
@@ -97,18 +96,29 @@ class EmailConfirmView(View):
 
 # ========================= Эндпоинты для работы для работы с API ===============================================
 
-
+@extend_schema(
+    summary="Вход в систему (Получение JWT)",
+    description=(
+        "Принимает учетные данные пользователя. При успешной аутентификации "
+        "возвращает пару JWT-токенов (`access` и `refresh`) и обновляет "
+        "время последнего входа в систему (`last_login`)."
+    ),
+    # Явно указываем сериализатор для входящих данных (тела запроса)
+    request=TokenObtainPairSerializer,
+    # Привязываем успешный ответ к сериализатору токенов
+    responses={
+        200: TokenObtainPairSerializer,
+        400: serializers.Serializer,  # Ошибка валидации структуры (например, пустые поля)
+        401: serializers.Serializer,  # Ошибка аутентификации (неверный логин/пароль)
+    },
+    tags=["Аутентификация"],
+)
 class UserTokenObtainPairView(TokenObtainPairView):
     """
     Кастомный эндпоинт для получения JWT-токенов (входа в систему).
     Автоматически обновляет поле last_login пользователя при успешном входе.
     """
 
-    @extend_schema(
-        summary="Вход в систему (Получение JWT)",
-        description="Принимает email/username и password. Возвращает пару access и refresh токенов.",
-        responses={200: TokenObtainPairSerializer},
-    )
     def post(self, request, *args, **kwargs):
         # Запускаем стандартный конвейер Simple JWT
         response = super().post(request, *args, **kwargs)
@@ -131,6 +141,23 @@ class UserTokenObtainPairView(TokenObtainPairView):
         return response
 
 
+@extend_schema(
+    summary="Регистрация нового пользователя",
+    description=(
+        "Создает новый аккаунт пользователя в системе. "
+        "Доступ разрешен незарегистрированным пользователям без авторизации."
+    ),
+    responses={
+        201: OpenApiResponse(
+            response=UserRegisterSerializer,
+            description="Пользователь успешно зарегистрирован.",
+        ),
+        400: OpenApiResponse(
+            description="Ошибка валидации данных (например, этот email уже зарегистрирован или слабый пароль)."
+        ),
+    },
+    tags=["Пользователи"],
+)
 class UserRegisterAPIView(CreateAPIView):
     """Представление для регистрации нового пользователя через API."""
 
@@ -154,35 +181,37 @@ class UserRegisterAPIView(CreateAPIView):
             )
 
 
+@extend_schema(
+    summary="Подтверждение Email через API",
+    description="Принимает токен активации из письма и переводит аккаунт пользователя в статус 'активен'.",
+    request=EmailVerificationSerializer,
+    responses={
+        200: inline_serializer(
+            name="EmailVerificationSuccessResponse",
+            fields={
+                "detail": serializers.CharField(
+                    default="Аккаунт успешно активирован."
+                )
+            },
+        ),
+        400: inline_serializer(
+            name="EmailVerificationFailedResponse",
+            fields={
+                "detail": serializers.CharField(
+                    default="Неверный или истекший токен."
+                )
+            },
+        ),
+    },
+    tags=["Аутентификация"],
+)
 class UserVerifyEmailAPIView(APIView):
     """API-представление для подтверждения email пользователя по токену."""
 
     permission_classes = [AllowAny]
     serializer_class = EmailVerificationSerializer
 
-    @extend_schema(
-        summary="Подтверждение Email через API",
-        description="Принимает токен активации из письма и переводит аккаунт пользователя в статус 'активен'.",
-        request=EmailVerificationSerializer,
-        responses={
-            200: inline_serializer(
-                name="EmailVerificationSuccessResponse",
-                fields={
-                    "detail": serializers.CharField(
-                        default="Аккаунт успешно активирован."
-                    )
-                },
-            ),
-            400: inline_serializer(
-                name="EmailVerificationFailedResponse",
-                fields={
-                    "detail": serializers.CharField(
-                        default="Неверный или истекший токен."
-                    )
-                },
-            ),
-        },
-    )
+
     def post(self, request, *args, **kwargs):
         """Принимает токен активации и выполняет верификацию."""
         serializer = self.serializer_class(data=request.data)
@@ -194,17 +223,53 @@ class UserVerifyEmailAPIView(APIView):
             {"detail": "Аккаунт успешно активирован."}, status=status.HTTP_200_OK
         )
 
-
-class UserMeAPIView(RetrieveUpdateAPIView):
+@extend_schema_view(
+    get=extend_schema(
+        summary="Получить информацию о пользователе",
+        description="Доступно зарегистрированному пользователю для просмотра своей приватной информации.",
+    ),
+    put=extend_schema(
+        summary="Полное обновление информации о пользователе",
+        description="Доступно зарегистрированному пользователю для изменения своей приватной информации.",
+    ),
+    patch=extend_schema(
+        summary="Частичное обновление информации о пользователе",
+        description="Доступно зарегистрированному пользователю для изменения своей приватной информации.",
+    ),
+    delete=extend_schema(
+        summary="Удаление профиля пользователя",
+        responses={204: None},
+        description="Удаление текущего профиля пользователя. Доступно зарегистрированному пользователю.",
+    ),
+)
+@extend_schema(
+    responses={
+        200: OpenApiResponse(
+            response=UserSerializer,
+            description="Информация о пользователе успешно получена.",
+        ),
+        401: OpenApiResponse(
+            description="Неавторизованный доступ (отсутствует или неверен токен)."
+        ),
+    },
+    tags=["Пользователи"],  # Группирует эндпоинты в интерфейсе Redoc в одну вкладку
+)
+class UserMeAPIView(RetrieveUpdateDestroyAPIView):
     """
     API-представление для просмотра и безопасного редактирования профиля текущего пользователя.
     """
 
     serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_object(self):
         """Получаем текущего пользователя."""
         return self.request.user
+
+    def perform_update(self, serializer):
+        """Сохраняет данные и обновляет last_login пользователя."""
+        serializer.save()
+        update_last_login(None, self.request.user)
 
 
 @extend_schema(exclude=True)  # Скрываем из Swagger и убираем ошибку из консоли

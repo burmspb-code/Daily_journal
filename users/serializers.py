@@ -62,7 +62,7 @@ class UserSerializer(serializers.ModelSerializer):
             "phone_number",
             "avatar",
         )
-        read_only_fields = ("email",)
+        read_only_fields = ("id", "email",)
 
 
 class EmailVerificationSerializer(serializers.Serializer):
