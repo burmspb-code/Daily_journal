@@ -159,7 +159,7 @@ class UserTokenObtainPairView(TokenObtainPairView):
     tags=["Пользователи"],
 )
 class UserRegisterAPIView(CreateAPIView):
-    """Представление для регистрации нового пользователя через API."""
+    """API-представление для регистрации нового пользователя."""
 
     queryset = CustomUser.objects.all()
     serializer_class = UserRegisterSerializer

@@ -37,12 +37,15 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "drf_spectacular_sidecar",  # Отвечает за локальные шаблоны и статику UI
+
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
+
+    "drf_spectacular_sidecar",
     "drf_spectacular",
-    "daily",  # Основно пользовательское приложение
+
+    "daily",
     "users",
 ]
 

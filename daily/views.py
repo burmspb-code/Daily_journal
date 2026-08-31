@@ -97,7 +97,7 @@ class TaskCreateView(LoginRequiredMixin, View):
     Представление для быстрого инлайн-создания задачи.
 
     Принимает POST-запрос с JSON-телом, валидирует данные через TaskForm
-    и возвращает JSON с ID новой задачи для мгновенного добавления в таблицу.
+    и возвращает HTML-строку задачи для мгновенного добавления в таблицу.
     """
 
     def post(self, request, *args, **kwargs):
@@ -139,11 +139,14 @@ class TaskCreateView(LoginRequiredMixin, View):
             task.owner = request.user
             task.save()
 
-            formatted_date = timezone.localtime(task.created_at).strftime(
-                "%d.%m.%Y %H:%M"
-            )
-            return JsonResponse(
-                {"status": "success", "id": task.id, "created_at": formatted_date}
+            # Вычисляем номер строки
+            row_number = Task.objects.filter(owner=request.user).count()
+
+            # Рендерим HTML строки задачи
+            return render(
+                request,
+                "daily/includes/task_row.html",
+                {"task": task, "row_number": row_number}
             )
 
         # Обработка ошибок валидации формы Django
