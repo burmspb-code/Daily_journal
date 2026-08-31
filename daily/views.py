@@ -439,7 +439,7 @@ class BookmarkCreateView(LoginRequiredMixin, CreateView):
 class BookmarkUpdateWebResponseView(APIView):
     """
     Эндпоинт для инлайн-редактирования названия ЗАКЛАДКИ внутри WEB-интерфейса.
-    Принимает POST-запрос с FormData (id и title) с текущей страницы.
+    Принимает POST-запрос с JSON (id, title, description) с текущей страницы.
     Аутентификация по сессии браузера + обязательная CSRF-защита.
     """
 
@@ -454,21 +454,23 @@ class BookmarkUpdateWebResponseView(APIView):
         # Находим закладку строго для текущего пользователя сайта
         try:
             bookmark = Bookmark.objects.get(id=bookmark_id, owner=request.user)
-        except Bookmark.DoesNotExist, ValueError:
+        except (Bookmark.DoesNotExist, ValueError):
             return Response(
-                {"error": "Закладка не найдена"}, status=status.HTTP_404_NOT_FOUND
+                {"status": "error", "message": "Закладка не найдена"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        # Передаем данные в сериализатор для валидации поля 'title'
+        # Передаем данные в сериализатор для валидации полей 'title' и 'description'
         serializer = BookmarkUpdateSerializer(bookmark, data=request.data, partial=True)
 
         if serializer.is_valid():
             serializer.save()
             return Response({"status": "success"}, status=status.HTTP_200_OK)
 
-        # Если название пустое, DRF вернет структурированную ошибку 400
+        # Если есть ошибки валидации, возвращаем их
+        errors = dict(serializer.errors)
+        error_message = errors.get("title", errors.get("description", ["Ошибка валидации"]))[0]
         return Response(
-            {"error": serializer.errors.get("title", ["Ошибка валидации"])[0]},
+            {"status": "error", "message": error_message},
             status=status.HTTP_400_BAD_REQUEST,
         )
 

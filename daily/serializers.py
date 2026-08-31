@@ -37,9 +37,9 @@ class BookmarkSerializer(serializers.ModelSerializer):
 class BookmarkUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bookmark
-        fields = ["id", "title"]
+        fields = ["id", "title", "description"]
 
     def validate_title(self, value):
-        if not value.strip():
+        if value and not value.strip():
             raise serializers.ValidationError("Название не может быть пустым.")
-        return value.strip()
+        return value.strip() if value else value

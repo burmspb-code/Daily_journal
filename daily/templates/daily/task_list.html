@@ -18,7 +18,14 @@
         <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
             <div class="d-flex align-items-center gap-3">
                 <!-- Контейнер закладки -->
-                <div class="bg-dark fs-6 py-2 px-3 rounded text-start d-inline-flex align-items-center shadow-sm bookmark-container">
+                <div class="bg-dark fs-6 py-2 px-3 rounded text-start d-inline-flex align-items-center shadow-sm bookmark-container"
+                     data-bs-toggle="tooltip"
+                     data-bs-placement="bottom"
+                     data-bs-html="true"
+                     data-bs-custom-class="bookmark-tooltip"
+                     data-bookmark-id="{{ current_bookmark.id }}"
+                     data-bookmark-description="{{ current_bookmark.description }}"
+                     title="{{ current_bookmark.description }}">
                     <h3 class="fw-bold mb-0 fs-6 text-white" style="font-family: inherit;">
                         {% if current_bookmark %}
                             <span class="text-white-50 small fw-normal me-1">

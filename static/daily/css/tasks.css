@@ -454,3 +454,83 @@ tr:has(.task-reminder-cell .add-reminder-icon) .task-periodicity-cell:hover .bi-
 .btn-save-task {
     border-radius: 6px;
 }
+
+/* ==========================================================================
+   10. TOOLTIPS (ВСПЛЫВАЮЩИЕ ПОДСКАЗКИ)
+   ========================================================================== */
+
+/* Кастомизация Bootstrap Tooltips для светло-желтого фона */
+.tooltip-inner {
+    background-color: #fff9c4 !important; /* Светло-желтый фон */
+    color: #333 !important; /* Темный текст для контраста */
+    border: 1px solid #fbc02d !important; /* Желтая рамка */
+    border-radius: 6px !important;
+    font-size: 0.875rem;
+}
+
+/* Скрываем стрелку tooltip */
+.tooltip-arrow {
+    display: none !important;
+}
+
+/* Стили для интерактивного tooltip закладки */
+.bookmark-tooltip {
+    pointer-events: auto !important; /* Разрешаем взаимодействие с tooltip */
+}
+
+.bookmark-tooltip-content {
+    min-height: 40px;
+    padding: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.bookmark-tooltip-content:hover {
+    background-color: #fff59d;
+    border-radius: 4px;
+}
+
+.bookmark-tooltip-content[contenteditable="true"] {
+    background-color: #fff9c4;
+    border: none;
+    border-radius: 4px;
+    outline: none;
+    cursor: text;
+}
+
+/* Кастомизация Bootstrap Popovers для светло-желтого фона */
+.popover {
+    background-color: #fff9c4 !important;
+    border: 1px solid #fbc02d !important;
+    border-radius: 6px !important;
+}
+
+.popover-header {
+    background-color: #fff59d !important;
+    border-bottom: 1px solid #fbc02d !important;
+    color: #333 !important;
+}
+
+.popover-body {
+    color: #333 !important;
+}
+
+/* Скрываем стрелку popover */
+.popover-arrow {
+    display: none !important;
+}
+
+/* Стили для редактируемого описания в popover */
+.bookmark-description-editable {
+    min-height: 60px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+    margin-bottom: 8px;
+}
+
+.bookmark-description-editable:focus {
+    outline: 2px solid #fbc02d;
+    outline-offset: -2px;
+}

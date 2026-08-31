@@ -63,7 +63,134 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Автоматическая初始化 модулей
     initReminderEditing();
-    initInlinePeriodicity(); // <--- ДОБАВЛЕНО: Запускаем инлайн-редактор при старте страницы!
+    initInlinePeriodicity(); // Запускаем инлайн-редактор при старте страницы!
+
+    // Инициализация интерактивных Tooltips для закладок
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        const tooltip = new bootstrap.Tooltip(tooltipTriggerEl, {
+            html: true,
+            trigger: 'manual',
+            customClass: 'bookmark-tooltip'
+        });
+
+        let isEditing = false;
+        let hideTimeout = null;
+
+        // Показываем tooltip при наведении
+        tooltipTriggerEl.addEventListener('mouseenter', function() {
+            if (hideTimeout) {
+                clearTimeout(hideTimeout);
+                hideTimeout = null;
+            }
+            if (!isEditing) {
+                tooltip.show();
+            }
+        });
+
+        // Скрываем tooltip при уходе мыши с задержкой
+        tooltipTriggerEl.addEventListener('mouseleave', function() {
+            if (!isEditing) {
+                hideTimeout = setTimeout(() => {
+                    if (!isEditing) {
+                        tooltip.hide();
+                    }
+                }, 300);
+            }
+        });
+
+        // При показе tooltip добавляем обработчики
+        tooltipTriggerEl.addEventListener('shown.bs.tooltip', function() {
+            const tooltipElement = document.querySelector('.bookmark-tooltip');
+            const tooltipInner = tooltipElement ? tooltipElement.querySelector('.tooltip-inner') : null;
+
+            if (tooltipElement) {
+                // Не скрываем tooltip при наведении на сам tooltip
+                tooltipElement.addEventListener('mouseenter', function() {
+                    if (hideTimeout) {
+                        clearTimeout(hideTimeout);
+                        hideTimeout = null;
+                    }
+                });
+
+                // Скрываем tooltip при уходе с tooltip, если не редактируем
+                tooltipElement.addEventListener('mouseleave', function() {
+                    if (!isEditing) {
+                        hideTimeout = setTimeout(() => {
+                            if (!isEditing) {
+                                tooltip.hide();
+                            }
+                        }, 300);
+                    }
+                });
+            }
+
+            if (tooltipInner) {
+                // Создаем редактируемый div внутри tooltip
+                const currentDescription = tooltipTriggerEl.getAttribute('data-bookmark-description') || '';
+                tooltipInner.innerHTML = `<div class='bookmark-tooltip-content'>${currentDescription}</div>`;
+
+                const tooltipContent = tooltipInner.querySelector('.bookmark-tooltip-content');
+
+                if (tooltipContent) {
+                    // Делаем контент редактируемым при клике
+                    tooltipContent.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        isEditing = true;
+
+                        // Делаем contenteditable
+                        tooltipContent.contentEditable = true;
+                        tooltipContent.focus();
+
+                        // Функция сохранения
+                        function saveDescription() {
+                            const bookmarkId = tooltipTriggerEl.getAttribute('data-bookmark-id');
+                            const newDescription = tooltipContent.innerText.trim();
+
+                            // Убираем contenteditable перед сохранением
+                            tooltipContent.contentEditable = false;
+
+                            if (bookmarkId) {
+                                fetch('/daily/bookmark/update/', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRFToken': getCookie('csrftoken')
+                                    },
+                                    body: JSON.stringify({
+                                        id: bookmarkId,
+                                        description: newDescription
+                                    })
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.status === 'success') {
+                                        // Обновляем атрибут с описанием
+                                        tooltipTriggerEl.setAttribute('data-bookmark-description', newDescription);
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Ошибка сохранения:', error);
+                                })
+                                .finally(() => {
+                                    isEditing = false;
+                                    tooltip.hide();
+                                });
+                            } else {
+                                isEditing = false;
+                                tooltip.hide();
+                            }
+                        }
+
+                        // Сохраняем при потере фокуса
+                        tooltipContent.addEventListener('blur', function() {
+                            saveDescription();
+                        }, { once: true });
+                    });
+                }
+            }
+        });
+    });
 
     // =========================================================================
     // ИСПРАВЛЕНО: Автоматически заполняет инлайн-поля в таблице при открытии Dropdown (БЕЗ СЕКУНД)
