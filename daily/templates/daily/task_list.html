@@ -18,8 +18,7 @@
         <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
             <div class="d-flex align-items-center gap-3">
                 <!-- Контейнер закладки -->
-                <div class="bg-dark fs-6 py-2 px-3 rounded text-start d-inline-flex align-items-center shadow-sm"
-                     style="background-color: #0c513f !important; border: 1px solid #0c513f; min-height: 38px;">
+                <div class="bg-dark fs-6 py-2 px-3 rounded text-start d-inline-flex align-items-center shadow-sm bookmark-container">
                     <h3 class="fw-bold mb-0 fs-6 text-white" style="font-family: inherit;">
                         {% if current_bookmark %}
                             <span class="text-white-50 small fw-normal me-1">
@@ -101,11 +100,11 @@
                     <!-- Липкая шапка таблицы -->
                     <thead class="table-primary sticky-top" style="z-index: 100; top: 0;">
                     <tr>
-                        <th scope="col" class="ps-4 text-nowrap" style="width: 40px;">
+                        <th scope="col" class="ps-4 text-nowrap">
                             <input class="form-check-input" type="checkbox" id="select-all-tasks"
                                    aria-label="Выбрать все задачи">
                         </th>
-                        <th scope="col" class="text-nowrap" style="width: 70px;">№</th>
+                        <th scope="col" class="text-nowrap">№</th>
 
                         <!-- Столбец: Наименование -->
                         <th scope="col" class="dropdown">
@@ -153,7 +152,7 @@
                             </ul>
                         </th>
 
-                        <th scope="col" class="text-nowrap" style="width: 180px; cursor: pointer;"
+                        <th scope="col" class="text-nowrap" style="cursor: pointer;"
                             onclick="toggleDateSort()">
                             <div class="d-flex align-items-center gap-2">
                                 <span>Время создания</span>
@@ -164,9 +163,9 @@
                             </div>
                         </th>
 
-                        <th scope="col" class="text-nowrap" style="width: 180px;">Время напоминания</th>
-                        <th scope="col" class="text-nowrap" style="width: 150px;">Повторение</th>
-                        <th scope="col" style="min-width: 200px;">Комментарий</th>
+                        <th scope="col" class="text-nowrap">Время напоминания</th>
+                        <th scope="col" class="text-nowrap">Повторение</th>
+                        <th scope="col">Комментарий</th>
 
                         <!-- Столбец: Статус -->
                         <th scope="col" class="text-center dropdown">
@@ -236,68 +235,8 @@
 
     </div> <!-- Конец главного фиксированного контейнера -->
 
-    <!-- Модальное окно редактирования задачи (Железно темный матовый каркас) -->
-    <div class="modal fade" id="editTaskModal" tabindex="-1" aria-labelledby="editTaskModalLabel" aria-hidden="true"
-         style="backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);">
-        <div class="modal-dialog modal-dialog-centered">
-            <!-- КРИТИЧЕСКИ ВАЖНО: Стили прописаны жестко на корневом уровне, белый фон больше не появится -->
-            <div class="modal-content text-white shadow-lg"
-                 style="background-color: rgba(28, 34, 43, 0.96) !important;
-                        backdrop-filter: blur(16px) !important;
-                        -webkit-backdrop-filter: blur(16px) !important;
-                        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                        border-radius: 14px !important;">
-
-                <form id="edit-task-form" onsubmit="saveTaskChanges(event)">
-                    {% csrf_token %}
-
-                    <div class="modal-header border-bottom border-light border-opacity-10 px-4 py-3">
-                        <h5 class="modal-title fw-bold text-white fs-5" id="editTaskModalLabel">
-                            Редактирование задачи <span id="edit-task-number-title" class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 ms-1 px-2.5 py-1 fs-6"></span>
-                        </h5>
-                        <button type="button" class="btn-close btn-close-white opacity-50" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-                    </div>
-
-                    <!-- Контейнер с идеально отцентрованным золотым спиннером на ТЕМНОМ фоне -->
-                    <div class="modal-body px-4 py-5 d-flex flex-column align-items-center justify-content-center" style="min-height: 250px;">
-                        <div class="spinner-border text-warning mb-3" role="status" style="width: 2.5rem; height: 2.5rem; border-width: 0.23em;">
-                            <span class="visually-hidden">Загрузка...</span>
-                        </div>
-                        <div class="text-white-50 opacity-75 small fw-bold tracking-wider" style="font-size: 0.72rem; letter-spacing: 0.12em;">
-                            ЗАГРУЗКА ДАННЫХ...
-                        </div>
-                    </div>
-
-                    <div class="modal-footer border-top border-light border-opacity-10 px-4 py-3">
-                        <button type="button" class="btn btn-sm btn-link text-white-50 text-decoration-none fw-semibold" data-bs-dismiss="modal">Отмена</button>
-                        <button type="submit" class="btn btn-sm btn-warning fw-bold text-dark px-4 shadow-sm" style="border-radius: 6px;">Сохранить изменения</button>
-                    </div>
-
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модальное окно подтверждения удаления -->
-    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bg-dark text-white border-secondary">
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title" id="deleteModalLabel">Подтвердите действие</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                            aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    Вы уверены, что хотите удалить выбранные задачи (<span id="delete-count-span">1</span> шт.)?
-                </div>
-                <!-- ИСПРАВЛЕНО: Заменено с modal-header на modal-footer -->
-                <div class="modal-footer border-secondary justify-content-end gap-2">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="button" class="btn btn-danger" id="btn-confirm-delete-action">ОК</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Модальные окна -->
+    {% include 'daily/includes/modals.html' %}
 
     {% csrf_token %}
 {% endblock %}

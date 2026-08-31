@@ -385,3 +385,72 @@ tr:has(.task-reminder-cell .add-reminder-icon) .task-periodicity-cell:hover .bi-
     opacity: 0.4 !important;
     color: #6c757d !important; /* Иконка намертво остается серой */
 }
+
+/* ==========================================================================
+   7. КОНТЕЙНЕР ЗАКЛАДКИ (ВЫНЕСЕНО ИЗ HTML)
+   ========================================================================== */
+
+/* Стили для контейнера текущей закладки в шапке таблицы */
+.bookmark-container {
+    background-color: #0c513f !important;
+    border: 1px solid #0c513f;
+    min-height: 38px;
+}
+
+/* ==========================================================================
+   8. ШИРИНА КОЛОНОК ТАБЛИЦЫ (ВЫНЕСЕНО ИЗ HTML)
+   ========================================================================== */
+
+/* Фиксированная ширина для чекбокса выбора всех задач */
+#tasks-table th:nth-child(1),
+#tasks-table td:nth-child(1) {
+    width: 40px;
+}
+
+/* Фиксированная ширина для колонки с номером задачи */
+#tasks-table th:nth-child(2),
+#tasks-table td:nth-child(2) {
+    width: 70px;
+}
+
+/* Фиксированная ширина для колонки времени создания */
+#tasks-table th:nth-child(4),
+#tasks-table td:nth-child(4) {
+    width: 180px;
+}
+
+/* Фиксированная ширина для колонки времени напоминания */
+#tasks-table th:nth-child(5),
+#tasks-table td:nth-child(5) {
+    width: 180px;
+}
+
+/* Фиксированная ширина для колонки повторения */
+#tasks-table th:nth-child(6),
+#tasks-table td:nth-child(6) {
+    width: 150px;
+}
+
+/* ==========================================================================
+   9. МОДАЛЬНЫЕ ОКНА (ВЫНЕСЕНО ИЗ HTML)
+   ========================================================================== */
+
+/* Стили для модального окна редактирования задачи */
+.edit-task-modal-content {
+    background-color: rgba(28, 34, 43, 0.96) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 14px !important;
+}
+
+/* Стили для фона модального окна (blur эффект) */
+.edit-task-modal-backdrop {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+/* Стили для кнопки сохранения в модальном окне */
+.btn-save-task {
+    border-radius: 6px;
+}
