@@ -35,6 +35,13 @@ class CustomUser(AbstractUser):
         verbose_name="Аватар",
         help_text="Загрузите аватар",
     )
+    tg_chat_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="ID Telegram",
+        help_text="Введите ID чата Телеграм"
+    )
 
     USERNAME_FIELD = "username"  # Поле для входа (логин)
     REQUIRED_FIELDS = [

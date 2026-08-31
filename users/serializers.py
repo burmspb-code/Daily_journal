@@ -30,7 +30,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 
         model = CustomUser
         # ЯВНО перечисляем только безопасные поля
-        fields = ("username", "email", "password", "phone_number", "avatar")
+        fields = ("username", "email", "phone_number", "avatar", "tg_chat_id")
 
     def validate_password(self, value):
         """Проверка пароля на соответствие политике безопасности Django."""
@@ -61,6 +61,7 @@ class UserSerializer(serializers.ModelSerializer):
             "email",
             "phone_number",
             "avatar",
+            "tg_chat_id",
         )
         read_only_fields = ("id", "email",)
 
