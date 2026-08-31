@@ -16,6 +16,7 @@ from .views import (
     TaskListAPIView,
     BookmarkListCreateAPIView,
     BookmarkUpdateExternalApiView,
+    BookmarkDeleteView,
 )
 
 app_name = DailyConfig.name
@@ -47,6 +48,11 @@ urlpatterns = [
         "bookmark/update/",
         BookmarkUpdateWebResponseView.as_view(),
         name="bookmark_update",
+    ),
+    path(
+        "bookmark/delete/",
+        BookmarkDeleteView.as_view(),
+        name="bookmark_delete"
     ),
     # =========================================================================
     # REST API V1 (ДЛЯ МОБИЛЬНЫХ ПРИЛОЖЕНИЙ И ФРОНТЕНДА)

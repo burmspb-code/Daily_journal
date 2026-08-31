@@ -17,6 +17,7 @@
         <!-- Панель управления и заголовок (Никогда не сожмется) -->
         <div class="d-flex justify-content-between align-items-center mb-3 flex-shrink-0">
             <div class="d-flex align-items-center gap-3">
+
                 <!-- Контейнер закладки -->
                 <div class="bg-dark fs-6 py-2 px-3 rounded text-start d-inline-flex align-items-center shadow-sm bookmark-container"
                      data-bs-toggle="tooltip"
@@ -26,24 +27,48 @@
                      data-bookmark-id="{{ current_bookmark.id }}"
                      data-bookmark-description="{{ current_bookmark.description }}"
                      title="{{ current_bookmark.description }}">
-                    <h3 class="fw-bold mb-0 fs-6 text-white" style="font-family: inherit;">
+
+                    <h3 class="fw-bold mb-0 fs-6 text-white d-inline-block" style="font-family: inherit;">
                         {% if current_bookmark %}
                             <span class="text-white-50 small fw-normal me-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor"
-                                 viewBox="0 0 16 16" style="vertical-align: middle; margin-top: -3px;">
-                                <path d="M2 2v13.5a.5.5 0 0 0 .74.439L8 13.069l5.26 2.87A.5.5 0 0 0 14 15.5V2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"></path>
-                            </svg>
-                        </span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor"
+                                     viewBox="0 0 16 16" style="vertical-align: middle; margin-top: -3px;">
+                                    <path d="M2 2v13.5a.5.5 0 0 0 .74.439L8 13.069l5.26 2.87A.5.5 0 0 0 14 15.5V2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"></path>
+                                </svg>
+                            </span>
                             <span class="editable-bookmark-name d-inline-block text-white"
                                   contenteditable="true"
                                   data-id="{{ current_bookmark.id }}"
                                   style="outline: none; border-bottom: 1px dashed rgba(255,255,255,0.5); cursor: text; user-select: text;">
-                            {{ current_bookmark.title }}
-                        </span>
+                                {{ current_bookmark.title }}
+                            </span>
                         {% else %}
                             Daily Journal & Tasks
                         {% endif %}
                     </h3>
+
+                    <!-- Кнопка удаления вынесена -->
+                    {% if current_bookmark %}
+                        <!-- Форма отправки POST-запроса на удаление -->
+                        <form action="{% url 'daily:bookmark_delete' %}" method="post" class="d-inline-flex align-items-center m-0 p-0">
+                            {% csrf_token %}
+                            <!-- Передаем ID удаляемой закладки через скрытое поле -->
+                            <input type="hidden" name="bookmark_id" value="{{ current_bookmark.id }}">
+
+                            <button type="submit"
+                                    class="btn p-0 border-0 bg-transparent shadow-none delete-bookmark-btn ms-3"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-placement="bottom"
+                                    data-bs-custom-class="bookmark-tooltip"
+                                    data-bs-title="Удалить закладку"
+                                    onclick="return confirm('Вы уверены, что хотите удалить эту закладку?');">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/>
+                                    <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/>
+                                </svg>
+                            </button>
+                        </form>
+                    {% endif %}
                 </div>
 
                 <!-- Кнопка создания задачи -->

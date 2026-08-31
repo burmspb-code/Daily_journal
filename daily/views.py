@@ -4,10 +4,11 @@ import logging
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views import View
+from django.contrib.messages.views import SuccessMessageMixin
 from django.views.generic import ListView, CreateView, DeleteView
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
@@ -473,6 +474,36 @@ class BookmarkUpdateWebResponseView(APIView):
             {"status": "error", "message": error_message},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+
+class BookmarkDeleteView(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
+    """Эндпоинт для удаления закладки."""
+
+    model = Bookmark
+    context_object_name = "bookmark"
+    success_url = reverse_lazy("daily:task_list")
+    success_message = "Закладка успешно удалена"
+
+    def get_object(self, queryset=None):
+        """
+        Самостоятельно получаем объект из POST-параметров,
+        минуя стандартные проверки DeleteView на наличие PK в URL.
+        """
+        # Считываем id из скрытого поля name="bookmark_id"
+        bookmark_id = self.request.POST.get("bookmark_id")
+
+        try:
+            # Извлекаем объект напрямую по полученному ID
+            obj = Bookmark.objects.get(id=bookmark_id)
+        except Bookmark.DoesNotExist:
+            # Если объект не найден, отдаем стандартную 404 ошибку Django
+            raise Http404("Закладка не найдена.")
+
+        # Проверяем права владельца
+        if obj.owner != self.request.user:
+            raise PermissionDenied("Вы не можете удалить чужую закладку.")
+
+        return obj
 
 
 # ========================= Эндпоинты для работы с API ===============================================

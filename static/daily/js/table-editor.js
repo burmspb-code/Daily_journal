@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // =========================================================================
-    // ИСПРАВЛЕНО: Автоматически заполняет инлайн-поля в таблице при открытии Dropdown (БЕЗ СЕКУНД)
+    // Автоматически заполняет инлайн-поля в таблице при открытии Dropdown (БЕЗ СЕКУНД)
     // =========================================================================
     document.addEventListener('show.bs.dropdown', function (event) {
         const cell = event.target.closest('.task-periodicity-cell');
