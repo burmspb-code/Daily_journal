@@ -10,6 +10,7 @@ class TaskSerializer(serializers.ModelSerializer):
     # Выводим человекочитаемое имя закладки (read_only=True означает, что поле только для чтения)
     bookmark_title = serializers.CharField(source="bookmark.title", read_only=True)
     owner_username = serializers.CharField(source="owner.username", read_only=True)
+    status_display = serializers.CharField(source="get_status_flag_display", read_only=True)
 
     class Meta:
         model = Task
@@ -20,6 +21,9 @@ class TaskSerializer(serializers.ModelSerializer):
             "reminder_at",
             "comment",
             "status_flag",
+            "status_display",
+            "periodicity_value",
+            "periodicity_unit",
             "bookmark_title",
             "owner_username",
         ]

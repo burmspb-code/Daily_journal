@@ -518,6 +518,7 @@ class TaskListAPIView(ListAPIView):
 
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
+    authentication_classes = [SessionAuthentication]
     pagination_class = TaskListAPIViewPagination
 
     # Явно задаем queryset, чтобы заглушить предупреждение Swagger в консоли
@@ -551,11 +552,17 @@ class TaskListAPIView(ListAPIView):
         },
     )
     def list(self, request, *args, **kwargs):
-        """Формирует структурированный JSON-ответ со списком задач и метаданными."""
+        """Формирует структурированный JSON-ответ со списком задач и метаданных."""
+        # Логирование для диагностики
+        logger.info(f"[API] Запрос списка задач. User: {request.user}, Authenticated: {request.user.is_authenticated}")
+        logger.info(f"[API] Query params: {request.query_params}")
+
         # Получаем весь готовый контекст из сервиса
         service_context = TaskService.get_task_list_context(
             user=request.user, params=request.query_params
         )
+
+        logger.info(f"[API] Получено задач в контексте: {service_context['tasks'].count()}")
 
         # Сериализуем список задач с поддержкой пагинации
         queryset = service_context["tasks"]

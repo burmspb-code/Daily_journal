@@ -30,6 +30,7 @@ import {
     formatDurationFromSeconds
 } from './taskPeriodicity.js';
 import { initInlinePeriodicity } from './inline-periodicity-editor.js';
+import { startStatusPolling, stopStatusPolling } from './status-polling.js';
 
 // ==========================================
 // 2. ГЛОБАЛЬНАЯ РЕГИСТРАЦИЯ ДЛЯ HTML / HTMX
@@ -50,6 +51,8 @@ window.handleFieldsToggle = handleFieldsToggle;
 window.setPeriodicityFields = setPeriodicityFields;
 window.formatDurationFromSeconds = formatDurationFromSeconds;
 window.initInlinePeriodicity = initInlinePeriodicity;
+window.startStatusPolling = startStatusPolling;
+window.stopStatusPolling = stopStatusPolling;
 
 // ==========================================
 // 3. ГЛОБАЛЬНЫЕ ЭЛЕМЕНТЫ ИНТЕРФЕЙСА
@@ -64,6 +67,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Автоматическая初始化 модулей
     initReminderEditing();
     initInlinePeriodicity(); // Запускаем инлайн-редактор при старте страницы!
+    startStatusPolling(); // Запускаем polling статусов задач
 
     // Инициализация интерактивных Tooltips для закладок
     const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -319,6 +323,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 closeTimeout = null;
             }
         });
+    });
+
+    // Останавливаем polling при уходе со страницы
+    window.addEventListener('beforeunload', function() {
+        if (typeof stopStatusPolling === 'function') {
+            stopStatusPolling();
+        }
     });
 });
 

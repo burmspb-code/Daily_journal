@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     "drf_spectacular_sidecar",
     "drf_spectacular",
 
+    "django_celery_beat",
+
     "daily",
     "users",
 ]
@@ -149,9 +151,9 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
 # Email для получения уведомлений о просмотрах
 EMAIL_ADMIN_NOTIFICATION = os.getenv("EMAIL_ADMIN_NOTIFICATION")
 
-# ==============================================================================
 
-# Настройки перенаправления для системы аутентификации
+# ============= Настройки перенаправления для системы аутентификации ============
+
 LOGIN_REDIRECT_URL = "daily:task_list"  # Куда направлять после успешного входа
 LOGIN_URL = "users:login"  # Куда отправлять неавторизованного пользователя
 LOGOUT_REDIRECT_URL = "daily:task_list"  # Куда направлять после успешного выхода
@@ -162,31 +164,27 @@ PHONENUMBER_DEFAULT_REGION = "RU"
 # Время жизни токена для восстановления пароля и активации аккаунта (24 часа)
 PASSWORD_RESET_TIMEOUT = 24 * 60 * 60  # 86400 секунд
 
+
 # ==================== НАСТРОЙКИ CELERY И REDIS ================================
+from celery.schedules import crontab
 
-# URL-адрес для подключения к Redis (брокер сообщений)
-CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
-
-# URL-адрес для хранения результатов выполнения задач в Redis
-CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
+# КРИТИЧЕСКИ ВАЖНО: Используем имя Docker-контейнера "redis" вместо "127.0.0.1"
+CELERY_BROKER_URL = "redis://redis:6379/0"
+CELERY_RESULT_BACKEND = "redis://redis:6379/0"
 
 # Часовой пояс для планировщика Celery (должен совпадать с Django)
-CELERY_TIMEZONE = TIME_ZONE  # Берём значение из переменной TIME_ZONE проекта
+CELERY_TIMEZONE = TIME_ZONE
 
 # Включаем отслеживание запуска задач
 CELERY_TASK_TRACK_STARTED = True
 
-# Тайм-аут для хранения результатов задач в Redis (в секундандах - 1 день)
+# Тайм-аут для хранения результатов задач в Redis (в секундах - 1 день)
 CELERY_RESULT_EXPIRES = 86400
 
-CELERY_BEAT_SCHEDULE = {
-    "check-reminders-every-minute": {
-        "task": "daily.tasks.check_daily_reminders",
-        "schedule": crontab(minute="*"),  # Проверка каждую минуту
-    },
-}
+# Указываем Celery Beat читать расписание из базы данных через Django ORM
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
-# ==============================================================================
+# ======================== НАСТРОЙКИ REST FRAMEWORK =================================
 
 REST_FRAMEWORK = {
     "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
@@ -199,10 +197,16 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
+
+# =========================== НАСТРОЙКИ JWT ТОКЕНА ===================================
+
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
+
+
+# ======================= НАСТРОЙКИ АВТОДУКОМЕНТАЦИИ =================================
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Daily_Journal API",

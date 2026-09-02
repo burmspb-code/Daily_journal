@@ -111,22 +111,22 @@
     <td class="text-center task-status-cell" style="cursor: pointer;">
         {% if task.status_flag == 0 %}
             <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1"
-                  title="Создана">
+                  title="Создана" data-status="{{ task.status_flag }}">
             <i class="bi bi-plus-circle-fill"></i> Создана
         </span>
         {% elif task.status_flag == 1 %}
             <span class="badge rounded-pill bg-warning text-dark px-2 py-1 d-inline-flex align-items-center gap-1"
-                  title="В работе">
+                  title="В работе" data-status="{{ task.status_flag }}">
             <i class="bi bi-gear-fill"></i> В работе
         </span>
         {% elif task.status_flag == 2 %}
             <span class="badge rounded-pill bg-secondary px-2 py-1 d-inline-flex align-items-center gap-1"
-                  title="Выполнена">
+                  title="Выполнена" data-status="{{ task.status_flag }}">
             <i class="bi bi-check-circle-fill"></i> Выполнена
         </span>
         {% elif task.status_flag == 3 %}
             <span class="badge rounded-pill bg-danger px-2 py-1 d-inline-flex align-items-center gap-1"
-                  title="Дедлайн">
+                  title="Дедлайн" data-status="{{ task.status_flag }}">
             <i class="bi bi-exclamation-triangle-fill"></i> Дедлайн
         </span>
         {% endif %}

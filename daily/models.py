@@ -138,6 +138,20 @@ class Task(models.Model):
         help_text="Флаг контроля, чтобы не отправлять пуш повторно",
     )
 
+    # Точное время изменения статуса фоновым роботом
+    status_changed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Время изменения статуса"
+    )
+
+    # Хранит технический отчет (например, "Имитация отправки выполнена в 22:00")
+    execution_log = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name="Технический лог выполнения"
+    )
+
     class Meta:
         """Класс метаданных."""
 
