@@ -4,6 +4,7 @@
 Включает в себя маршруты для стандартного веб-интерфейса (HTML-страницы)
 и версионируемые эндпоинты REST API v1 (JSON).
 """
+from tempfile import template
 
 from django.contrib.auth import views as auth_views
 from django.urls import path
@@ -27,6 +28,7 @@ from users.views import (
     UserPasswordResetConfirmAPIView,
     UserMeAPIView,
     UserTokenObtainPairView,
+    UserProfileUpdateView,
 )
 
 # Пространство имен для URL-адресов приложения
@@ -85,6 +87,11 @@ urlpatterns = [
             template_name="users/password_reset_complete.html"
         ),
         name="password_reset_complete",
+    ),
+    path(
+        "profile/",
+        UserProfileUpdateView.as_view(),
+        name="profile"
     ),
     # =========================================================================
     # REST API V1 (ДЛЯ МОБИЛЬНЫХ ПРИЛОЖЕНИЙ И ФРОНТЕНДА)

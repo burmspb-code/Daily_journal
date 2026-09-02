@@ -34,12 +34,46 @@ class CustomUserCreateForm(UserCreationForm):
         model = CustomUser
         # Явно перечисляем поля, которые пользователь заполняет при регистрации.
         # Поля password1 и password2 добавятся автоматически от UserCreationForm.
-        fields = ("username", "email", "phone_number", "avatar")
+        fields = ("username", "email", "phone_number", "avatar", "tg_chat_id")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Делаем поле email обязательным для заполнения на уровне формы
         self.fields["email"].required = True
+        
+        # Добавляем Bootstrap классы к виджетам
+        for field in self.fields.values():
+            if field.widget.__class__.__name__ == 'Select':
+                field.widget.attrs.update({'class': 'form-select'})
+            else:
+                field.widget.attrs.update({'class': 'form-control'})
+    
+    def add_is_invalid_class(self):
+        """Добавляет класс is-invalid к полям с ошибками после валидации."""
+        for field in self.errors:
+            if field in self.fields:
+                current_class = self.fields[field].widget.attrs.get('class', '')
+                self.fields[field].widget.attrs.update({
+                    'class': f'{current_class} is-invalid'
+                })
+
+
+class UserProfileForm(forms.ModelForm):
+    """Форма для редактирования профиля пользователя."""
+
+    class Meta:
+        model = CustomUser
+        # Перечисляем поля, которые пользователю разрешено редактировать
+        fields = ("phone_number", "avatar", "tg_chat_id")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Автоматически добавляем Bootstrap-класс ко всем полям
+        for field_name, field in self.fields.items():
+            field.widget.attrs.update({"class": "form-control"})
+
+        self.fields["phone_number"].widget.attrs.update({"autocomplete": "tel"})
 
 
 class CustomUserAdminCreationForm(UserCreationForm):

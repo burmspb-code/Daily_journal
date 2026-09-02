@@ -11,15 +11,16 @@
 
     {% block extra_css %}{% endblock %}
 </head>
-<!-- ИСПРАВЛЕНО: vh-100 фиксирует тело на высоту экрана, overflow-hidden убирает внешний скролл всей страницы -->
 <body class="vh-100 d-flex flex-column overflow-hidden bg-light">
 
     <!-- Компонент навигационной панели (Фиксированная высота, никогда не сожмется) -->
     {% include 'daily/includes/navbar.html' %}
 
+    <!-- Модальные окна приложения users -->
+    {% include 'users/includes/modals.html' %}
+
     <!-- Основной контент страницы -->
-    <!-- ИСПРАВЛЕНО: flex-grow-1 забирает ВСЁ свободное пространство между навбаром и футером, my-3 делает аккуратные отступы -->
-    <main class="flex-grow-1 overflow-hidden my-3">
+    <main class="flex-grow-1 overflow-auto my-3">
         <!-- h-100 заставляет контейнер растянуться на всю доступную высоту main -->
         <div class="container h-100 d-flex flex-column">
             {% block content %}
@@ -28,7 +29,6 @@
     </main>
 
     <!-- Подвал сайта (Footer) -->
-    <!-- ИСПРАВЛЕНО: flex-shrink-0 гарантирует, что футер всегда будет виден снизу и не сожмется -->
     <footer class="footer py-3 text-center text-white-50 flex-shrink-0" style="background-color: #1e293b !important;">
         <div class="container">
             <span class="small">© 2026 Daily Journal — Локальная сборка</span>
@@ -36,6 +36,7 @@
     </footer>
 
     <script src="{% static 'daily/js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'daily/js/profile.js' %}"></script>
 
     {% block extra_js %}{% endblock %}
 </body>

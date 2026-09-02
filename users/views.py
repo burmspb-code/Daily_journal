@@ -2,10 +2,11 @@
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import update_last_login
 from django.shortcuts import redirect, render
 from django.urls import reverse, reverse_lazy
-from django.views.generic import CreateView, TemplateView, View
+from django.views.generic import CreateView, TemplateView, View, UpdateView
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer, OpenApiResponse
 from rest_framework import exceptions, status, serializers
 from rest_framework.generics import CreateAPIView, RetrieveUpdateDestroyAPIView
@@ -15,7 +16,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .forms import CustomUserCreateForm
+from .forms import CustomUserCreateForm, UserProfileForm
 from .models import CustomUser
 from .serializers import (
     UserSerializer,
@@ -43,6 +44,13 @@ class UserRegisterView(CreateView):
     form_class = CustomUserCreateForm
     template_name = "users/register.html"
     success_url = reverse_lazy("users:email_confirmation_sent")
+
+    def get_context_data(self, **kwargs):
+        """Добавляет класс is-invalid к полям с ошибками."""
+        context = super().get_context_data(**kwargs)
+        if 'form' in kwargs and kwargs['form'].errors:
+            kwargs['form'].add_is_invalid_class()
+        return context
 
     def form_valid(self, form):
         """
@@ -92,6 +100,37 @@ class EmailConfirmView(View):
         except InvalidActivationToken:
             # Если сервис выкинул ошибку (токен неверный/истек), рендерим страницу ошибки
             return render(request, "users/email_confirmation_failed.html")
+
+
+class UserProfileUpdateView(LoginRequiredMixin, UpdateView):
+    """Представление для редактирования профиля текущего пользователя через AJAX."""
+
+    model = CustomUser
+    form_class = UserProfileForm
+
+    # Куда перенаправить пользователя после успешного сохранения профиля
+    success_url = reverse_lazy("daily:task_list")
+
+    def get_object(self, queryset=None):
+        """Редактируем строго того пользователя, который сейчас авторизован."""
+        return self.request.user
+
+    def get(self, request, *args, **kwargs):
+        """Возвращаем только HTML формы для AJAX запроса."""
+        self.object = self.get_object()
+        form = self.get_form()
+        return render(request, 'users/partials/profile_form.html', {'form': form})
+
+    def form_valid(self, form):
+        """Сохраняем форму и возвращаем JSON ответ."""
+        form.save()
+        from django.http import JsonResponse
+        return JsonResponse({'success': True, 'message': 'Профиль успешно обновлен'})
+
+    def form_invalid(self, form):
+        """Возвращаем ошибки формы в JSON."""
+        from django.http import JsonResponse
+        return JsonResponse({'success': False, 'errors': dict(form.errors.items())}, status=400)
 
 
 # ========================= Эндпоинты для работы для работы с API ===============================================
