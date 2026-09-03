@@ -112,7 +112,7 @@
                    class="btn btn-outline-secondary btn-sm fw-semibold">
                     Сбросить все фильтры
                 </a>
-                <span class="badge bg-info text-dark fs-6 py-2 px-3 shadow-sm fw-semibold">Найдено задач: {{ tasks|length }}</span>
+                <span id="tasks-count-badge" class="badge bg-info text-dark fs-6 py-2 px-3 shadow-sm fw-semibold">Найдено задач: {{ tasks|length }}</span>
             </div>
         </div>
 
@@ -257,7 +257,7 @@
                         {% include 'daily/includes/task_row.html' with task=task row_number=forloop.counter %}
                     {% empty %}
                         <tr id="no-tasks-row">
-                            <td colspan="7" class="text-center text-muted py-3">Нет задач в этой закладке</td>
+                            <td colspan="8" class="text-center text-muted py-3">Нет задач в этой закладке</td>
                         </tr>
                     {% endfor %}
                     </tbody>

@@ -71,6 +71,9 @@ export function deleteSelectedTasks() {
                 const selectedCountSpan = document.getElementById('selected-count');
                 if (selectedCountSpan) selectedCountSpan.textContent = '0';
 
+                // Обновляем бейдж с количеством задач
+                updateTopTaskCounter(-taskIds.length);
+
                 //alert(data.message);
             } else {
                 alert('Ошибка выполнения: ' + data.message);

@@ -125,6 +125,7 @@ class TaskCreateView(LoginRequiredMixin, View):
 
         # Собираем данные для формы. Если закладка не передана, берем первую доступную
         bookmark_id = json_data.get("bookmark_id") or first_bookmark.id
+        row_number = json_data.get("row_number", 1)
 
         form_data = {
             "title": str(json_data.get("title", "")).strip(),
@@ -139,9 +140,6 @@ class TaskCreateView(LoginRequiredMixin, View):
             task = form.save(commit=False)
             task.owner = request.user
             task.save()
-
-            # Вычисляем номер строки
-            row_number = Task.objects.filter(owner=request.user).count()
 
             # Рендерим HTML строки задачи
             return render(

@@ -72,7 +72,7 @@ export function saveInlineTask(title, bookmarkId, rowNumber) {
     fetch('/daily/task/create/', {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie('csrftoken') },
-        body: JSON.stringify({ title: title, bookmark_id: bookmarkId })
+        body: JSON.stringify({ title: title, bookmark_id: bookmarkId, row_number: rowNumber })
     })
     .then(response => {
         if (!response.ok) throw new Error();
@@ -83,6 +83,8 @@ export function saveInlineTask(title, bookmarkId, rowNumber) {
         if (!tempRow) return;
 
         tempRow.outerHTML = html;
+
+        // Обновляем бейдж с количеством задач
         updateTopTaskCounter(1);
     })
     .catch(() => {

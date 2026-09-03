@@ -1,13 +1,11 @@
 // === ВСПОМОГАТЕЛЬНЫЕ СИСТЕМНЫЕ ФУНКЦИИ ===
 
 export function updateTopTaskCounter(amount) {
-    const badges = document.querySelectorAll('.badge');
-    badges.forEach(badge => {
-        if (badge.textContent.includes('Найдено задач:')) {
-            const currentCount = parseInt(badge.textContent.replace(/\D/g, '')) || 0;
-            badge.textContent = `Найдено задач: ${currentCount + amount}`;
-        }
-    });
+    const tasksCountBadge = document.getElementById('tasks-count-badge');
+    if (tasksCountBadge) {
+        const currentCount = parseInt(tasksCountBadge.textContent.replace(/\D/g, '')) || 0;
+        tasksCountBadge.textContent = `Найдено задач: ${currentCount + amount}`;
+    }
 }
 
 export function renumberTableRows() {
