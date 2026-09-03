@@ -1,6 +1,8 @@
 // === ПОЛЛИНГ СТАТУСОВ ЗАДАЧ ===
 // Периодически проверяет изменения статусов задач на сервере и обновляет UI
 
+import { getStatusConfig } from './status-icons-config.js';
+
 let pollingInterval = null;
 const POLLING_INTERVAL_MS = 30000; // 30 секунд
 
@@ -119,27 +121,17 @@ async function updateTaskStatuses() {
  * Обновляет визуальное отображение бейджа статуса
  */
 function updateStatusBadge(badge, statusFlag) {
-    const flag = parseInt(statusFlag, 10);
-    if (isNaN(flag)) return;
+    const config = getStatusConfig(statusFlag);
+    if (!config) return;
 
-    const statusConfig = {
-        0: {bg: 'bg-success text-white', icon: 'bi-plus-circle-fill', text: 'Создана'},
-        1: {bg: 'bg-warning text-dark', icon: 'bi-gear-fill', text: 'В работе'},
-        2: {bg: 'bg-secondary text-white', icon: 'bi-check-circle-fill', text: 'Выполнена'},
-        3: {bg: 'bg-danger text-white', icon: 'bi-exclamation-triangle-fill', text: 'Дедлайн'}
-    };
+    badge.className = `badge rounded-pill ${config.bg} px-2 py-1 d-inline-flex align-items-center gap-1`;
+    badge.setAttribute('title', config.text);
+    badge.innerHTML = `<i class="bi ${config.icon}"></i> ${config.text}`;
 
-    if (flag in statusConfig) {
-        const config = statusConfig[flag];
-        badge.className = `badge rounded-pill ${config.bg} px-2 py-1 d-inline-flex align-items-center gap-1`;
-        badge.setAttribute('title', config.text);
-        badge.innerHTML = `<i class="bi ${config.icon}"></i> ${config.text}`;
-        
-        // Небольшая визуальная индикация обновления
-        badge.style.transition = 'transform 0.2s';
-        badge.style.transform = 'scale(1.1)';
-        setTimeout(() => {
-            badge.style.transform = 'scale(1)';
-        }, 200);
-    }
+    // Небольшая визуальная индикация обновления
+    badge.style.transition = 'transform 0.2s';
+    badge.style.transform = 'scale(1.1)';
+    setTimeout(() => {
+        badge.style.transform = 'scale(1)';
+    }, 200);
 }

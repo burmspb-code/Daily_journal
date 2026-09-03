@@ -1,5 +1,7 @@
 // === ВСПОМОГАТЕЛЬНЫЕ СИСТЕМНЫЕ ФУНКЦИИ ===
 
+import { getStatusConfig } from './status-icons-config.js';
+
 export function updateTopTaskCounter(amount) {
     const tasksCountBadge = document.getElementById('tasks-count-badge');
     if (tasksCountBadge) {
@@ -34,22 +36,12 @@ export function updateRowStatusBadge(taskId, flagValue) {
     const badge = row.querySelector('.task-status-cell .badge') || row.querySelector('.badge');
     if (!badge) return;
 
-    const flag = parseInt(flagValue, 10);
-    if (isNaN(flag)) return;
+    const config = getStatusConfig(flagValue);
+    if (!config) return;
 
-    const statusConfig = {
-        0: {bg: 'bg-success text-white', icon: 'bi-plus-circle-fill', text: 'Создана'},
-        1: {bg: 'bg-warning text-dark', icon: 'bi-gear-fill', text: 'В работе'},
-        2: {bg: 'bg-secondary text-white', icon: 'bi-check-circle-fill', text: 'Выполнена'},
-        3: {bg: 'bg-danger text-white', icon: 'bi-exclamation-triangle-fill', text: 'Дедлайн'}
-    };
-
-    if (flag in statusConfig) {
-        const config = statusConfig[flag];
-        badge.className = `badge rounded-pill ${config.bg} px-2 py-1 d-inline-flex align-items-center gap-1`;
-        badge.setAttribute('title', config.text);
-        badge.innerHTML = `<i class="bi ${config.icon}"></i> ${config.text}`;
-    }
+    badge.className = `badge rounded-pill ${config.bg} px-2 py-1 d-inline-flex align-items-center gap-1`;
+    badge.setAttribute('title', config.text);
+    badge.innerHTML = `<i class="bi ${config.icon}"></i> ${config.text}`;
 }
 
 export function getCookie(name) {

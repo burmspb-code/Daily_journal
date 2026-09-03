@@ -110,25 +110,26 @@
 
     <td class="text-center task-status-cell" style="cursor: pointer;">
         {% if task.status_flag == 0 %}
-            <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1"
+            <!-- Добавлены: justify-content-center (центр) и fs-6 (крупнее) -->
+            <span class="badge bg-transparent text-success p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
                   title="Создана" data-status="{{ task.status_flag }}">
-            <i class="bi bi-plus-circle-fill"></i> Создана
-        </span>
+                <i class="bi bi-file-earmark-plus"></i> Создана
+            </span>
         {% elif task.status_flag == 1 %}
-            <span class="badge rounded-pill bg-warning text-dark px-2 py-1 d-inline-flex align-items-center gap-1"
+            <span class="badge bg-transparent text-warning p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
                   title="В работе" data-status="{{ task.status_flag }}">
-            <i class="bi bi-gear-fill"></i> В работе
-        </span>
+                <i class="bi bi-gear"></i> В работе
+            </span>
         {% elif task.status_flag == 2 %}
-            <span class="badge rounded-pill bg-secondary px-2 py-1 d-inline-flex align-items-center gap-1"
+            <span class="badge bg-transparent text-secondary p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
                   title="Выполнена" data-status="{{ task.status_flag }}">
-            <i class="bi bi-check-circle-fill"></i> Выполнена
-        </span>
+                <i class="bi bi-check2-circle"></i> Выполнена
+            </span>
         {% elif task.status_flag == 3 %}
-            <span class="badge rounded-pill bg-danger px-2 py-1 d-inline-flex align-items-center gap-1"
+            <span class="badge bg-transparent text-danger p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
                   title="Дедлайн" data-status="{{ task.status_flag }}">
-            <i class="bi bi-exclamation-triangle-fill"></i> Дедлайн
-        </span>
+                <i class="bi bi-clock-history"></i> Дедлайн
+            </span>
         {% endif %}
     </td>
 </tr>

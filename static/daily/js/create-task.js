@@ -1,5 +1,7 @@
 // ===  ИНЛАЙН СОЗДАНИЕ ЗАДАЧИ ===
 
+import { getStatusConfig } from './status-icons-config.js';
+
 export function appendNewTaskRow() {
     if (document.getElementById('inline-task-input')) {
         document.getElementById('inline-task-input').focus();
@@ -13,6 +15,8 @@ export function appendNewTaskRow() {
     const nextNumber = tbody.querySelectorAll('tr[id^="task-row-"]').length + 1;
     const bookmarkId = tbody.getAttribute('data-current-bookmark-id') || "";
 
+    const statusConfig = getStatusConfig(0); // Статус "Создана"
+
     const newRow = document.createElement('tr');
     newRow.id = 'temporary-creation-row';
     newRow.innerHTML = `
@@ -22,8 +26,8 @@ export function appendNewTaskRow() {
             <input type="text" id="inline-task-input" class="form-control form-control-sm border-primary shadow-sm" placeholder="Напишите название задачи и нажмите Enter..." style="outline: none;">
         </td>
         <td class="text-center">
-            <span class="badge rounded-pill bg-success px-2 py-1 d-inline-flex align-items-center gap-1">
-                <i class="bi bi-plus-circle-fill"></i> Создана
+            <span class="badge rounded-pill ${statusConfig.bg} px-2 py-1 d-inline-flex align-items-center gap-1">
+                <i class="bi ${statusConfig.icon}"></i> ${statusConfig.text}
             </span>
         </td>
     `;
