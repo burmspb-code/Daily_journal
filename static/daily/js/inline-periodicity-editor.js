@@ -117,7 +117,7 @@ export function initInlinePeriodicity() {
             const triggerDiv = cell.querySelector('.inline-periodicity-trigger');
 
             if (pUnit !== 'none' && pValue > 0) {
-                const selectedText = unitSelect.options[unitSelect.selectedIndex].text.toLowerCase();
+                const selectedText = unitSelect.options[unitSelect.selectedIndex].text;
 
                 if (textSpan) {
                     textSpan.textContent = `${pValue} ${selectedText}`;
@@ -196,7 +196,7 @@ function saveInlinePeriodicity(taskId, value, unit, cell) {
         if (trigger) {
             if (unit !== 'none' && value > 0 && unitSelect) {
                 // Извлекаем человекочитаемый текст из селекта (например, "минуты", "часы")
-                const selectedText = unitSelect.options[unitSelect.selectedIndex].text.toLowerCase();
+                const selectedText = unitSelect.options[unitSelect.selectedIndex].text;
 
                 trigger.innerHTML = `
                     <i class="bi bi-arrow-repeat me-1 text-warning"></i>

@@ -295,7 +295,7 @@ class TaskUpdateView(LoginRequiredMixin, View):
                     "bookmark_id": task.bookmark_id,
                     "periodicity_value": task.periodicity_value or "",
                     "periodicity_unit": task.periodicity_unit,
-                    "periodicity_display": f"{task.periodicity_value} {task.get_periodicity_unit_display().lower()}" if task.periodicity_value and task.periodicity_unit != 'none' else ""
+                    "periodicity_display": f"{task.periodicity_value} {task.get_periodicity_unit_display()}" if task.periodicity_value and task.periodicity_unit != 'none' else ""
                 },
             }
         )

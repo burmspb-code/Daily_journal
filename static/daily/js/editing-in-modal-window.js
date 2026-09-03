@@ -118,7 +118,7 @@ export function saveTaskChanges(event) {
     if (reminderInput) formData.append('reminder_at', reminderInput.value.trim());
     if (bookmarkSelect) formData.append('bookmark', bookmarkSelect.value);
 
-    // ИСПРАВЛЕНО: передаем новые ключи полей, которые ожидает бэкенд во views.py
+    // Передаем новые ключи полей, которые ожидает бэкенд во views.py
     const unitValue = periodUnitSelect ? periodUnitSelect.value : 'none';
     const numValue = periodValueInput ? periodValueInput.value.trim() : '';
     formData.append('periodicity_value', unitValue === 'none' ? '' : numValue);
@@ -179,7 +179,7 @@ export function saveTaskChanges(event) {
                     }
                 }
 
-                // 4. ИСПРАВЛЕНО: Обновляем новые data-атрибуты ячейки периодичности в таблице (ВМЕСТО СЕКУНД)
+                // 4. Обновляем новые data-атрибуты ячейки периодичности в таблице
                 const periodicityCell = row.querySelector('.task-periodicity-cell');
                 if (periodicityCell && data.task) {
                     periodicityCell.setAttribute('data-value', data.task.periodicity_value);

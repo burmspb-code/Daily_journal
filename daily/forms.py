@@ -57,7 +57,7 @@ class TaskForm(forms.ModelForm):
 
 class TaskEditForm(TaskForm):
     """
-    Форма редактирования задачи с исправленным календарем и поддержкой периодичности.
+    Форма редактирования задачи с календарем и поддержкой периодичности.
     """
 
     class Meta(TaskForm.Meta):
@@ -82,7 +82,7 @@ class TaskEditForm(TaskForm):
                     "id": "id_reminder_at",
                 },
             ),
-            # ИСПРАВЛЕНО: Вместо кастомного виджета настраиваем дефолтный числовой инпут
+            # Вместо кастомного виджета настраиваем дефолтный числовой инпут
             "periodicity_value": forms.NumberInput(
                 attrs={
                     "class": "form-control bg-dark text-white border-secondary",
@@ -91,7 +91,7 @@ class TaskEditForm(TaskForm):
                     "id": "id_periodicity_0",
                 }
             ),
-            # ИСПРАВЛЕНО: Настраиваем дефолтный селект выбора единицы времени
+            # Настраиваем дефолтный селект выбора единицы времени
             "periodicity_unit": forms.Select(
                 attrs={
                     "class": "form-select bg-dark text-white border-secondary",

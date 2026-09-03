@@ -94,12 +94,12 @@ class Task(models.Model):
         default='none',
         choices=[
             ('none', 'Не повторять'),
-            ('minutes', 'Минут'),
-            ('hours', 'Часов'),
-            ('days', 'Дней'),
-            ('weeks', 'Недель'),
-            ('months', 'Месяцев'),
-            ('years', 'Лет'),
+            ('minutes', 'мин'),
+            ('hours', 'ЧЧ'),
+            ('days', 'ДД'),
+            ('weeks', 'Н'),
+            ('months', 'ММ'),
+            ('years', 'ГГ'),
         ],
         verbose_name="Единица времени"
     )
