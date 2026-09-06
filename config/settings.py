@@ -87,7 +87,7 @@ DATABASES = {
         "NAME": os.getenv("DB_NAME"),
         "USER": os.getenv("DB_USER"),
         "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST"),
+        "HOST": "host.docker.internal",
         "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
@@ -130,8 +130,8 @@ AUTH_USER_MODEL = "users.CustomUser"
 # ================== НАСТРОЙКИ отправки почтовых рассылок =======================
 
 # Временно комментируем SMTP и включаем вывод в консоль:
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
 # Конфигурация SMTP Яндекс
 EMAIL_HOST = "smtp.yandex.ru"

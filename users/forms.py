@@ -8,46 +8,66 @@
 """
 
 from django import forms
-
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
+from django.db import models
+
+from users.models import CustomUser
+
 
 # Импортируем библиотеки для работы капчи
 # from django_recaptcha.fields import ReCaptchaField
 # from django_recaptcha.widgets import ReCaptchaV2Checkbox
 
-from users.models import CustomUser
-
 
 class CustomUserCreateForm(UserCreationForm):
     """Форма для регистрации пользователя на основе кастомной модели."""
-
-    # Капча объявлена как обязательное поле класса для защиты от спам-регистраций
-    # captcha = ReCaptchaField(
-    #     label="Проверка на робота",
-    #     widget=ReCaptchaV2Checkbox(),
-    #     error_messages={"required": "Пожалуйста, подтвердите, что вы не робот."},
-    # )
 
     class Meta(UserCreationForm.Meta):
         """Класс метаданных."""
 
         model = CustomUser
-        # Явно перечисляем поля, которые пользователь заполняет при регистрации.
-        # Поля password1 и password2 добавятся автоматически от UserCreationForm.
         fields = ("username", "email", "phone_number", "avatar", "tg_chat_id")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Делаем поле email обязательным для заполнения на уровне формы
         self.fields["email"].required = True
-        
-        # Добавляем Bootstrap классы к виджетам
+
         for field in self.fields.values():
             if field.widget.__class__.__name__ == 'Select':
                 field.widget.attrs.update({'class': 'form-select'})
             else:
                 field.widget.attrs.update({'class': 'form-control'})
-    
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+
+        # Ищем пользователя с таким username
+        inactive_user = CustomUser.objects.filter(username=username).first()
+        if inactive_user:
+            if not inactive_user.is_active:
+                # Если он не активен — удаляем «пустышку»
+                inactive_user.delete()
+            else:
+                # Если активен — вызываем стандартную ошибку Django
+                raise forms.ValidationError("Пользователь с таким Username уже существует.")
+
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+
+        # Ищем пользователя с таким email
+        inactive_user = CustomUser.objects.filter(email=email).first()
+        if inactive_user:
+            if not inactive_user.is_active:
+                # Если он не активен — удаляем «пустышку»
+                inactive_user.delete()
+            else:
+                # Если активен — вызываем стандартную ошибку Django
+                raise forms.ValidationError("Пользователь с таким Email уже существует.")
+
+        return email
+
     def add_is_invalid_class(self):
         """Добавляет класс is-invalid к полям с ошибками после валидации."""
         for field in self.errors:
@@ -56,7 +76,6 @@ class CustomUserCreateForm(UserCreationForm):
                 self.fields[field].widget.attrs.update({
                     'class': f'{current_class} is-invalid'
                 })
-
 
 class UserProfileForm(forms.ModelForm):
     """Форма для редактирования профиля пользователя."""

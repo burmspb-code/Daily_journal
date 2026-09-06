@@ -1,6 +1,3 @@
-# Используем стабильную и проверенную версию синтаксиса Docker Compose
-version: '3.8'
-
 services:
   # =========================================================================
   # 1. СЛУЖБА REDIS (Брокер сообщений для Celery)
@@ -51,6 +48,7 @@ services:
     environment:
       # Redis работает в соседнем контейнере, поэтому подключаемся к нему по имени службы "redis"
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - DB_HOST=host.docker.internal
     # Настройка DNS: связывает адрес host.docker.internal со шлюзом вашего ПК.
     # Это позволяет Django выйти из контейнера и увидеть ваш SSH-туннель на порту 5433.
     extra_hosts:
@@ -82,6 +80,7 @@ services:
       - .env
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - DB_HOST=host.docker.internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -108,6 +107,7 @@ services:
       - .env
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - DB_HOST=host.docker.internal
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
