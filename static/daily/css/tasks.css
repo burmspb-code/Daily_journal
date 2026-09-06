@@ -1,4 +1,20 @@
 /* ==========================================================================
+   0. Глобальная настройка для страницы целиком
+   ========================================================================== */
+
+/* Разрешаем каркасу занимать всю высоту */
+html {
+    height: 100%;
+}
+
+/* Намертво запираем скролл только на уровне body */
+body {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow: hidden !important;
+}
+
+/* ==========================================================================
    1. ФИЛЬТРЫ, НАВБАР И ПОПАПЫ
    ========================================================================== */
 
@@ -111,7 +127,7 @@ th.position-relative {
     animation: fadeInDropdown 0.15s ease-out;
 }
 
-/* ИСПРАВЛЕНО: Пункты меню от края до края с комфортными отступами против слипания */
+/* Пункты меню от края до края с комфортными отступами против слипания */
 .custom-dropdown-menu .dropdown-item {
     display: flex !important;             /* Идеальное выравнивание иконок и текста по центру */
     align-items: center !important;
@@ -181,17 +197,32 @@ th.position-relative {
    3. ГЕОМЕТРИЯ И СТРУКТУРА ТАБЛИЦЫ ЗАДАЧ
    ========================================================================== */
 
+/* Заставляем контейнер таблицы внутри карточки выжать максимум высоты */
+.card .table-responsive {
+    height: 100% !important;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
 /* Фиксируем раскладку таблицы, чтобы строго контролировать ширину колонок */
 #tasks-table {
     table-layout: fixed;
     width: 100%;
+    margin-bottom: 0 !important;
+}
+
+/* На всякий случай сбрасываем любые ограничения высоты у тела таблицы */
+#tasks-table-body {
+    height: auto !important;
 }
 
 /* Задаем базовую комфортную высоту для всех ячеек таблицы */
 #tasks-table tbody tr td {
-    padding-top: 10px !important;
-    padding-bottom: 10px !important;
-    height: 45px; /* Фиксируем минимальную высоту строки */
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    height: 38px; /* Уменьшили минимальную высоту с 45px до 38px */
 }
 
 /* Ограничиваем ширину столбца комментариев и включаем безопасный перенос */
@@ -201,10 +232,6 @@ th.position-relative {
     max-width: 250px;
     white-space: normal;
     overflow-wrap: break-word; /* Современный стандарт переноса длинных слов */
-}
-/* Разрешаем выпадающим спискам выходить за пределы контейнера таблицы */
-.table-responsive {
-    overflow: visible !important;
 }
 
 /* ==========================================================================
@@ -226,7 +253,7 @@ th.position-relative {
     transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
-/* ВСТАВЛЯТЬ СЮДА: Эффект при наведении курсора (подсказка для пользователя) */
+/* Эффект при наведении курсора (подсказка для пользователя) */
 .editable-task-name:hover,
 .editable-task-comment:hover {
     background-color: rgba(255, 193, 7, 0.06) !important; /* Едва заметный золотистый фон-подсветка */
@@ -293,12 +320,13 @@ th.position-relative {
 }
 
 /* ==========================================================================
-   6. ИКОНКИ ДЕЙСТВИЙ (КОММЕНТАРИИ И НАПОМИНАНИЯ)
+   6. ИКОНКИ ДЕЙСТВИЙ (КОММЕНТАРИИ, НАПОМИНАНИЯ И ПОВТОРЕНИЯ)
    ========================================================================== */
 
-/* Базовое состояние иконок-карандашей и колокольчиков */
+/* Базовое состояние иконок-карандашей, колокольчиков и стрелочек повторения */
 .add-comment-icon,
-.add-reminder-icon {
+.add-reminder-icon,
+.task-periodicity-cell .bi-arrow-repeat {
     opacity: 0.4;
     transition: all 0.2s ease-in-out;
 }
@@ -307,11 +335,223 @@ th.position-relative {
     font-size: 0.95rem;
 }
 
-/* Подсветка золотом при наведении на саму иконку ИЛИ на всю родительскую ячейку таблицы */
+/* Если периодичность УЖЕ задана (иконка горит желтым из Django через класс text-warning),
+   возвращаем ей полную непрозрачность */
+.task-periodicity-cell .bi-arrow-repeat.text-warning {
+    opacity: 1;
+}
+
+/* Подсветка золотом при наведении на комментарии и напоминания */
 .task-comment-cell:hover .add-comment-icon,
 .add-comment-icon:hover,
 .task-reminder-cell:hover .add-reminder-icon,
 .add-reminder-icon:hover {
     opacity: 1;
     color: #ffc107 !important;
+}
+
+/* ==========================================================================
+   ДИНАМИЧЕСКИЙ HOVER ДЛЯ ПОВТОРЕНИЙ (ПРЕДОХРАНИТЕЛЬ)
+   ========================================================================== */
+
+/* Растягиваем область клика на всю доступную ширину ячейки, чтобы ховер не терялся */
+.task-periodicity-cell .inline-periodicity-trigger {
+    width: 100%;
+    display: inline-flex !important;
+    align-items: center;
+}
+
+/* Эффект наведения и палец (pointer) включаются НА ВСЕМ ПОЛЕ ТРИГГЕРА,
+   только если в строке НЕТ пустого колокольчика (.bi-bell) или (.add-reminder-icon) */
+tr:not(:has(.task-reminder-cell .bi-bell)):not(:has(.task-reminder-cell .add-reminder-icon)) .task-periodicity-cell:hover .inline-periodicity-trigger {
+    cursor: pointer !important; /* Курсор руки теперь активен на всей площади поля периода! */
+}
+
+tr:not(:has(.task-reminder-cell .bi-bell)):not(:has(.task-reminder-cell .add-reminder-icon)) .task-periodicity-cell:hover .bi-arrow-repeat,
+tr:not(:has(.task-reminder-cell .bi-bell)):not(:has(.task-reminder-cell .add-reminder-icon)) .task-periodicity-cell:hover .period-text {
+    opacity: 1;
+    color: #ffc107 !important; /* Синхронно подсвечиваем золотом */
+}
+
+/* Если времени нет — принудительно оставляем дефолтный курсор-стрелку на всей ячейке,
+   гасим прозрачность стрелочек и полностью запрещаем желтый цвет при наведении */
+tr:has(.task-reminder-cell .bi-bell) .task-periodicity-cell .inline-periodicity-trigger,
+tr:has(.task-reminder-cell .add-reminder-icon) .task-periodicity-cell .inline-periodicity-trigger {
+    cursor: default !important; /* Обычная стрелка мыши на всей площади */
+}
+
+tr:has(.task-reminder-cell .bi-bell) .task-periodicity-cell:hover .bi-arrow-repeat,
+tr:has(.task-reminder-cell .add-reminder-icon) .task-periodicity-cell:hover .bi-arrow-repeat {
+    opacity: 0.4 !important;
+    color: #6c757d !important; /* Иконка намертво остается серой */
+}
+
+/* ==========================================================================
+   7. КОНТЕЙНЕР ЗАКЛАДКИ
+   ========================================================================== */
+
+/* Стили для контейнера текущей закладки в шапке таблицы */
+.bookmark-container {
+    background-color: #0c513f !important;
+    border: 1px solid #0c513f;
+    min-height: 38px;
+}
+
+/* Кнопка удаления внутри контейнера закладки */
+.bookmark-container .delete-bookmark-btn {
+    color: #ffeb3b !important; /* Яркий жёлтый цвет */
+    opacity: 1 !important;     /* Полная видимость без прозрачности */
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+/* Эффект при наведении на корзину (интерактивность) */
+.bookmark-container .delete-bookmark-btn:hover {
+    color: #fff59d !important; /* Чуть более светлый жёлтый при наведении */
+    transform: scale(1.15);    /* Легкое увеличение для отклика */
+}
+
+/* Стилизация SVG внутри кнопки удаления */
+.bookmark-container .delete-bookmark-btn svg {
+    width: 20px;
+    height: 20px;
+    vertical-align: middle;
+    filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+/* ==========================================================================
+   8. ШИРИНА КОЛОНОК ТАБЛИЦЫ (ВЫНЕСЕНО ИЗ HTML)
+   ========================================================================== */
+
+/* Фиксированная ширина для чекбокса выбора всех задач */
+#tasks-table th:nth-child(1),
+#tasks-table td:nth-child(1) {
+    width: 40px;
+}
+
+/* Фиксированная ширина для колонки с номером задачи */
+#tasks-table th:nth-child(2),
+#tasks-table td:nth-child(2) {
+    width: 70px;
+}
+
+/* Фиксированная ширина для колонки времени создания */
+#tasks-table th:nth-child(4),
+#tasks-table td:nth-child(4) {
+    width: 180px;
+}
+
+/* Фиксированная ширина для колонки времени напоминания */
+#tasks-table th:nth-child(5),
+#tasks-table td:nth-child(5) {
+    width: 180px;
+}
+
+/* Фиксированная ширина для колонки повторения */
+#tasks-table th:nth-child(6),
+#tasks-table td:nth-child(6) {
+    width: 150px;
+}
+
+/* ==========================================================================
+   9. МОДАЛЬНЫЕ ОКНА
+   ========================================================================== */
+
+/* Стили для модального окна редактирования задачи */
+.edit-task-modal-content {
+    background-color: rgba(28, 34, 43, 0.96) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 14px !important;
+}
+
+/* Стили для фона модального окна (blur эффект) */
+.edit-task-modal-backdrop {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+/* Стили для кнопки сохранения в модальном окне */
+.btn-save-task {
+    border-radius: 6px;
+}
+
+/* ==========================================================================
+   10. TOOLTIPS (ВСПЛЫВАЮЩИЕ ПОДСКАЗКИ)
+   ========================================================================== */
+
+/* Кастомизация Bootstrap Tooltips для светло-желтого фона */
+.tooltip-inner {
+    background-color: #fff9c4 !important; /* Светло-желтый фон */
+    color: #333 !important; /* Темный текст для контраста */
+    border: 1px solid #fbc02d !important; /* Желтая рамка */
+    border-radius: 6px !important;
+    font-size: 0.875rem;
+}
+
+/* Скрываем стрелку tooltip */
+.tooltip-arrow {
+    display: none !important;
+}
+
+/* Стили для интерактивного tooltip закладки */
+.bookmark-tooltip {
+    pointer-events: auto !important; /* Разрешаем взаимодействие с tooltip */
+}
+
+.bookmark-tooltip-content {
+    min-height: 40px;
+    padding: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.bookmark-tooltip-content:hover {
+    background-color: #fff59d;
+    border-radius: 4px;
+}
+
+.bookmark-tooltip-content[contenteditable="true"] {
+    background-color: #fff9c4;
+    border: none;
+    border-radius: 4px;
+    outline: none;
+    cursor: text;
+}
+
+/* Кастомизация Bootstrap Popovers для светло-желтого фона */
+.popover {
+    background-color: #fff9c4 !important;
+    border: 1px solid #fbc02d !important;
+    border-radius: 6px !important;
+}
+
+.popover-header {
+    background-color: #fff59d !important;
+    border-bottom: 1px solid #fbc02d !important;
+    color: #333 !important;
+}
+
+.popover-body {
+    color: #333 !important;
+}
+
+/* Скрываем стрелку popover */
+.popover-arrow {
+    display: none !important;
+}
+
+/* Стили для редактируемого описания в popover */
+.bookmark-description-editable {
+    min-height: 60px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+    margin-bottom: 8px;
+}
+
+.bookmark-description-editable:focus {
+    outline: 2px solid #fbc02d;
+    outline-offset: -2px;
 }

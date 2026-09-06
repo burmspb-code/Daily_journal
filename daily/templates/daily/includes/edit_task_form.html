@@ -1,0 +1,121 @@
+<!-- Динамическое тело формы с премиальным матовым дизайном -->
+<input type="hidden" id="edit-task-id" name="id" value="{{ task.id }}" aria-label="ID задачи">
+
+<div class="px-1">
+    {% for field in edit_form %}
+        {% if field.name != 'periodicity_unit' %}
+            <div class="mb-4">
+                <!-- Благородный приглушенный заголовок поля с иконкой -->
+                <label for="{% if field.name == 'periodicity_value' %}id_periodicity_0{% else %}{{ field.id_for_label }}{% endif %}"
+                       class="form-label text-white-50 small fw-bold text-uppercase tracking-wider mb-2 d-flex align-items-center gap-2"
+                       style="font-size: 0.7rem; letter-spacing: 0.08em;">
+                    {% if field.name == 'title' %}
+                        <i class="bi bi-fonts text-warning opacity-75"></i>
+                    {% elif field.name == 'reminder_at' %}
+                        <i class="bi bi-calendar4-event text-warning opacity-75"></i>
+                    {% elif field.name == 'periodicity_value' %}
+                        <i class="bi bi-arrow-repeat text-warning opacity-75"></i>
+                    {% elif field.name == 'comment' %}
+                        <i class="bi bi-text-paragraph text-warning opacity-75"></i>
+                    {% elif field.name == 'bookmark' %}
+                        <i class="bi bi-bookmarks text-warning opacity-75"></i>
+                    {% endif %}
+                    {{ field.label }}
+                </label>
+
+                {% if field.name == 'periodicity_value' %}
+                    <!-- Сдвоенный инпут периода в стиле монолитной карточки -->
+                    <div class="input-group input-group-sm rounded-2 overflow-hidden border border-light border-opacity-10 shadow-inner">
+                        <input type="number"
+                               name="periodicity_value"
+                               id="id_periodicity_0"
+                               class="form-control text-white border-0 py-2 px-3 custom-glass-input"
+                               min="1"
+                               placeholder="Количество"
+                               style="background-color: rgba(20, 24, 30, 0.6) !important;"
+                               value="{{ edit_form.periodicity_value.value|default:'' }}">
+
+                        <span class="input-group-text border-0 text-white-50 px-3 small fw-medium" style="background-color: rgba(255, 255, 255, 0.03); font-size: 0.8rem;">каждые</span>
+                        {{ edit_form.periodicity_unit }}
+                    </div>
+                {% else %}
+                    <!-- Все остальные поля (Кастомизируются через глобальный CSS ниже) -->
+                    <div class="custom-field-box">
+                        {{ field }}
+                    </div>
+                {% endif %}
+
+                {% if field.help_text %}
+                    <div class="form-text text-white-50 opacity-50 small mt-1" style="font-size: 0.68rem;">{{ field.help_text }}</div>
+                {% endif %}
+
+                {% for error in field.errors %}
+                    <div class="text-danger small mt-1.5 fw-semibold"><i class="bi bi-excl_triangle-fill me-1"></i> {{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endfor %}
+
+    <!-- === БЛОК СТАТУСА (СТИЛЬНАЯ ИНФО-КАРТОЧКА) === -->
+    <div class="mt-2 p-3 rounded-3 border border-light border-opacity-10 d-flex justify-content-between align-items-center"
+         style="background-color: rgba(255, 255, 255, 0.02);">
+        <div class="d-flex flex-column gap-0.5">
+            <span class="text-white-50 small fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;">
+                <i class="bi bi-shield-check me-1 text-warning opacity-75"></i> Контроль статуса
+            </span>
+            <span class="text-white-50 opacity-50" style="font-size: 0.68rem;">Рассчитан автоматически</span>
+        </div>
+        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 fw-bold px-3 py-1.5 rounded-pill shadow-sm" style="font-size: 0.72rem; letter-spacing: 0.03em;">
+            {{ task.get_status_flag_display|upper }}
+        </span>
+    </div>
+</div>
+
+<!-- Дизайнерские CSS Стили для матовой полупрозрачной темы -->
+<style>
+    /* Модные полупрозрачные темные инпуты */
+    #editTaskModal input[type="text"],
+    #editTaskModal input[type="datetime-local"],
+    #editTaskModal textarea,
+    #editTaskModal select {
+        background-color: rgba(18, 22, 28, 0.6) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+        padding: 0.55rem 0.85rem !important;
+        font-size: 0.85rem !important;
+        width: 100%;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+
+    #id_periodicity_1 {
+        border-top-left-radius: 0 !important;
+        border-bottom-left-radius: 0 !important;
+        border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
+        background-color: rgba(24, 30, 38, 0.7) !important;
+    }
+
+    #editTaskModal input:focus,
+    #editTaskModal textarea:focus,
+    #editTaskModal select:focus {
+        border-color: rgba(255, 193, 7, 0.5) !important;
+        box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.1) !important;
+        background-color: rgba(14, 17, 22, 0.8) !important;
+        outline: 0 !important;
+    }
+
+    #editTaskModal textarea {
+        resize: none;
+        border-radius: 8px !important;
+    }
+
+    #editTaskModal input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+        filter: invert(0.8) sepia(1) saturate(5) hue-rotate(5deg);
+        cursor: pointer;
+        opacity: 0.6;
+        transition: opacity 0.15s;
+    }
+    #editTaskModal input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+        opacity: 1;
+    }
+</style>

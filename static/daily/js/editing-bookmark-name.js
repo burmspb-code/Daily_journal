@@ -45,7 +45,7 @@ document.addEventListener('focusout', function (e) {
         formData.append('id', bookmarkId);
         formData.append('title', newBookmarkName);
 
-        fetch('/daily/bookmark/update-api/', {
+        fetch('/daily/bookmark/update/', {
             method: 'POST',
             headers: {
                 'X-CSRFToken': getCookie('csrftoken')

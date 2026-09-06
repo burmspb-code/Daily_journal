@@ -3,118 +3,102 @@ import logging
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
-from django.urls import reverse
+from django.shortcuts import render, get_object_or_404
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views import View
+from django.contrib.messages.views import SuccessMessageMixin
 from django.views.generic import ListView, CreateView, DeleteView
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.generics import (
+    RetrieveUpdateDestroyAPIView,
+    ListCreateAPIView,
+    ListAPIView,
+)
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from .forms import TaskEditForm
-from .forms import TaskForm, BookmarkForm
-from .models import Bookmark
-from .models import Task
+from .forms import TaskEditForm, TaskForm, BookmarkForm
+from .models import Bookmark, Task
+from .paginators import TaskListAPIViewPagination
+from .serializers import BookmarkUpdateSerializer, TaskSerializer, BookmarkSerializer
+from .services import TaskService
 
 logger = logging.getLogger(__name__)
 
 
+# ========================= Эндпоинты для работы для работы через WEB===============================================
+
+
 class TaskListView(LoginRequiredMixin, ListView):
-    """Представление для вывода списка задач на веб-страницу."""
+    """Представление для вывода списка задач на веб-страницу.
+
+    Использует сервисный слой `TaskService` для сборки единого контекста данных
+    (задачи, закладки, состояния фильтров). Инкапсулирует логику веб-интерфейса,
+    добавляя HTML-форму редактирования.
+    """
 
     model = Task
     template_name = "daily/task_list.html"
-    context_object_name = "tasks"  # Переменная, которая пойдет в HTML-шаблон
+    context_object_name = "tasks"
 
     def get_queryset(self):
+        """Возвращает пустой QuerySet.
+
+        Переопределен для предотвращения стандартного запроса ListView к БД.
+        Все необходимые данные (включая отфильтрованные задачи) извлекаются
+        оптимизированным путем в методе `get_context_data`.
+
+        Returns:
+            QuerySet: Пустой набор объектов Task.
         """
-        Возвращает отфильтрованный и отсортированный набор задач текущего пользователя.
-        """
-        user = self.request.user
-
-        # select_related делает SQL JOIN, предотвращая проблему N+1
-        queryset = Task.objects.filter(owner=user).select_related("bookmark", "owner")
-
-        # Фильтрация по текущей закладке
-        bookmark_id = self.request.GET.get("bookmark")
-        if bookmark_id:
-            queryset = queryset.filter(bookmark_id=bookmark_id)
-        else:
-            # Ищем первую закладку ИМЕННО ЭТОГО пользователя
-            first_bookmark = Bookmark.objects.filter(owner=user).order_by("id").first()
-            if first_bookmark:
-                queryset = queryset.filter(bookmark=first_bookmark)
-            else:
-                return Task.objects.none()
-
-        # Фильтрация по наименованию (лучше использовать __icontains для поиска по подстроке)
-        name_query = self.request.GET.get("title", "").strip()
-        if name_query:
-            queryset = queryset.filter(title__icontains=name_query)
-
-        # Безопасная фильтрация по флагу управления
-        flag_query = self.request.GET.get("flag", "").strip()
-        if flag_query.isdigit():  # Защита от ValueError (HTTP 500)
-            queryset = queryset.filter(status_flag=int(flag_query))
-
-        # Сортировка записей
-        sort_mapping = {
-            "newest": ["-created_at", "-id"],
-            "oldest": ["created_at", "id"],
-            "name_asc": ["title"],
-            "name_desc": ["-title"],
-        }
-
-        sort_query = self.request.GET.get("sort", "").strip()
-        order_by_fields = sort_mapping.get(sort_query, ["id"])
-
-        return queryset.order_by(*order_by_fields)
+        # Оставляем этот метод для корректной работы ListView,
+        # но данные возьмем сразу пачкой в get_context_data, чтобы не дублировать логику
+        return Task.objects.none()
 
     def get_context_data(self, **kwargs):
-        """
-        Формирует контекст данных для передачи в HTML-шаблон 'task_list.html'.
+        """Формирует итоговый контекст данных для HTML-шаблона 'task_list.html'.
 
-        Обеспечивает:
-        1. Сохранение состояний фильтров и сортировки для удержания активных элементов в UI.
-        2. Извлечение списка всех закладок текущего пользователя для навигационного меню.
-        3. Определение текущей активной закладки.
+        Запрашивает бизнес-данные у сервисного слоя за один проход и дополняет
+        их специфичными для веб-интерфейса элементами (Django-формами).
+
+        Args:
+            **kwargs: Произвольные именованные аргументы родительского класса.
+
+        Returns:
+            dict: Полный контекст для рендеринга страницы, содержащий:
+                - tasks (QuerySet): Отфильтрованные задачи пользователя.
+                - bookmarks (list): Все закладки пользователя.
+                - current_bookmark (Bookmark): Активная закладка.
+                - current_title / current_flag / current_sort (str): Состояния UI.
+                - edit_form (TaskEditForm): Форма редактирования задачи.
         """
-        # Получаем базовый контекст от родительского класса ListView
         context = super().get_context_data(**kwargs)
-        user = self.request.user
 
-        # СОХРАНЕНИЕ ТЕКУЩИХ ФИЛЬТРОВ И СОРТИРОВКИ (для удержания состояния в UI)
-        context["current_title"] = self.request.GET.get("title", "").strip()
-        context["current_flag"] = self.request.GET.get("flag", "").strip()
-        context["current_sort"] = self.request.GET.get("sort", "").strip()
+        # Запрашиваем всё у сервиса за один раз
+        service_data = TaskService.get_task_list_context(
+            user=self.request.user, params=self.request.GET
+        )
+        context.update(service_data)
 
-        # РАБОТА С ЗАКЛАДКАМИ
-        # Вытягиваем закладки только текущего пользователя и сразу сортируем их по ID
-        bookmarks_owner = Bookmark.objects.filter(owner=user).order_by("id")
-        context["bookmarks"] = bookmarks_owner
-
-        # Извлекаем ID выбранной закладки из GET-параметров URL (?bookmark=ID)
-        bookmark_id = self.request.GET.get("bookmark", "").strip()
-
-        if bookmark_id.isdigit():
-            # Если ID передан и это число — находим соответствующий объект
-            context["current_bookmark"] = bookmarks_owner.filter(
-                id=int(bookmark_id)
-            ).first()
-        else:
-            # Если параметр отсутствует или некорректен — берем самую первую закладку
-            context["current_bookmark"] = bookmarks_owner.first()
-
-        # Передаем форму редактирования под уникальным именем 'edit_form'
+        # Переопределяем tasks, так как ListView ожидает их здесь
+        context["tasks"] = service_data["tasks"]
         context["edit_form"] = TaskEditForm(user=self.request.user)
 
         return context
 
 
-class TaskCreateApiView(LoginRequiredMixin, View):
+class TaskCreateView(LoginRequiredMixin, View):
     """
-    Самостоятельное API-представление для быстрого инлайн-создания задачи.
+    Представление для быстрого инлайн-создания задачи.
 
     Принимает POST-запрос с JSON-телом, валидирует данные через TaskForm
-    и возвращает JSON с ID новой задачи для мгновенного добавления в таблицу.
+    и возвращает HTML-строку задачи для мгновенного добавления в таблицу.
     """
 
     def post(self, request, *args, **kwargs):
@@ -141,6 +125,7 @@ class TaskCreateApiView(LoginRequiredMixin, View):
 
         # Собираем данные для формы. Если закладка не передана, берем первую доступную
         bookmark_id = json_data.get("bookmark_id") or first_bookmark.id
+        row_number = json_data.get("row_number", 1)
 
         form_data = {
             "title": str(json_data.get("title", "")).strip(),
@@ -156,11 +141,11 @@ class TaskCreateApiView(LoginRequiredMixin, View):
             task.owner = request.user
             task.save()
 
-            formatted_date = timezone.localtime(task.created_at).strftime(
-                "%d.%m.%Y %H:%M"
-            )
-            return JsonResponse(
-                {"status": "success", "id": task.id, "created_at": formatted_date}
+            # Рендерим HTML строки задачи
+            return render(
+                request,
+                "daily/includes/task_row.html",
+                {"task": task, "row_number": row_number}
             )
 
         # Обработка ошибок валидации формы Django
@@ -170,20 +155,43 @@ class TaskCreateApiView(LoginRequiredMixin, View):
         )
 
 
-class TaskUpdateApiView(LoginRequiredMixin, View):
+class TaskUpdateView(LoginRequiredMixin, View):
+    """
+    Представление для редактирования задачи через модальное окно.
+    Поддерживает GET (отдачу HTML формы через HTMX) и POST (сохранение изменений).
+    """
 
-    # Если вместо редиректа на страницу входа для API нужен чистый JSON-ответ:
     def handle_no_permission(self):
         return JsonResponse({"error": "Пользователь не авторизован"}, status=401)
 
+    def get(self, request, task_id, *args, **kwargs):
+        """
+        Срабатывает при вызове кнопки 'Редактировать' через hx-get.
+        Генерирует HTML-код формы, где все инпуты и селекты уже заполнены значениями из БД.
+        """
+        # Получаем задачу текущего пользователя
+        task = get_object_or_404(Task, id=task_id, owner=request.user)
+
+        # Инициализируем форму Django, передавая в неё объект задачи и контекст пользователя
+        form = TaskEditForm(instance=task, user=request.user)
+
+        # Рендерим частичный HTML-шаблон, который содержит только инпуты
+        return render(
+            request,
+            "daily/includes/edit_task_form.html",
+            {"edit_form": form, "task": task}
+        )
+
     def post(self, request, *args, **kwargs):
+        """
+        Срабатывает при отправке формы модального окна (кнопка 'Сохранить изменения').
+        """
         task_id = request.POST.get("id")
 
         if not task_id:
             return JsonResponse({"error": "Не передан ID задачи"}, status=400)
 
         try:
-            # Теперь request.user гарантированно авторизован
             task = Task.objects.get(id=task_id, owner=request.user)
         except Task.DoesNotExist:
             return JsonResponse(
@@ -192,7 +200,7 @@ class TaskUpdateApiView(LoginRequiredMixin, View):
 
         updated_fields = []
 
-        # 1. Обновляем название
+        # Обновляем название
         if "title" in request.POST:
             title = request.POST.get("title", "").strip()
             if not title:
@@ -202,12 +210,12 @@ class TaskUpdateApiView(LoginRequiredMixin, View):
             task.title = title
             updated_fields.append("title")
 
-        # 2. Обновляем комментарий
+        # Обновляем комментарий
         if "comment" in request.POST:
             task.comment = request.POST.get("comment", "").strip()
             updated_fields.append("comment")
 
-        # 3. Обновляем напоминание (дата и время)
+        # Обновляем напоминание (дата и время)
         if "reminder_at" in request.POST:
             reminder_raw = request.POST.get("reminder_at", "").strip()
 
@@ -218,7 +226,6 @@ class TaskUpdateApiView(LoginRequiredMixin, View):
                         {"error": "Неверный формат даты и времени"}, status=400
                     )
 
-                # Привязываем к часовому поясу
                 if timezone.is_naive(naive_datetime):
                     new_reminder = timezone.make_aware(naive_datetime)
                 else:
@@ -226,20 +233,52 @@ class TaskUpdateApiView(LoginRequiredMixin, View):
             else:
                 new_reminder = None
 
-            # ЛОГИКА СБРОСА УВЕДОМЛЕНИЯ:
-            # Если дата изменилась, нужно сбросить флаг уведомления, чтобы пуш ушел снова
             if task.reminder_at != new_reminder:
                 task.reminder_at = new_reminder
-                task.is_notified = False  # Сбрасываем флаг контроля пушей
+                task.is_notified = False
                 updated_fields.extend(["reminder_at", "is_notified"])
+
+                # Если дата удалена, намертво стираем периодичность из новых полей БД
+                if new_reminder is None:
+                    if task.periodicity_value is not None or task.periodicity_unit != 'none':
+                        task.periodicity_value = None
+                        task.periodicity_unit = 'none'
+                        updated_fields.extend(["periodicity_value", "periodicity_unit"])
+
+        # Обновляем периодичность повторения по НОВЫМ именам полей Django-формы
+        # Пропускаем этот блок, если напоминание было удалено (периодичность уже очищена выше)
+        if "reminder_at" not in request.POST or request.POST.get("reminder_at", "").strip():
+            unit_key = next((k for k in request.POST.keys() if "periodicity_unit" in k), None)
+            value_key = next((k for k in request.POST.keys() if "periodicity_value" in k), None)
+
+            if unit_key:
+                val_0 = request.POST.get(value_key, "").strip() if value_key else ""
+                val_1 = request.POST.get(unit_key, "").strip()
+
+                new_value = None
+                new_unit = "none"
+
+                if val_1 != "none" and val_0:
+                    try:
+                        new_value = int(val_0)
+                        new_unit = val_1
+                        if new_value <= 0:
+                            return JsonResponse({"error": "Значение периода должно быть больше нуля"}, status=400)
+                    except (ValueError, TypeError):
+                        return JsonResponse(
+                            {"error": "Некорректное значение интервала"}, status=400
+                        )
+
+                if task.periodicity_value != new_value or task.periodicity_unit != new_unit:
+                    task.periodicity_value = new_value
+                    task.periodicity_unit = new_unit
+                    updated_fields.extend(["periodicity_value", "periodicity_unit"])
 
         # Сохраняем строго измененные поля
         if updated_fields:
-            # Убираем дубликаты из списка, если они появились
             task.save(update_fields=list(set(updated_fields)))
 
-        # Формируем ответ (маппинг 'status' совпадает с вашим JS скриптом)
-        return JsonResponse(
+        response = JsonResponse(
             {
                 "status": "success",
                 "task": {
@@ -249,15 +288,73 @@ class TaskUpdateApiView(LoginRequiredMixin, View):
                     "reminder_at": (
                         task.reminder_at.isoformat() if task.reminder_at else None
                     ),
-                    "status": task.status_flag,  # Передаем число (0, 1, 2, 3)
-                    "status_display": task.get_status_flag_display(),  # Передаем текст ("Создана", "В работе" и т.д.)
+                    "status": task.status_flag,
+                    "status_display": task.get_status_flag_display(),
                     "bookmark_id": task.bookmark_id,
+                    "periodicity_value": task.periodicity_value or "",
+                    "periodicity_unit": task.periodicity_unit,
+                    "periodicity_display": f"{task.periodicity_value} {task.get_periodicity_unit_display()}" if task.periodicity_value and task.periodicity_unit != 'none' else ""
                 },
             }
         )
 
+        # Добавляем кастомный HTTP-заголовок для HTMX, что редактирование завершено
+        response['HX-Trigger'] = 'taskUpdated'
 
-class TaskDeleteApiView(LoginRequiredMixin, DeleteView):
+        return response
+
+
+class UpdateTaskPeriodicityView(LoginRequiredMixin, View):
+    """
+    Класс для быстрого инлайн-обновления периодичности задачи из таблицы.
+    Ожидает POST-запрос с 'task_id' (или 'id'), 'periodicity_value' и 'periodicity_unit'.
+    """
+
+    def post(self, request, *args, **kwargs):
+        # Безопасно поддерживаем оба варианта именования ID для защиты от опечаток в JS
+        task_id = request.POST.get("task_id") or request.POST.get("id")
+        p_value_raw = request.POST.get("periodicity_value")
+        p_unit = request.POST.get("periodicity_unit")
+
+        if not task_id:
+            return JsonResponse(
+                {"success": False, "error": "ID задачи не указан"}, status=400
+            )
+
+        try:
+            # Ищем задачу, проверяя владение текущим пользователем (безопасность)
+            task = Task.objects.get(id=task_id, owner=request.user)
+        except Task.DoesNotExist:
+            return JsonResponse(
+                {"success": False, "error": "Задача не найдена или доступ запрещен"},
+                status=404,
+            )
+
+        try:
+            if p_unit == "none" or not p_unit or p_value_raw == "" or p_value_raw is None:
+                task.periodicity_value = None
+                task.periodicity_unit = "none"
+            else:
+                # Переводим в число только если это не пустышка
+                task.periodicity_value = int(p_value_raw)
+                task.periodicity_unit = p_unit
+
+            # Обновляем СТРОГО только две новые измененные колонки в БД
+            task.save(update_fields=["periodicity_value", "periodicity_unit"])
+
+            return JsonResponse({"success": True})
+
+        except ValueError:
+            return JsonResponse(
+                {"success": False, "error": "Значение периода должно быть целым числом"}, status=400
+            )
+        except Exception as e:
+            return JsonResponse(
+                {"success": False, "error": f"Ошибка сервера: {str(e)}"}, status=500
+            )
+
+
+class TaskDeleteView(LoginRequiredMixin, DeleteView):
     """
     Представление для удаления задачи.
 
@@ -305,16 +402,13 @@ class TaskDeleteApiView(LoginRequiredMixin, DeleteView):
 
 class BookmarkCreateView(LoginRequiredMixin, CreateView):
     """
-    Представление для создания новой закладки.
-
-    Обрабатывает AJAX-запросы и возвращает результат в формате JSON.
+    Представление для создания новой закладки через стандартный WEB-интерфейс.
+    После сохранения выполняет классический редирект на список задач.
     """
 
     model = Bookmark
     form_class = BookmarkForm
-    template_name = (
-        "daily/bookmark_form.html"  # Укажите путь к вашему HTML-шаблону формы
-    )
+    template_name = "daily/bookmark_form.html"  # Укажите путь к HTML-шаблону формы
     context_object_name = "bookmark"
 
     def get_success_url(self):
@@ -331,48 +425,216 @@ class BookmarkCreateView(LoginRequiredMixin, CreateView):
         в форму авторизованного пользователя вручную, т.к. данное поле
         отсутствует в форме.
         """
-        # 1. Привязываем к полю owner объект текущего авторизованного пользователя
+        # Привязываем к полю owner объект текущего авторизованного пользователя
         form.instance.owner = self.request.user
 
-        # 2. Запускаем стандартный процесс сохранения формы Django
+        # Запускаем стандартный процесс сохранения формы Django
         return super().form_valid(form)
 
 
-class BookmarkUpdateApiView(LoginRequiredMixin, View):
+@extend_schema(
+    exclude=True
+)  # Полностью исключает это веб-представление из Swagger/Redoc
+class BookmarkUpdateWebResponseView(APIView):
     """
-    API-представление для быстрого переименования закладки.
-    Принимает стандартные данные формы (FormData), обновляя
-    исключительно поле 'title'.
+    Эндпоинт для инлайн-редактирования названия ЗАКЛАДКИ внутри WEB-интерфейса.
+    Принимает POST-запрос с JSON (id, title, description) с текущей страницы.
+    Аутентификация по сессии браузера + обязательная CSRF-защита.
     """
+
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [
+        SessionAuthentication
+    ]  # Завязано на вошедшего в браузер юзера
 
     def post(self, request, *args, **kwargs):
+        bookmark_id = request.data.get("id")
+
+        # Находим закладку строго для текущего пользователя сайта
         try:
-            # ИСПРАВЛЕНО: Читаем данные напрямую из request.POST вместо json.loads
-            bookmark_id = request.POST.get("id")
-            new_title = request.POST.get("title", "").strip()
+            bookmark = Bookmark.objects.get(id=bookmark_id, owner=request.user)
+        except (Bookmark.DoesNotExist, ValueError):
+            return Response(
+                {"status": "error", "message": "Закладка не найдена"}, status=status.HTTP_404_NOT_FOUND
+            )
 
-            # Быстрая проверка данных
-            if not bookmark_id:
-                return JsonResponse({"error": "ID закладки не передан"}, status=400)
-            if not new_title:
-                return JsonResponse(
-                    {"error": "Название не может быть пустым"}, status=400
-                )
+        # Передаем данные в сериализатор для валидации полей 'title' и 'description'
+        serializer = BookmarkUpdateSerializer(bookmark, data=request.data, partial=True)
 
-            # Находим закладку в базе данных с проверкой владельца
-            bookmark = Bookmark.objects.get(pk=bookmark_id, owner=request.user)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"status": "success"}, status=status.HTTP_200_OK)
 
-            # Обновляем только название и сохраняем
-            bookmark.title = new_title
-            bookmark.save(update_fields=["title"])
+        # Если есть ошибки валидации, возвращаем их
+        errors = dict(serializer.errors)
+        error_message = errors.get("title", errors.get("description", ["Ошибка валидации"]))[0]
+        return Response(
+            {"status": "error", "message": error_message},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-            return JsonResponse({"status": "success"}, status=200)
 
+class BookmarkDeleteView(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
+    """Эндпоинт для удаления закладки."""
+
+    model = Bookmark
+    context_object_name = "bookmark"
+    success_url = reverse_lazy("daily:task_list")
+    success_message = "Закладка успешно удалена"
+
+    def get_object(self, queryset=None):
+        """
+        Самостоятельно получаем объект из POST-параметров,
+        минуя стандартные проверки DeleteView на наличие PK в URL.
+        """
+        # Считываем id из скрытого поля name="bookmark_id"
+        bookmark_id = self.request.POST.get("bookmark_id")
+
+        try:
+            # Извлекаем объект напрямую по полученному ID
+            obj = Bookmark.objects.get(id=bookmark_id)
         except Bookmark.DoesNotExist:
-            return JsonResponse(
-                {"error": "Закладка не найдена или доступ запрещен"}, status=404
+            # Если объект не найден, отдаем стандартную 404 ошибку Django
+            raise Http404("Закладка не найдена.")
+
+        # Проверяем права владельца
+        if obj.owner != self.request.user:
+            raise PermissionDenied("Вы не можете удалить чужую закладку.")
+
+        return obj
+
+
+# ========================= Эндпоинты для работы с API ===============================================
+
+
+class TaskListAPIView(ListAPIView):
+    """API-представление для получения списка задач в формате JSON.
+    Интегрирует логику фильтрации `TaskService` с сериализаторами DRF. Возвращает
+    клиенту не только массив задач, но и метаданные интерфейса (список закладок,
+    активную закладку и примененные фильтры) в одном ответе.
+    """
+
+    serializer_class = TaskSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [SessionAuthentication]
+    pagination_class = TaskListAPIViewPagination
+
+    # Явно задаем queryset, чтобы заглушить предупреждение Swagger в консоли
+    queryset = Task.objects.none()
+
+    @extend_schema(
+        summary="Получение списка задач с метаданными",
+        description="Возвращает массив задач текущего пользователя с учетом пагинации, а также метаданные фильтров и закладок.",
+        responses={
+            200: inline_serializer(
+                name="TaskListWithMetaResponse",
+                fields={
+                    "meta": inline_serializer(
+                        name="TaskListMeta",
+                        fields={
+                            "current_filters": inline_serializer(
+                                name="TaskListFilters",
+                                fields={
+                                    "title": serializers.CharField(allow_null=True),
+                                    "flag": serializers.CharField(allow_null=True),
+                                    "sort": serializers.CharField(allow_null=True),
+                                },
+                            ),
+                            "bookmarks": BookmarkSerializer(many=True),
+                            "current_bookmark": BookmarkSerializer(allow_null=True),
+                        },
+                    ),
+                    "tasks": TaskSerializer(many=True),
+                },
             )
-        except Exception as e:
-            return JsonResponse(
-                {"error": f"Внутренняя ошибка сервера: {str(e)}"}, status=500
-            )
+        },
+    )
+    def list(self, request, *args, **kwargs):
+        """Формирует структурированный JSON-ответ со списком задач и метаданных."""
+        # Логирование для диагностики
+        logger.info(f"[API] Запрос списка задач. User: {request.user}, Authenticated: {request.user.is_authenticated}")
+        logger.info(f"[API] Query params: {request.query_params}")
+
+        # Получаем весь готовый контекст из сервиса
+        service_context = TaskService.get_task_list_context(
+            user=request.user, params=request.query_params
+        )
+
+        logger.info(f"[API] Получено задач в контексте: {service_context['tasks'].count()}")
+
+        # Сериализуем список задач с поддержкой пагинации
+        queryset = service_context["tasks"]
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            tasks_data = self.get_serializer(page, many=True).data
+        else:
+            tasks_data = self.get_serializer(queryset, many=True).data
+
+        # Сериализуем метаданные закладок
+        bookmarks_serialized = BookmarkSerializer(
+            service_context["bookmarks"], many=True
+        ).data
+        current_bookmark_serialized = (
+            BookmarkSerializer(service_context["current_bookmark"]).data
+            if service_context["current_bookmark"]
+            else None
+        )
+
+        # Формируем единый чистый JSON-ответ
+        response_data = {
+            "meta": {
+                "current_filters": {
+                    "title": service_context["current_title"],
+                    "flag": service_context["current_flag"],
+                    "sort": service_context["current_sort"],
+                },
+                "bookmarks": bookmarks_serialized,
+                "current_bookmark": current_bookmark_serialized,
+            },
+            "tasks": tasks_data,
+        }
+
+        if page is not None:
+            return self.get_paginated_response(response_data)
+
+        return Response(response_data)
+
+
+class BookmarkUpdateExternalApiView(RetrieveUpdateDestroyAPIView):
+    """
+    API-представление для просмотра(GET), обновления(PUT / PATCH) и удаления(DELETE) конкретной закладки.
+    Аутентификация через JWT-токен в заголовке Authorization.
+    """
+
+    serializer_class = BookmarkUpdateSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [
+        JWTAuthentication
+    ]  # Защита токеном, а не сессией браузера
+
+    def get_queryset(self):
+        return Bookmark.objects.filter(owner=self.request.user)
+
+
+class BookmarkListCreateAPIView(ListCreateAPIView):
+    """
+    API-представление для создания новой закладки
+    или вывода списка закладок.
+    """
+
+    serializer_class = BookmarkSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get_queryset(self):
+        """Фильтруем список под текущего пользователя."""
+        # ЗАЩИТА ДЛЯ SWAGGER: если схему генерирует робот, отдаем пустой кверисет
+        if getattr(self, "swagger_fake_view", False) or "spectacular" in str(
+            self.request
+        ):
+            return Bookmark.objects.none()
+        return Bookmark.objects.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        """Автоматически сохраняем авторизованного пользователя в поле owner."""
+        serializer.save(owner=self.request.user)

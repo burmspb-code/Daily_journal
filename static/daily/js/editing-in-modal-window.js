@@ -1,8 +1,9 @@
-// === РЕДАКТИРОВАНИЕ В МОДАЛЬНОМ ОКНЕ ===
+// === РЕДАКТИРОВАНИЕ В МОДАЛЬНОМ ОКНЕ ЧЕРЕЗ HTMX ===
 
-// Функция 1: Срабатывает при клике на верхнюю кнопку "Редактировать".
+import { getCookie } from './secondary-system-functions.js';
+
 export function openEditModal() {
-    // Находим единственный отмеченный чекбокс
+    // 1. Находим единственный отмеченный чекбокс
     const checkedBox = document.querySelector('.task-checkbox:checked');
     if (!checkedBox) return;
 
@@ -12,233 +13,212 @@ export function openEditModal() {
     const row = document.getElementById(`task-row-${taskId}`);
     if (!row) return;
 
-    // 1. Извлекаем название
-    const title = row.querySelector('.editable-task-name')?.innerText.trim() || "";
+    // СРАЗУ НА СТАРТЕ: Находим контейнер тела модального окна
+    const modalBody = document.querySelector('#editTaskModal .modal-body');
 
-    // 2. Извлекаем комментарий (очищаем от иконки карандаша, если текста нет)
-    const commentCell = row.querySelector('.editable-task-comment');
-    const hasPencil = commentCell?.querySelector('.add-comment-icon');
-    const comment = hasPencil ? "" : (commentCell?.innerText.trim() || "");
+    // Мгновенно сбрасываем старый HTML-контент предыдущей задачи и включаем желтый спиннер
+    if (modalBody) {
+        modalBody.innerHTML = `
+            <div class="modal-body d-flex flex-column align-items-center justify-content-center py-5 w-100">
+                <div class="spinner-border text-warning mb-3" role="status" style="width: 2.5rem; height: 2.5rem; border-width: 0.25em;">
+                    <span class="visually-hidden">Загрузка...</span>
+                </div>
+                <div class="text-muted small fw-semibold placeholder-glow">
+                    <span class="placeholder col-12 bg-transparent text-muted" style="letter-spacing: 0.05em;">ЗАГРУЗКА ДАННЫХ...</span>
+                </div>
+            </div>
+        `.trim();
+    }
 
-    // 3. Номер строки таблицы (вторая ячейка <td> по порядку)
+    // 2. Извлекаем номер строки таблицы (вторая ячейка <td> по порядку)
     const rowNumber = row.querySelector('td:nth-child(2)')?.innerText.trim() || "";
 
-    // 4. Безопасно забираем "сырую" дату из скрытого инпута внутри ячейки, не ломая data-id таблицы
-    const reminderCell = row.querySelector('.task-reminder-cell') || row.querySelector('.remind-cell');
-    const hiddenDateInput = reminderCell ? reminderCell.querySelector('.raw-reminder-date') : null;
-    let rawReminder = hiddenDateInput ? hiddenDateInput.value.trim() : "";
+    // Наполняем заголовок модального окна номером задачи
+    const editTaskNumberTitle = document.getElementById('edit-task-number-title');
+    if (editTaskNumberTitle) editTaskNumberTitle.innerText = rowNumber;
 
-    // На случай, если скрытого инпута нет, но текст с датой в ячейке присутствует
-    if (!rawReminder && reminderCell) {
-        const cellText = reminderCell.textContent.trim().replace(/[^\d.:\s]/g, '').trim();
-        if (cellText && cellText.length >= 16) {
-            const parts = cellText.match(/(\d{2})\.(\d{2})\.(\d{4})\s(\d{2}):(\d{2})/);
-            if (parts) {
-                // Превращаем "02.08.2026 19:23" в "2026-08-02T19:23"
-                rawReminder = `${parts[3]}-${parts[2]}-${parts[1]}T${parts[4]}:${parts[5]}`;
-            }
-        }
-    }
+    if (!modalBody) return;
 
-    if (rawReminder) {
-        // Приводим к стандарту HTML5 datetime-local (длина 16 символов: YYYY-MM-DDTHH:mm)
-        rawReminder = rawReminder.replace(' ', 'T').substring(0, 16);
-    }
-
-    // 5. Мгновенно вытаскиваем ID текущей закладки из заголовка страницы
-    const bookmarkNameElement = document.querySelector('.editable-bookmark-name');
-    const bookmarkId = bookmarkNameElement ? bookmarkNameElement.getAttribute('data-id') : "";
-
-    // 6. Извлекаем текущий статус на основе текста бейджа в последней ячейке строки таблицы
-    const statusCell = row.querySelector('td:last-child');
-    let currentStatusFlag = "0"; // По умолчанию "Создана" (0)
-
-    if (statusCell) {
-        const statusText = statusCell.innerText.trim();
-        if (statusText.includes("Просрочено") || statusText.includes("Дедлайн")) {
-            currentStatusFlag = "3";
-        } else if (statusText.includes("Создана") || statusText.includes("В работе")) {
-            currentStatusFlag = "0";
-        }
-    }
-
-    // Наполняем элементы модального окна перед показом
-    document.getElementById('edit-task-id').value = taskId;
-    document.getElementById('edit-task-number-title').innerText = rowNumber;
-
-    // Заполняем инпуты по ID, сгенерированным Django Forms ({% for field in form %})
-    if (document.getElementById('id_title')) document.getElementById('id_title').value = title;
-    if (document.getElementById('id_comment')) document.getElementById('id_comment').value = comment;
-    if (document.getElementById('id_reminder_at')) document.getElementById('id_reminder_at').value = rawReminder;
-
-    // Передаем ID закладки в выпадающий список формы Django
-    if (document.getElementById('id_bookmark')) document.getElementById('id_bookmark').value = bookmarkId;
-
-    // ИСПРАВЛЕНО: Передаем текущий статус задачи в выпадающий список Django-формы по ID 'id_flag'
-    if (document.getElementById('id_flag')) document.getElementById('id_flag').value = currentStatusFlag;
-}
-
-// Функция 2: Сохранение изменений
-export function saveTaskChanges(event) {
-    event.preventDefault(); // Обязательно: останавливаем стандартную отправку формы
-
-    const taskId = document.getElementById('edit-task-id')?.value;
-    const form = document.getElementById('edit-task-form');
-
-    if (!taskId || !form) {
-        console.error('Не найдены ID задачи или форма');
-        return;
-    }
-
-    // 1. Получаем значение названия напрямую, чтобы сделать свою валидацию
-    const titleInput = document.getElementById('id_title');
-    const newTitle = titleInput ? titleInput.value.trim() : "";
-
-    if (!newTitle) {
-        alert("Наименование задачи не может быть пустым!");
-        titleInput.focus();
-        return; // Прерываем, ничего не отправляем
-    }
-
-    // 2. Собираем данные через FormData (это правильно для Django форм)
-    const formData = new FormData(form);
-    formData.set('id', taskId); // Явно гарантируем передачу 'id'
-    formData.set('title', newTitle); // Явно гарантируем передачу 'title'
-
-    // Функция для получения CSRF токена
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-
-    // 3. Отправляем запрос
-    fetch('/daily/task/update-api/', {
-        method: 'POST',
-        body: formData, // Отправляем FormData, НЕ JSON
+    // 3. Делаем прямой AJAX-запрос к вашему новому методу GET в Django (Вместо HTMX)
+    fetch(`/daily/task/edit-modal/${taskId}/`, {
+        method: 'GET',
         headers: {
-            'X-CSRFToken': getCookie('csrftoken')
-            // ВАЖНО: НЕ ставь здесь 'Content-Type: application/json'!
-            // Браузер сам поставит правильный Content-Type (multipart/form-data) для FormData
+            'X-Requested-With': 'XMLHttpRequest'
         }
     })
     .then(response => {
-        if (!response.ok) throw new Error('Ошибка сервера');
-        return response.json();
+        if (!response.ok) throw new Error('Не удалось загрузить форму с сервера.');
+        return response.text(); // Получаем чистый HTML от Django формы
     })
-    .then(data => {
-        console.log('Успех:', data);
-        const row = document.getElementById(`task-row-${taskId}`);
+    .then(htmlMarkup => {
+        // Вставляем готовую, заполненную сервером форму внутрь модалки
+        modalBody.innerHTML = htmlMarkup;
 
-        if (row) {
-            // 1. Наименование задачи
-            const titleCell = row.querySelector('.editable-task-name');
-            if (titleCell) {
-                titleCell.innerText = data.task.title || '';
-            }
+        // Включаем предохранитель полей периода
+        const reminderInput = document.getElementById('id_reminder_at');
+        const unitSelect = document.getElementById('id_periodicity_1');
+        const valueInput = document.getElementById('id_periodicity_0');
 
-            // 2. Комментарий задачи
-            const commentCell = row.querySelector('.editable-task-comment');
-            if (commentCell) {
-                if (data.task.comment && data.task.comment.trim() !== '') {
-                    commentCell.innerText = data.task.comment;
-                    commentCell.classList.remove('text-muted');
-                } else {
-                    commentCell.classList.add('text-muted');
-                    commentCell.innerHTML = '<i class="bi bi-pencil add-comment-icon text-secondary" title="Добавить"></i>';
-                }
-            }
-
-            // 3. Напоминание даты и времени
-            const reminderCell = row.querySelector('.task-reminder-cell');
-            if (reminderCell) {
-                if (data.task.reminder_at) {
-                    // Безопасный парсинг даты ISO из Django
-                    const dateObj = new Date(data.task.reminder_at);
-
-                    if (!isNaN(dateObj.getTime())) { // Проверяем, что дата распарсилась корректно
-                        const formattedDate = dateObj.toLocaleString('ru-RU', {
-                            day: '2-digit', month: '2-digit', year: 'numeric',
-                            hour: '2-digit', minute: '2-digit'
-                        }).replace(',', ''); // Убираем возможную запятую между датой и временем
-
-                        reminderCell.innerHTML = `
-                            <input type="hidden" class="raw-reminder-date" value="${data.task.reminder_at}">
-                            <span class="d-inline-flex align-items-center gap-1 text-warning">
-                                <i class="bi bi-bell-fill"></i> ${formattedDate}
-                            </span>`.trim();
-                    }
-                } else {
-                    reminderCell.innerHTML = `
-                        <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
-                            <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить"></i>
-                        </span>`.trim();
-                }
-            }
-
-            // 4. Статус задачи (Полностью синхронизирован с ТЗ и Django-шаблоном)
-            const statusCell = row.querySelector('.task-status-cell');
-            if (statusCell) {
-                const statusCode = data.task.status;
-                const statusText = data.task.status_display || '';
-
-                const statusConfig = {
-                    0: { bg: 'bg-success text-white', icon: 'bi-plus-circle-fill', title: 'Создана' },
-                    1: { bg: 'bg-warning text-dark', icon: 'bi-gear-fill', title: 'В работе' },
-                    2: { bg: 'bg-secondary text-white', icon: 'bi-check-circle-fill', title: 'Выполнена' },
-                    3: { bg: 'bg-danger text-white', icon: 'bi-exclamation-triangle-fill', title: 'Дедлайн' }
-                };
-
-                // Корректная проверка: ищем ключ в объекте, если его нет (undefined) — берем статус 0
-                const config = (statusCode in statusConfig) ? statusConfig[statusCode] : statusConfig[0];
-
-                statusCell.innerHTML = `
-                    <span class="badge rounded-pill ${config.bg} px-2 py-1 d-inline-flex align-items-center gap-1" title="${config.title}">
-                        <i class="bi ${config.icon}"></i> ${statusText}
-                    </span>
-                `.trim();
-            }
-
-            // 5. Проверка изменения закладки (если задачу перенесли в другую закладку, удаляем строку)
-            const currentBookmarkElement = document.querySelector('.editable-bookmark-name');
-            const currentBookmarkId = currentBookmarkElement ? currentBookmarkElement.getAttribute('data-id') : "";
-
-            if (data.task.bookmark_id && currentBookmarkId && String(data.task.bookmark_id) !== String(currentBookmarkId)) {
-                row.remove();
-            }
+        // Если у задачи уже есть периодичность (не 'none'), разблокируем поля
+        if (unitSelect && unitSelect.value && unitSelect.value !== 'none') {
+            if (valueInput) valueInput.disabled = false;
+            unitSelect.disabled = false;
+        } else if (reminderInput && typeof window.handleFieldsToggle === 'function') {
+            // Иначе проверяем по дате напоминания
+            window.handleFieldsToggle(reminderInput);
         }
 
-        // --- СБРОС ВЫДЕЛЕНИЙ ---
-        const taskCheckbox = document.querySelector(`.task-checkbox[data-id="${taskId}"]`);
-        if (taskCheckbox) taskCheckbox.checked = false;
-
-        const selectAllCheckbox = document.getElementById('select-all-tasks');
-        if (selectAllCheckbox) selectAllCheckbox.checked = false;
-
-        document.getElementById('btn-delete-selected')?.classList.add('d-none');
-        document.getElementById('btn-edit-selected')?.classList.add('d-none');
-
-        const selectedCountSpan = document.getElementById('selected-count');
-        if (selectedCountSpan) selectedCountSpan.textContent = '0';
-
-        // Закрываем модалку
-        const modalElement = document.getElementById('editTaskModal');
-        if (modalElement) {
-            const modalInstance = bootstrap.Modal.getInstance(modalElement);
-            if (modalInstance) modalInstance.hide();
+        // Добавляем слушатель изменения селекта единиц времени для разблокировки поля количества
+        if (unitSelect && valueInput) {
+            unitSelect.addEventListener('change', function() {
+                if (this.value !== 'none') {
+                    valueInput.disabled = false;
+                } else {
+                    valueInput.value = '';
+                    valueInput.disabled = true;
+                }
+            });
         }
     })
     .catch(error => {
-        console.error('Ошибка:', error);
-        alert('Произошла ошибка при сохранении. Проверьте консоль.');
+        console.error('Ошибка загрузки модального окна:', error);
+        modalBody.innerHTML = `<div class="text-danger small text-center my-3">⚠️ Ошибка загрузки: ${error.message}</div>`;
+    });
+}
+
+// Функция 2: Срабатывает при отправке формы (кнопка "Сохранить изменения").
+export function saveTaskChanges(event) {
+    event.preventDefault(); // Предотвращаем стандартную перезагрузку страницы браузером
+
+    const taskId = document.getElementById('edit-task-id')?.value;
+    if (!taskId) {
+        alert('Не удалось определить ID редактируемой задачи.');
+        return;
+    }
+
+    // Находим инпуты на форме модального окна
+    const titleInput = document.getElementById('id_title');
+    const commentInput = document.getElementById('id_comment');
+    const reminderInput = document.getElementById('id_reminder_at');
+    const bookmarkSelect = document.getElementById('id_bookmark');
+
+    // ИСПРАВЛЕНО: новые ID полей периодичности в соответствии с формой Django
+    const periodValueInput = document.getElementById('id_periodicity_0');
+    const periodUnitSelect = document.getElementById('id_periodicity_1');
+
+    // Принудительно включаем инпуты перед отправкой, чтобы FormData их прочитал
+    if (periodValueInput) periodValueInput.disabled = false;
+    if (periodUnitSelect) periodUnitSelect.disabled = false;
+
+    // Сбор данных в FormData
+    const formData = new FormData();
+    formData.append('id', taskId);
+    if (titleInput) formData.append('title', titleInput.value.trim());
+    if (commentInput) formData.append('comment', commentInput.value.trim());
+    if (reminderInput) formData.append('reminder_at', reminderInput.value.trim());
+    if (bookmarkSelect) formData.append('bookmark', bookmarkSelect.value);
+
+    // Передаем новые ключи полей, которые ожидает бэкенд во views.py
+    const unitValue = periodUnitSelect ? periodUnitSelect.value : 'none';
+    const numValue = periodValueInput ? periodValueInput.value.trim() : '';
+    formData.append('periodicity_value', unitValue === 'none' ? '' : numValue);
+    formData.append('periodicity_unit', unitValue);
+
+    // Отправка POST-запроса на бэкенд контроллера TaskUpdateView
+    fetch('/daily/task/update/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Ошибка при сохранении изменений на сервере.');
+        return response.json();
+    })
+    .then(data => {
+        if (data.status === 'success' || data.success === true) {
+            const row = document.getElementById(`task-row-${taskId}`);
+            if (row) {
+                // 1. Обновляем текст наименования
+                const nameSpan = row.querySelector('.editable-task-name');
+                if (nameSpan && data.task) nameSpan.textContent = data.task.title;
+
+                // 2. Обновляем текст комментария
+                const commCell = row.querySelector('.editable-task-comment');
+                if (commCell && data.task) {
+                    if (data.task.comment) {
+                        commCell.textContent = data.task.comment;
+                        commCell.classList.remove('text-muted');
+                    } else {
+                        commCell.innerHTML = '<i class="bi bi-pencil add-comment-icon text-secondary" style="cursor: pointer;" title="Добавить комментарий"></i>';
+                    }
+                }
+
+                // 3. Обновляем ячейку времени напоминания и её скрытый инпут
+                const reminderCell = row.querySelector('.task-reminder-cell');
+                if (reminderCell && data.task) {
+                    const hiddenDate = reminderCell.querySelector('.raw-reminder-date');
+                    if (hiddenDate) hiddenDate.value = data.task.reminder_at ? data.task.reminder_at.substring(0, 16) : "";
+
+                    const displaySpan = reminderCell.querySelector('span');
+                    if (displaySpan) {
+                        if (data.task.reminder_at) {
+                            const dateObj = new Date(data.task.reminder_at);
+                            const formattedDate = dateObj.toLocaleDateString('ru-RU') + ' ' + dateObj.toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'});
+                            displaySpan.className = "d-inline-flex align-items-center gap-1 text-warning";
+                            displaySpan.innerHTML = `<i class="bi bi-bell-fill"></i> ${formattedDate}`;
+                        } else {
+                            reminderCell.innerHTML = `
+                                <input type="hidden" class="raw-reminder-date" value="">
+                                <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                                    <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить"></i>
+                                </span>
+                            `.trim();
+                        }
+                    }
+                }
+
+                // 4. Обновляем новые data-атрибуты ячейки периодичности в таблице
+                const periodicityCell = row.querySelector('.task-periodicity-cell');
+                if (periodicityCell && data.task) {
+                    periodicityCell.setAttribute('data-value', data.task.periodicity_value);
+                    periodicityCell.setAttribute('data-unit', data.task.periodicity_unit);
+
+                    const triggerDiv = periodicityCell.querySelector('.inline-periodicity-trigger');
+                    if (triggerDiv) {
+                        if (data.task.periodicity_unit !== 'none' && data.task.periodicity_value) {
+                            triggerDiv.innerHTML = `
+                                <i class="bi bi-arrow-repeat me-1 text-warning"></i>
+                                <span class="period-text">${data.task.periodicity_display}</span>
+                            `.trim();
+                        } else {
+                            triggerDiv.innerHTML = '<i class="bi bi-arrow-repeat text-muted"></i>';
+                        }
+                    }
+                }
+
+                // 5. Автоматическое обновление бейджа статуса строки задачи
+                if (data.task && typeof updateRowStatusBadge === 'function') {
+                    updateRowStatusBadge(taskId, data.task.status_display);
+                }
+            }
+
+            // Закрываем модальное окно Bootstrap
+            const modalElement = document.getElementById('editTaskModal');
+            if (modalElement) {
+                const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                modalInstance?.hide();
+            }
+
+            // Отправляем событие для снятия галочек с чекбоксов
+            document.dispatchEvent(new Event('taskUpdated'));
+        } else {
+            alert('Ошибка при сохранении: ' + (data.error || 'Неизвестный сбой на бэкенде.'));
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка при отправке изменений формы задачи:', error);
+        alert('Критическая ошибка сохранения. Подробности выведены в консоль браузера.');
     });
 }

@@ -7,7 +7,7 @@ class Bookmark(models.Model):
     Модель для закладки.
     Используется для консолидации задач по определенному смысловому признаку.
     Attributes:
-        name (str): Уникальное или смысловое наименование закладки.
+        title (str): Уникальное или смысловое наименование закладки.
         description (str): Подробное описание назначения данной закладки.
     """
 
@@ -55,6 +55,7 @@ class Task(models.Model):
         title (str): Наименование задачи или контрагента (Столбец B).
         created_at (datetime): Дата и время автоматического создания записи (Столбец C).
         reminder_at (datetime, optional): Дата и время напоминания (Столбец D).
+        periodicity (timedelta): Периодичность повторения задачи.
         comment (str, optional): Дополнительный текстовый комментарий к задаче (Столбец E).
         status_flag (int): Числовой признак для внутренней логики управления (Столбец F).
         bookmark (Bookmark): Ссылка на объект закладки, к которой привязана задача.
@@ -68,22 +69,45 @@ class Task(models.Model):
         COMPLETED = 2, "Выполнена"
         OVERDUE = 3, "Просрочена"
 
-    # Столбец B: Наименование контрагента/задачи
+    # Наименование контрагента/задачи
     title = models.CharField(max_length=255, verbose_name="Наименование")
 
-    # Столбец C: Время создания
+    # Время создания
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Время создания")
 
-    # Столбец D: Время напоминания (разрешаем null для строк со звездочкой)
+    # Время напоминания (разрешаем null для строк со звездочкой)
     # db_index=True добавлен для быстрого поиска задач, по которым нужно отправить пуш
     reminder_at = models.DateTimeField(
         null=True, blank=True, db_index=True, verbose_name="Время напоминания"
     )
 
-    # Столбец E: Комментарий к задаче
+    # Количественное значение периода
+    periodicity_value = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Значение периода"
+    )
+
+    # Показатель периода
+    periodicity_unit = models.CharField(
+        max_length=10,
+        default='none',
+        choices=[
+            ('none', 'Не повторять'),
+            ('minutes', 'мин'),
+            ('hours', 'ЧЧ'),
+            ('days', 'ДД'),
+            ('weeks', 'Н'),
+            ('months', 'ММ'),
+            ('years', 'ГГ'),
+        ],
+        verbose_name="Единица времени"
+    )
+
+    # Комментарий к задаче
     comment = models.TextField(null=True, blank=True, verbose_name="Комментарий")
 
-    # Столбец F: Признак для логики управления данными (по умолчанию 0)
+    # Признак для логики управления данными (по умолчанию 0)
     status_flag = models.IntegerField(
         default=StatusChoices.CREATED,
         choices=StatusChoices.choices,
@@ -112,6 +136,20 @@ class Task(models.Model):
         default=False,
         verbose_name="Уведомление отправлено",
         help_text="Флаг контроля, чтобы не отправлять пуш повторно",
+    )
+
+    # Точное время изменения статуса фоновым роботом
+    status_changed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Время изменения статуса"
+    )
+
+    # Хранит технический отчет (например, "Имитация отправки выполнена в 22:00")
+    execution_log = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name="Технический лог выполнения"
     )
 
     class Meta:

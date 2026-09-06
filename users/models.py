@@ -10,8 +10,15 @@
 """
 
 from django.contrib.auth.models import AbstractUser
-from phonenumber_field.modelfields import PhoneNumberField
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from phonenumber_field.modelfields import PhoneNumberField
+
+
+def validate_telegram_id(value):
+    """Дополнительная проверка: Telegram ID не может быть равен 0."""
+    if value == 0:
+        raise ValidationError("Telegram ID не может быть равен 0.")
 
 
 class CustomUser(AbstractUser):
@@ -34,6 +41,20 @@ class CustomUser(AbstractUser):
         upload_to="avatars",
         verbose_name="Аватар",
         help_text="Загрузите аватар",
+    )
+
+    tg_chat_id = models.BigIntegerField(
+        blank=True,
+        null=True,
+        verbose_name="ID Telegram",
+        help_text="Введите ID чата Телеграм",
+        validators=[
+            # Ограничения по диапазону чисел для PostgreSQL BigIntegerField
+            MinValueValidator(-9223372036854775808, message="Слишком маленькое или некорректное число."),
+            MaxValueValidator(9223372036854775807, message="Введен слишком длинный ID."),
+            # Кастомная функция, чтобы отсечь ноль
+            validate_telegram_id
+        ]
     )
 
     USERNAME_FIELD = "username"  # Поле для входа (логин)

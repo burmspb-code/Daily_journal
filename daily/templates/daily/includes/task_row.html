@@ -1,0 +1,135 @@
+<tr id="task-row-{{ task.id }}" data-id="{{ task.id }}">
+    <td class="ps-4">
+        <input class="form-check-input task-checkbox" type="checkbox" data-id="{{ task.id }}"
+               aria-label="Выбрать задачу">
+    </td>
+    <td>{{ row_number }}</td>
+
+    <td class="task-name-cell align-middle fw-semibold"
+        onclick="this.querySelector('.editable-task-name').focus()">
+    <span class="editable-task-name d-inline-block" contenteditable="true"
+          data-id="{{ task.id }}" style="cursor: text; min-height: 24px;">
+        {{ task.title }}
+    </span>
+    </td>
+
+    <td>{{ task.created_at|date:"d.m.Y H:i" }}</td>
+
+    <td class="task-reminder-cell align-middle text-nowrap small" data-id="{{ task.id }}">
+        {% if task.reminder_at %}
+            <input type="hidden"
+                   class="raw-reminder-date"
+                   value="{{ task.reminder_at|date:'Y-m-d\TH:i' }}">
+
+            <span class="d-inline-flex align-items-center gap-1 text-warning">
+                <i class="bi bi-bell-fill"></i> {{ task.reminder_at|date:"d.m.Y H:i" }}
+            </span>
+        {% else %}
+            <input type="hidden" class="raw-reminder-date" value="">
+
+            <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить"></i>
+            </span>
+        {% endif %}
+    </td>
+
+    <!-- Ячейка для периодичности с поддержкой инлайн-редактирования -->
+    <td class="text-nowrap text-muted small task-periodicity-cell dropdown position-relative"
+        data-id="{{ task.id }}"
+        data-value="{% if task.periodicity_value %}{{ task.periodicity_value }}{% else %}{% endif %}"
+        data-unit="{{ task.periodicity_unit }}">
+
+        <!-- Триггер для открытия меню (область клика) -->
+        <div class="inline-periodicity-trigger d-inline-block cursor-pointer"
+             data-bs-toggle="dropdown"
+             data-bs-auto-close="outside"
+             aria-expanded="false"
+             style="cursor: pointer;">
+            {% if task.periodicity_value and task.periodicity_unit != 'none' %}
+                <i class="bi bi-arrow-repeat me-1 text-warning"></i>
+                <span class="period-text">{{ task.periodicity_value }} {{ task.get_periodicity_unit_display }}</span>
+            {% else %}
+                <i class="bi bi-arrow-repeat text-muted"></i>
+            {% endif %}
+        </div>
+
+        <!-- Всплывающее мини-окно Bootstrap Dropdown -->
+        <div class="dropdown-menu p-3 shadow-lg border" style="min-width: 260px; z-index: 1050;">
+            <div class="mb-2 text-center border-bottom pb-2">
+                <strong class="text-dark small">Повторение задачи</strong>
+            </div>
+
+            <div class="mb-3">
+                <div class="input-group input-group-sm">
+                    <!-- Скрытый лейбл для валидатора и доступности числового инпута -->
+                    <label for="inline_period_value_{{ task.id }}" class="visually-hidden">Период</label>
+                    <!-- Поле ввода значения (Уникальные id и name для валидности разметки) -->
+                    <input type="number"
+                           id="inline_period_value_{{ task.id }}"
+                           name="inline_period_value_{{ task.id }}"
+                           class="form-control inline-period-value"
+                           min="1"
+                           placeholder="Период"
+                           style="max-width: 80px;">
+
+                    <!-- Скрытый лейбл для валидатора и доступности селекта -->
+                    <label for="inline_period_unit_{{ task.id }}" class="visually-hidden">Единица времени</label>
+                    <!-- Селект выбора единицы времени (Уникальные id и name для валидности разметки) -->
+                    <select id="inline_period_unit_{{ task.id }}"
+                            name="inline_period_unit_{{ task.id }}"
+                            class="form-select inline-period-unit">
+                        <option value="none">Нет</option>
+                        <option value="minutes">мин</option>
+                        <option value="hours">ЧЧ</option>
+                        <option value="days">ДД</option>
+                        <option value="weeks">Н</option>
+                        <option value="months">ММ</option>
+                        <option value="years">ГГ</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Кнопки управления -->
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary w-100 btn-inline-period-cancel">Отмена</button>
+                <button type="button" class="btn btn-sm btn-primary w-100 btn-inline-period-save">ОК</button>
+            </div>
+        </div>
+    </td>
+
+
+    <td class="task-comment-cell align-middle"
+        onclick="this.querySelector('.editable-task-comment').focus()">
+        <span class="editable-task-comment text-muted small d-inline-block" contenteditable="true"
+          data-id="{{ task.id }}" style="cursor: text; min-height: 24px;">
+            {% if task.comment %}{{ task.comment }}{% else %}
+            <i class="bi bi-pencil add-comment-icon text-secondary fs-6" title="Добавить"></i>
+            {% endif %}
+        </span>
+    </td>
+
+    <td class="text-center task-status-cell" style="cursor: pointer;">
+        {% if task.status_flag == 0 %}
+            <!-- Добавлены: justify-content-center (центр) и fs-6 (крупнее) -->
+            <span class="badge bg-transparent text-success p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
+                  title="Создана" data-status="{{ task.status_flag }}">
+                <i class="bi bi-file-earmark-plus"></i> Создана
+            </span>
+        {% elif task.status_flag == 1 %}
+            <span class="badge bg-transparent text-warning p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
+                  title="В работе" data-status="{{ task.status_flag }}">
+                <i class="bi bi-gear"></i> В работе
+            </span>
+        {% elif task.status_flag == 2 %}
+            <span class="badge bg-transparent text-secondary p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
+                  title="Выполнена" data-status="{{ task.status_flag }}">
+                <i class="bi bi-check2-circle"></i> Выполнена
+            </span>
+        {% elif task.status_flag == 3 %}
+            <span class="badge bg-transparent text-danger p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
+                  title="Дедлайн" data-status="{{ task.status_flag }}">
+                <i class="bi bi-clock-history"></i> Дедлайн
+            </span>
+        {% endif %}
+    </td>
+</tr>
