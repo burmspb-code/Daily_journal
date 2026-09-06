@@ -79,17 +79,41 @@ export function saveInlineTask(title, bookmarkId, rowNumber) {
         body: JSON.stringify({ title: title, bookmark_id: bookmarkId, row_number: rowNumber })
     })
     .then(response => {
-        if (!response.ok) throw new Error();
-        return response.text();
+        // Проверяем Content-Type ответа
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return response.json().then(data => ({ isJson: true, data }));
+        }
+        return response.text().then(html => ({ isJson: false, html }));
     })
-    .then(html => {
-        const tempRow = document.getElementById('temporary-creation-row');
-        if (!tempRow) return;
+    .then(result => {
+        if (result.isJson) {
+            // Обработка JSON-ответа (ошибка лимита)
+            if (result.data.status === 'limit_error') {
+                const limitErrorModal = document.getElementById('limitErrorModal');
+                const limitErrorBody = document.getElementById('limit-error-body');
+                if (limitErrorBody) {
+                    limitErrorBody.textContent = result.data.message;
+                }
+                if (limitErrorModal) {
+                    const modal = new bootstrap.Modal(limitErrorModal);
+                    modal.show();
+                }
+                const tempRow = document.getElementById('temporary-creation-row');
+                if (tempRow) tempRow.remove();
+                checkIfTableIsEmpty();
+            } else if (result.data.status === 'error') {
+                alert(result.data.message || "Не удалось сохранить задачу.");
+                if (input) { input.disabled = false; input.focus(); }
+            }
+        } else {
+            // Обработка HTML-ответа (успешное создание)
+            const tempRow = document.getElementById('temporary-creation-row');
+            if (!tempRow) return;
 
-        tempRow.outerHTML = html;
-
-        // Обновляем бейдж с количеством задач
-        updateTopTaskCounter(1);
+            tempRow.outerHTML = result.html;
+            updateTopTaskCounter(1);
+        }
     })
     .catch(() => {
         alert("Не удалось сохранить задачу.");

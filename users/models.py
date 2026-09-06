@@ -9,10 +9,13 @@
 через настройку AUTH_USER_MODEL в settings.py.
 """
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from phonenumber_field.modelfields import PhoneNumberField
+
+from .constants import TARIFF_LIMITS
 
 
 def validate_telegram_id(value):
@@ -70,3 +73,75 @@ class CustomUser(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.email})"
+
+
+class TariffPlans(models.Model):
+    """Тарифные планы для пользователей."""
+
+    class TariffNameChoices(models.TextChoices):
+        BASE = "BASE", "Базовый"
+        STANDARD = "STANDARD", "Стандартный"
+        PREMIUM = "PREMIUM", "Премиум"
+
+    plan_name = models.CharField(
+        max_length=15,
+        default=TariffNameChoices.BASE,
+        choices=TariffNameChoices.choices,
+        verbose_name="Тарифный план",
+    )
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        blank=False,
+        on_delete=models.CASCADE,
+        related_name="tariff_plan",
+        verbose_name="Пользователь",
+    )
+
+    expires_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="Дата окончания подписки",
+    )
+
+    max_tasks = models.PositiveIntegerField(
+        blank=True,
+        default=50,
+        verbose_name="Макс. количество задач на ОДНУ закладку"
+    )
+
+    max_bookmarks = models.PositiveIntegerField(
+        blank=True,
+        default=5,
+        verbose_name="Максимальное количество закладок"
+    )
+
+    is_archive = models.BooleanField(
+        default=False,
+        verbose_name="Флаг архивной подписки"
+    )
+
+    def save(self, *args, **kwargs):
+        """Динамически задаем максимальные значения для задач и закладок."""
+
+        tariff_limits = TARIFF_LIMITS.get(self.plan_name, TARIFF_LIMITS.get("BASE"))
+
+        self.max_tasks = tariff_limits.get("MAX_TASKS", 50)
+        self.max_bookmarks = tariff_limits.get("MAX_BOOKMARKS", 5)
+
+        if self.user and self.user.is_superuser:
+            self.max_tasks = 500
+            self.max_bookmarks = 50
+
+        super().save(*args, **kwargs)
+
+
+    class Meta:
+        """Класс метаданных."""
+
+        verbose_name = "Тарифный план"
+        verbose_name_plural = "Тарифные планы"
+
+
+    def __str__(self):
+        return f"{self.user.username} {self.get_plan_name_display()}"

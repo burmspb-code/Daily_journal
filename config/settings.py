@@ -48,7 +48,8 @@ INSTALLED_APPS = [
     "django_celery_beat",
 
     "daily",
-    "users",
+    # Явно указываем конфигурационный класс для корректного запуска ready()
+    "users.apps.UsersConfig",
 ]
 
 MIDDLEWARE = [

@@ -331,5 +331,57 @@ document.addEventListener('DOMContentLoaded', function () {
             stopStatusPolling();
         }
     });
+
+    // === УДАЛЕНИЕ ЗАКЛАДКИ ЧЕРЕЗ МОДАЛЬНОЕ ОКНО ===
+    const deleteBookmarkBtns = document.querySelectorAll('.delete-bookmark-btn');
+    const deleteModal = document.getElementById('deleteConfirmModal');
+    const deleteModalBody = document.getElementById('delete-modal-body');
+    const btnConfirmDelete = document.getElementById('btn-confirm-delete-action');
+
+    let bookmarkToDelete = null;
+    let bookmarkDeleteUrl = null;
+
+    deleteBookmarkBtns.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            bookmarkToDelete = this.getAttribute('data-bookmark-id');
+            bookmarkDeleteUrl = this.getAttribute('data-delete-url');
+
+            // Изменяем текст модального окна для закладки
+            deleteModalBody.innerHTML = 'Вы уверены, что хотите удалить эту закладку?';
+
+            // Показываем модальное окно
+            const modal = new bootstrap.Modal(deleteModal);
+            modal.show();
+        });
+    });
+
+    // Обработчик кнопки подтверждения удаления
+    if (btnConfirmDelete) {
+        btnConfirmDelete.addEventListener('click', function() {
+            if (bookmarkToDelete && bookmarkDeleteUrl) {
+                // Создаем форму и отправляем POST-запрос
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = bookmarkDeleteUrl;
+
+                const csrfToken = getCookie('csrftoken');
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrfmiddlewaretoken';
+                csrfInput.value = csrfToken;
+                form.appendChild(csrfInput);
+
+                const bookmarkIdInput = document.createElement('input');
+                bookmarkIdInput.type = 'hidden';
+                bookmarkIdInput.name = 'bookmark_id';
+                bookmarkIdInput.value = bookmarkToDelete;
+                form.appendChild(bookmarkIdInput);
+
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    }
 });
 

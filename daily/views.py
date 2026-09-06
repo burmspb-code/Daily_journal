@@ -2,13 +2,13 @@ import json
 import logging
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.messages.views import SuccessMessageMixin
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views import View
-from django.contrib.messages.views import SuccessMessageMixin
 from django.views.generic import ListView, CreateView, DeleteView
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
@@ -23,6 +23,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
+from users.models import TariffPlans
 from .forms import TaskEditForm, TaskForm, BookmarkForm
 from .models import Bookmark, Task
 from .paginators import TaskListAPIViewPagination
@@ -102,9 +103,19 @@ class TaskCreateView(LoginRequiredMixin, View):
     """
 
     def post(self, request, *args, **kwargs):
+        user = request.user
+
+        # СНАЧАЛА читаем и валидируем JSON из тела запроса
+        try:
+            json_data = json.loads(request.body)
+        except (json.JSONDecodeError, TypeError):
+            return JsonResponse(
+                {"status": "error", "message": "Некорректный JSON-формат"}, status=400
+            )
+
         # Проверяем наличие закладок у пользователя перед созданием задачи
         first_bookmark = (
-            Bookmark.objects.filter(owner=request.user).order_by("id").first()
+            Bookmark.objects.filter(owner=user).order_by("id").first()
         )
         if not first_bookmark:
             return JsonResponse(
@@ -115,18 +126,30 @@ class TaskCreateView(LoginRequiredMixin, View):
                 status=400,
             )
 
-        # Читаем и валидируем JSON из тела запроса
-        try:
-            json_data = json.loads(request.body)
-        except json.JSONDecodeError, TypeError:
-            return JsonResponse(
-                {"status": "error", "message": "Некорректный JSON-формат"}, status=400
-            )
-
-        # Собираем данные для формы. Если закладка не передана, берем первую доступную
+        # Определяем ID целевой закладки (из JSON или берем первую доступную)
         bookmark_id = json_data.get("bookmark_id") or first_bookmark.id
         row_number = json_data.get("row_number", 1)
 
+        # ТЕПЕРЬ безопасно ищем текущую закладку
+        current_bookmark = get_object_or_404(Bookmark, id=bookmark_id, owner=user)
+
+        # Проверяем количество задач именно на этой закладке
+        tasks_count = current_bookmark.tasks.all().count()
+
+        try:
+            tasks_limit = user.tariff_plan.max_tasks
+        except TariffPlans.DoesNotExist:
+            tasks_limit = 5
+
+        if tasks_count >= tasks_limit:
+            return JsonResponse(
+                {
+                    "status": "limit_error",
+                    "message": f"Превышен лимит задач для текущей закладки (макс. {tasks_limit})."
+                }
+            )
+
+        # Собираем данные для формы
         form_data = {
             "title": str(json_data.get("title", "")).strip(),
             "bookmark": bookmark_id,
@@ -421,12 +444,33 @@ class BookmarkCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         """
-        После успешного заполнения формы создания закладки добавляем
-        в форму авторизованного пользователя вручную, т.к. данное поле
-        отсутствует в форме.
+        После успешного заполнения формы создания закладки проверяем лимиты тарифа.
+        Если лимит не превышен, добавляем в форму авторизованного пользователя
+        вручную и сохраняем.
         """
-        # Привязываем к полю owner объект текущего авторизованного пользователя
-        form.instance.owner = self.request.user
+        user = self.request.user
+
+        # Проверяем количество текущих закладок пользователя
+        bookmark_count = Bookmark.objects.filter(owner=user).count()
+
+        # Безопасно получаем лимит из тарифного плана пользователя
+        try:
+            bookmarks_limit = user.tariff_plan.max_bookmarks
+        except TariffPlans.DoesNotExist:
+            bookmarks_limit = 5  # Безопасный дефолт
+
+        # Если лимит достигнут или превышен, прерываем сохранение
+        if bookmark_count >= bookmarks_limit:
+            # Добавляем общую ошибку в форму (отобразится в шаблоне над полями)
+            form.add_error(
+                None,
+                f"Превышен лимит закладок для вашего тарифа (макс. {bookmarks_limit})."
+            )
+            # Возвращаем форму обратно пользователю с заполненными полями и ошибкой
+            return self.form_invalid(form)
+
+        # Если всё в порядке, привязываем объект текущего пользователя к полю owner
+        form.instance.owner = user
 
         # Запускаем стандартный процесс сохранения формы Django
         return super().form_valid(form)

@@ -43,13 +43,33 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
                         aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" id="delete-modal-body">
                 Вы уверены, что хотите удалить выбранные задачи (<span id="delete-count-span">1</span> шт.)?
             </div>
 
             <div class="modal-footer border-secondary justify-content-end gap-2">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                 <button type="button" class="btn btn-danger" id="btn-confirm-delete-action">ОК</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно ошибки лимита задач -->
+<div class="modal fade" id="limitErrorModal" tabindex="-1" aria-labelledby="limitErrorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="limitErrorModalLabel">Превышен лимит</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="limit-error-body">
+                Превышен лимит задач для текущей закладки.
+            </div>
+
+            <div class="modal-footer border-secondary justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
             </div>
         </div>
     </div>

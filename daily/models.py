@@ -40,10 +40,6 @@ class Bookmark(models.Model):
         return self.title
 
 
-from django.db import models
-from django.conf import settings
-
-
 class Task(models.Model):
     """
     Модель для представления задачи.
