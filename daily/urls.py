@@ -6,17 +6,17 @@ from django.urls import path
 
 from .apps import DailyConfig
 from .views import (
-    TaskUpdateView,
-    UpdateTaskPeriodicityView,
-    TaskDeleteView,
     BookmarkCreateView,
-    TaskCreateView,
-    TaskListView,
-    BookmarkUpdateWebResponseView,
-    TaskListAPIView,
+    BookmarkDeleteView,
     BookmarkListCreateAPIView,
     BookmarkUpdateExternalApiView,
-    BookmarkDeleteView,
+    BookmarkUpdateWebResponseView,
+    TaskCreateView,
+    TaskDeleteView,
+    TaskListAPIView,
+    TaskListView,
+    TaskUpdateView,
+    UpdateTaskPeriodicityView,
 )
 
 app_name = DailyConfig.name

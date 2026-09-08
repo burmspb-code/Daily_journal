@@ -1,11 +1,9 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from django import forms
-
-from users.models import CustomUser, TariffPlans
 
 # Импортируем именно админские формы
 from users.forms import CustomUserAdminCreationForm, CustomUserChangeForm
+from users.models import CustomUser, TariffPlans
 
 
 class TariffPlansInline(admin.StackedInline):

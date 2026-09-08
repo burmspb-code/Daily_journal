@@ -9,9 +9,12 @@
 через настройку AUTH_USER_MODEL в settings.py.
 """
 
+from typing import ClassVar
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from phonenumber_field.modelfields import PhoneNumberField
 
@@ -61,7 +64,7 @@ class CustomUser(AbstractUser):
     )
 
     USERNAME_FIELD = "username"  # Поле для входа (логин)
-    REQUIRED_FIELDS = [
+    REQUIRED_FIELDS: ClassVar[list[str]] = [
         "email"
     ]  # Что еще спросить при createsuperuser (кроме USERNAME_FIELD и пароля)
 
@@ -121,6 +124,15 @@ class TariffPlans(models.Model):
         verbose_name="Флаг архивной подписки"
     )
 
+    class Meta:
+        """Класс метаданных."""
+
+        verbose_name = "Тарифный план"
+        verbose_name_plural = "Тарифные планы"
+
+    def __str__(self):
+        return f"{self.user.username} {self.get_plan_name_display()}"
+
     def save(self, *args, **kwargs):
         """Динамически задаем максимальные значения для задач и закладок."""
 
@@ -136,12 +148,3 @@ class TariffPlans(models.Model):
         super().save(*args, **kwargs)
 
 
-    class Meta:
-        """Класс метаданных."""
-
-        verbose_name = "Тарифный план"
-        verbose_name_plural = "Тарифные планы"
-
-
-    def __str__(self):
-        return f"{self.user.username} {self.get_plan_name_display()}"

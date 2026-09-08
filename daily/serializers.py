@@ -1,9 +1,11 @@
 """
 Сериализаторы основного приложения (daily) для Django REST Framework.
 """
+from typing import ClassVar
 
 from rest_framework import serializers
-from .models import Task, Bookmark
+
+from .models import Bookmark, Task
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -14,7 +16,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Task
-        fields = [
+        fields = (
             "id",
             "title",
             "created_at",
@@ -26,7 +28,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "periodicity_unit",
             "bookmark_title",
             "owner_username",
-        ]
+        )
 
 
 class BookmarkSerializer(serializers.ModelSerializer):
@@ -35,13 +37,13 @@ class BookmarkSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     # Говорим DRF, что owner не нужно требовать на вход и валидировать от клиента
-    extra_kwargs = {"owner": {"read_only": True}}
+    extra_kwargs: ClassVar[dict] = {"owner": {"read_only": True}}
 
 
 class BookmarkUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bookmark
-        fields = ["id", "title", "description"]
+        fields = ("id", "title", "description")
 
     def validate_title(self, value):
         if value and not value.strip():

@@ -1,5 +1,7 @@
 import logging
+
 from celery import shared_task
+
 from daily.services import ReminderNotificationService
 
 # Настраиваем системный логгер для вывода сообщений в консоль Docker
@@ -38,5 +40,5 @@ def check_daily_reminders() -> str:
     except Exception as e:
         # Перехватываем любую ошибку, чтобы Celery Worker не упал,
         # логируем её и пробрасываем дальше для фиксации сбоя в системе
-        logger.error(f"❌ Критическая ошибка в планировщике Celery: {str(e)}", exc_info=True)
+        logger.error(f"❌ Критическая ошибка в планировщике Celery: {e!s}", exc_info=True)
         raise e

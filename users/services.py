@@ -6,13 +6,15 @@
 а также валидации одноразовых токенов активации.
 """
 
+from typing import Callable
+
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import transaction
+from django.http import HttpRequest
 from django.urls import reverse
-from django.utils.encoding import force_bytes
-from django.utils.encoding import force_str
+from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
 from users.models import CustomUser
@@ -31,8 +33,8 @@ class InvalidActivationToken(Exception):
 
 
 def register_inactive_user(
-    request: HttpRequest, save_callback: Callable[[], User]
-) -> User:
+    request: HttpRequest, save_callback: Callable[[], CustomUser]
+) -> CustomUser:
     """Бизнес-логика регистрации неактивного пользователя и отправки email.
 
     Args:
@@ -92,7 +94,7 @@ def activate_user_by_token(uidb64: str, token: str) -> CustomUser:
         OverflowError,
         CustomUser.DoesNotExist,
     ):  # Исправлен синтаксис
-        raise InvalidActivationToken("Неверный идентификатор пользователя.")
+        raise InvalidActivationToken("Неверный идентификатор пользователя.") from None
 
     if not default_token_generator.check_token(user, token):
         raise InvalidActivationToken(

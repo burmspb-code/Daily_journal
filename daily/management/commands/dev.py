@@ -1,6 +1,8 @@
 import subprocess
 import sys
+
 from django.core.management.base import BaseCommand
+
 
 class Command(BaseCommand):
     help = "Запуск Django и Celery одновременно для разработки"
@@ -13,7 +15,9 @@ class Command(BaseCommand):
 
         # Команда для запуска Celery (с флагом для Windows)
         celery_process = subprocess.Popen([
-            "celery", "-A", "config", "worker", "--loglevel=info", "-P", "threads"
+            sys.executable, "-m", "celery",
+            "-A", "config", "worker",
+            "--loglevel=info", "-P", "threads"
         ])
 
         try:

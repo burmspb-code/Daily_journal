@@ -8,11 +8,9 @@
 """
 
 from django import forms
-from django.contrib.auth.forms import UserCreationForm, UserChangeForm
-from django.db import models
+from django.contrib.auth.forms import UserChangeForm, UserCreationForm
 
 from users.models import CustomUser
-
 
 # Импортируем библиотеки для работы капчи
 # from django_recaptcha.fields import ReCaptchaField
@@ -89,7 +87,7 @@ class UserProfileForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         # Автоматически добавляем Bootstrap-класс ко всем полям
-        for field_name, field in self.fields.items():
+        for _field_name, field in self.fields.items():
             field.widget.attrs.update({"class": "form-control"})
 
         self.fields["phone_number"].widget.attrs.update({"autocomplete": "tel"})

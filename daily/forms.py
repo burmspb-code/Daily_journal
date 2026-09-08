@@ -1,7 +1,8 @@
+from typing import ClassVar
+
 from django import forms
 
-from .models import Bookmark
-from .models import Task
+from .models import Bookmark, Task
 
 
 class TaskForm(forms.ModelForm):
@@ -24,8 +25,8 @@ class TaskForm(forms.ModelForm):
         model = Task
         # Поля, доступные для редактирования: название, напоминание, комментарий, закладка.
         # Поле status_flag исключено намеренно, так как оно рассчитывается автоматически.
-        fields = ["title", "reminder_at", "comment", "bookmark"]
-        widgets = {
+        fields = ("title", "reminder_at", "comment", "bookmark")
+        widgets: ClassVar[dict] = {
             # Настройка виджета для поля напоминания: тип input='datetime-local'
             # позволяет использовать нативный календарь браузера.
             "reminder_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
@@ -62,17 +63,17 @@ class TaskEditForm(TaskForm):
 
     class Meta(TaskForm.Meta):
         # ИСПРАВЛЕНО: Заменили 'periodicity' на два новых чистых поля из модели Task
-        fields = [
+        fields = (
             "title",
             "reminder_at",
             "periodicity_value",
             "periodicity_unit",
             "comment",
             "bookmark"
-        ]
+        )
 
         # Переопределяем виджеты жестко на уровне мета-данных Django в фирменном темном стиле
-        widgets = {
+        widgets: ClassVar[dict] = {
             # Явно принуждаем Django использовать виджет даты и времени HTML5
             "reminder_at": forms.DateTimeInput(
                 format="%Y-%m-%dT%H:%M",
@@ -143,4 +144,4 @@ class BookmarkForm(forms.ModelForm):
 
         model = Bookmark
         # Поля формы: заголовок и описание
-        fields = ["title", "description"]
+        fields = ("title", "description")

@@ -34,7 +34,7 @@ class Bookmark(models.Model):
 
         verbose_name = "Закладка"
         verbose_name_plural = "Закладки"
-        ordering = ["title"]
+        ordering = ("title",)
 
     def __str__(self):
         return self.title
@@ -101,7 +101,7 @@ class Task(models.Model):
     )
 
     # Комментарий к задаче
-    comment = models.TextField(null=True, blank=True, verbose_name="Комментарий")
+    comment = models.TextField(blank=True, verbose_name="Комментарий")
 
     # Признак для логики управления данными (по умолчанию 0)
     status_flag = models.IntegerField(
@@ -143,7 +143,6 @@ class Task(models.Model):
 
     # Хранит технический отчет (например, "Имитация отправки выполнена в 22:00")
     execution_log = models.TextField(
-        null=True,
         blank=True,
         verbose_name="Технический лог выполнения"
     )
@@ -154,7 +153,7 @@ class Task(models.Model):
         db_table = "tasks"
         verbose_name = "Задача"
         verbose_name_plural = "Задачи"
-        ordering = ["id"]  # Оставьте, если жестко завязано на порядок Excel (Столбец A)
+        ordering = ("id", )  # Оставьте, если жестко завязано на порядок Excel (Столбец A)
 
     def __str__(self):
         return f"№{self.id} | {self.title} | Флаг: {self.get_status_flag_display()}"

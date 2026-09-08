@@ -1,22 +1,24 @@
 import json
 import logging
+from typing import ClassVar
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
-from django.http import JsonResponse
-from django.shortcuts import render, get_object_or_404
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views import View
-from django.views.generic import ListView, CreateView, DeleteView
+from django.views.generic import CreateView, DeleteView, ListView
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.authentication import SessionAuthentication
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import (
-    RetrieveUpdateDestroyAPIView,
-    ListCreateAPIView,
     ListAPIView,
+    ListCreateAPIView,
+    RetrieveUpdateDestroyAPIView,
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -24,10 +26,11 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from users.models import TariffPlans
-from .forms import TaskEditForm, TaskForm, BookmarkForm
+
+from .forms import BookmarkForm, TaskEditForm, TaskForm
 from .models import Bookmark, Task
 from .paginators import TaskListAPIViewPagination
-from .serializers import BookmarkUpdateSerializer, TaskSerializer, BookmarkSerializer
+from .serializers import BookmarkSerializer, BookmarkUpdateSerializer, TaskSerializer
 from .services import TaskService
 
 logger = logging.getLogger(__name__)
@@ -316,7 +319,9 @@ class TaskUpdateView(LoginRequiredMixin, View):
                     "bookmark_id": task.bookmark_id,
                     "periodicity_value": task.periodicity_value or "",
                     "periodicity_unit": task.periodicity_unit,
-                    "periodicity_display": f"{task.periodicity_value} {task.get_periodicity_unit_display()}" if task.periodicity_value and task.periodicity_unit != 'none' else ""
+                    "periodicity_display":
+                        f"{task.periodicity_value} {task.get_periodicity_unit_display()}"
+                        if task.periodicity_value and task.periodicity_unit != 'none' else ""
                 },
             }
         )
@@ -373,7 +378,7 @@ class UpdateTaskPeriodicityView(LoginRequiredMixin, View):
             )
         except Exception as e:
             return JsonResponse(
-                {"success": False, "error": f"Ошибка сервера: {str(e)}"}, status=500
+                {"success": False, "error": f"Ошибка сервера: {e!s}"}, status=500
             )
 
 
@@ -486,8 +491,8 @@ class BookmarkUpdateWebResponseView(APIView):
     Аутентификация по сессии браузера + обязательная CSRF-защита.
     """
 
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+    authentication_classes: ClassVar[list] = [
         SessionAuthentication
     ]  # Завязано на вошедшего в браузер юзера
 
@@ -537,9 +542,9 @@ class BookmarkDeleteView(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
         try:
             # Извлекаем объект напрямую по полученному ID
             obj = Bookmark.objects.get(id=bookmark_id)
-        except Bookmark.DoesNotExist:
+        except Bookmark.DoesNotExist as err:
             # Если объект не найден, отдаем стандартную 404 ошибку Django
-            raise Http404("Закладка не найдена.")
+            raise Http404("Закладка не найдена.") from err
 
         # Проверяем права владельца
         if obj.owner != self.request.user:
@@ -559,8 +564,8 @@ class TaskListAPIView(ListAPIView):
     """
 
     serializer_class = TaskSerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [SessionAuthentication]
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+    authentication_classes: ClassVar[list] = [SessionAuthentication]
     pagination_class = TaskListAPIViewPagination
 
     # Явно задаем queryset, чтобы заглушить предупреждение Swagger в консоли
@@ -568,7 +573,10 @@ class TaskListAPIView(ListAPIView):
 
     @extend_schema(
         summary="Получение списка задач с метаданными",
-        description="Возвращает массив задач текущего пользователя с учетом пагинации, а также метаданные фильтров и закладок.",
+        description=(
+                "Возвращает массив задач текущего пользователя с учетом пагинации, "
+                "а также метаданные фильтров и закладок."
+        ),
         responses={
             200: inline_serializer(
                 name="TaskListWithMetaResponse",
@@ -651,8 +659,8 @@ class BookmarkUpdateExternalApiView(RetrieveUpdateDestroyAPIView):
     """
 
     serializer_class = BookmarkUpdateSerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+    authentication_classes: ClassVar[list] = [
         JWTAuthentication
     ]  # Защита токеном, а не сессией браузера
 
@@ -667,8 +675,8 @@ class BookmarkListCreateAPIView(ListCreateAPIView):
     """
 
     serializer_class = BookmarkSerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+    authentication_classes: ClassVar[list] = [JWTAuthentication]
 
     def get_queryset(self):
         """Фильтруем список под текущего пользователя."""

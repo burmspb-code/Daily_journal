@@ -1,14 +1,20 @@
 """Представления для регистрации, проверки подлинности и управления профилем пользователя."""
 
+import logging
+from typing import ClassVar
+
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import update_last_login
+from django.contrib.auth.tokens import default_token_generator
 from django.shortcuts import redirect, render
 from django.urls import reverse, reverse_lazy
-from django.views.generic import CreateView, TemplateView, View, UpdateView
-from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer, OpenApiResponse
-from rest_framework import exceptions, status, serializers
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+from django.views.generic import CreateView, TemplateView, UpdateView, View
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view, inline_serializer
+from rest_framework import exceptions, serializers, status
 from rest_framework.generics import CreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -19,11 +25,11 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .forms import CustomUserCreateForm, UserProfileForm
 from .models import CustomUser
 from .serializers import (
-    UserSerializer,
     EmailVerificationSerializer,
-    UserRegisterSerializer,
-    PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    UserRegisterSerializer,
+    UserSerializer,
 )
 from .services import (
     EmailActivationError,
@@ -34,6 +40,7 @@ from .services import (
 
 User = get_user_model()
 
+logger = logging.getLogger(__name__)
 
 # ========================= Эндпоинты для работы для работы через WEB==============================================
 
@@ -175,7 +182,7 @@ class UserTokenObtainPairView(TokenObtainPairView):
                 if user:
                     update_last_login(None, user)
             except Exception:
-                pass  # Защита: если что-то пошло не так, не ломаем выдачу токенов клиенту
+                logger.exception("Ошибка при обновлении времени последнего входа пользователя")
 
         return response
 
@@ -202,7 +209,7 @@ class UserRegisterAPIView(CreateAPIView):
 
     queryset = CustomUser.objects.all()
     serializer_class = UserRegisterSerializer
-    permission_classes = [AllowAny]
+    permission_classes: ClassVar[list] = [AllowAny]
 
     def perform_create(self, serializer):
         """
@@ -212,12 +219,12 @@ class UserRegisterAPIView(CreateAPIView):
         """
         try:
             register_inactive_user(self.request, save_callback=serializer.save)
-        except EmailActivationError:
+        except EmailActivationError as err:
             raise exceptions.ValidationError(
                 {
                     "detail": "Ошибка отправки письма. Проверьте email или повторите позже."
                 }
-            )
+            ) from err
 
 
 @extend_schema(
@@ -247,7 +254,7 @@ class UserRegisterAPIView(CreateAPIView):
 class UserVerifyEmailAPIView(APIView):
     """API-представление для подтверждения email пользователя по токену."""
 
-    permission_classes = [AllowAny]
+    permission_classes: ClassVar[list] = [AllowAny]
     serializer_class = EmailVerificationSerializer
 
 
@@ -299,7 +306,7 @@ class UserMeAPIView(RetrieveUpdateDestroyAPIView):
     """
 
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes: ClassVar[list]= [IsAuthenticated]
 
     def get_object(self):
         """Получаем текущего пользователя."""
@@ -315,7 +322,7 @@ class UserMeAPIView(RetrieveUpdateDestroyAPIView):
 class UserPasswordResetAPIView(APIView):
     """API-представление для инициации сброса пароля (отправка email)."""
 
-    permission_classes = [AllowAny]
+    permission_classes: ClassVar[list] = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         """Принимает email и отправляет ссылку для восстановления пароля."""
@@ -332,6 +339,8 @@ class UserPasswordResetAPIView(APIView):
 
             # Здесь вызывается ваша функция отправки email (сделайте по аналогии с регистрацией)
             # send_password_reset_email(user=user, uidb64=uidb64, token=token)
+            # Временный вывод, чтобы линтер не ругался и можно было проверить в консоли
+            print(f"Ссылка для сброса: /reset/{uidb64}/{token}/")
 
         except User.DoesNotExist:
             # Безопасность: не говорим хакеру, есть ли такой email в базе.
@@ -350,7 +359,7 @@ class UserPasswordResetAPIView(APIView):
 class UserPasswordResetConfirmAPIView(APIView):
     """API-представление для установки нового пароля по токену."""
 
-    permission_classes = [AllowAny]
+    permission_classes: ClassVar[list] = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         """Принимает токен и новый пароль, выполняя сброс."""

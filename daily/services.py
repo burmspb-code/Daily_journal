@@ -11,6 +11,7 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 from daily.models import Task
+
 from .models import Bookmark
 
 logger = logging.getLogger(__name__)
@@ -242,7 +243,8 @@ class ReminderNotificationService:
                 # Обновление полей логов и статуса индивидуально для отображения в БД
                 task.status_flag = StatusChoices.OVERDUE
                 task.status_changed_at = self.now
-                task.execution_log = f"Просрочено. Лимит реакции {timeout_delta} превышен. Дедлайн был: {deadline_time.strftime('%H:%M:%S')}."
+                task.execution_log = (f"Просрочено. Лимит реакции {timeout_delta} "
+                                      f"превышен. Дедлайн был: {deadline_time.strftime('%H:%M:%S')}.")
                 task.save(update_fields=['status_flag', 'status_changed_at', 'execution_log'])
 
                 overdue_tasks_ids.append(task.id)
