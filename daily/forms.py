@@ -1,6 +1,7 @@
 from typing import ClassVar
 
 from django import forms
+from django.utils import timezone
 
 from .models import Bookmark, Task
 
@@ -54,6 +55,15 @@ class TaskForm(forms.ModelForm):
             self.fields["bookmark"].queryset = Bookmark.objects.filter(owner=self.user)
             # Устанавливаем текст заглушки для пустого выбора
             self.fields["bookmark"].empty_label = "Выберите закладку"
+
+    def clean_reminder_at(self):
+        """
+        Валидация времени напоминания: время должно быть в будущем.
+        """
+        reminder_at = self.cleaned_data.get('reminder_at')
+        if reminder_at and reminder_at < timezone.now():
+            raise forms.ValidationError("Напоминания можно устанавливать только в будущем времени.")
+        return reminder_at
 
 
 class TaskEditForm(TaskForm):

@@ -30,6 +30,7 @@ import {
     formatDurationFromSeconds
 } from './taskPeriodicity.js';
 import { initInlinePeriodicity } from './inline-periodicity-editor.js';
+import { initInlineStatusEditor } from './inline-status-editor.js';
 import { startStatusPolling, stopStatusPolling } from './status-polling.js';
 
 // ==========================================
@@ -51,6 +52,7 @@ window.handleFieldsToggle = handleFieldsToggle;
 window.setPeriodicityFields = setPeriodicityFields;
 window.formatDurationFromSeconds = formatDurationFromSeconds;
 window.initInlinePeriodicity = initInlinePeriodicity;
+window.initInlineStatusEditor = initInlineStatusEditor;
 window.startStatusPolling = startStatusPolling;
 window.stopStatusPolling = stopStatusPolling;
 
@@ -67,6 +69,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Автоматическая初始化 модулей
     initReminderEditing();
     initInlinePeriodicity(); // Запускаем инлайн-редактор при старте страницы!
+    initInlineStatusEditor(); // Запускаем инлайн-редактор статуса при старте страницы!
     startStatusPolling(); // Запускаем polling статусов задач
 
     // Инициализация интерактивных Tooltips для закладок

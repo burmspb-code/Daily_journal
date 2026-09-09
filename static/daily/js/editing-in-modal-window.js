@@ -102,13 +102,25 @@ export function saveTaskChanges(event) {
     const reminderInput = document.getElementById('id_reminder_at');
     const bookmarkSelect = document.getElementById('id_bookmark');
 
-    // ИСПРАВЛЕНО: новые ID полей периодичности в соответствии с формой Django
+    // ID полей периодичности в соответствии с формой Django
     const periodValueInput = document.getElementById('id_periodicity_0');
     const periodUnitSelect = document.getElementById('id_periodicity_1');
 
     // Принудительно включаем инпуты перед отправкой, чтобы FormData их прочитал
     if (periodValueInput) periodValueInput.disabled = false;
     if (periodUnitSelect) periodUnitSelect.disabled = false;
+
+    // Проверяем, что время напоминания в будущем (если указано)
+    if (reminderInput && reminderInput.value) {
+        const selectedDate = new Date(reminderInput.value);
+        const now = new Date();
+        if (selectedDate < now) {
+            // Показываем модальное окно предупреждения
+            const modal = new bootstrap.Modal(document.getElementById('pastTimeWarningModal'));
+            modal.show();
+            return; // Прерываем отправку формы
+        }
+    }
 
     // Сбор данных в FormData
     const formData = new FormData();

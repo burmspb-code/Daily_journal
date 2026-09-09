@@ -30,7 +30,7 @@ from users.models import TariffPlans
 from .forms import BookmarkForm, TaskEditForm, TaskForm
 from .models import Bookmark, Task
 from .paginators import TaskListAPIViewPagination
-from .serializers import BookmarkSerializer, BookmarkUpdateSerializer, TaskSerializer
+from .serializers import BookmarkSerializer, BookmarkUpdateSerializer, TaskSerializer, TaskUpdateSerializer
 from .services import TaskService
 
 logger = logging.getLogger(__name__)
@@ -382,6 +382,80 @@ class UpdateTaskPeriodicityView(LoginRequiredMixin, View):
             )
 
 
+class UpdateTaskStatusView(LoginRequiredMixin, View):
+    """
+    Класс для быстрого инлайн-обновления статуса задачи из таблицы.
+    Ожидает POST-запрос с 'task_id' (или 'id') и 'status_flag'.
+    Разрешает изменение статуса только на 'Выполнена' (2) из статусов:
+    'Создана' (0), 'В работе' (1), 'Дедлайн' (3).
+    """
+
+    def post(self, request, *args, **kwargs):
+        # Безопасно поддерживаем оба варианта именования ID для защиты от опечаток в JS
+        task_id = request.POST.get("task_id") or request.POST.get("id")
+        new_status = request.POST.get("status_flag")
+
+        if not task_id:
+            return JsonResponse(
+                {"success": False, "error": "ID задачи не указан"}, status=400
+            )
+
+        if new_status is None:
+            return JsonResponse(
+                {"success": False, "error": "Статус не указан"}, status=400
+            )
+
+        try:
+            # Ищем задачу, проверяя владение текущим пользователем (безопасность)
+            task = Task.objects.get(id=task_id, owner=request.user)
+        except Task.DoesNotExist:
+            return JsonResponse(
+                {"success": False, "error": "Задача не найдена или доступ запрещен"},
+                status=404,
+            )
+
+        try:
+            new_status = int(new_status)
+
+            # Разрешаем только изменение на статус "Выполнена" (2)
+            if new_status != Task.StatusChoices.COMPLETED:
+                return JsonResponse(
+                    {"success": False, "error": "Разрешено менять статус только на 'Выполнена'"}, status=400
+                )
+
+            # Проверяем, что текущий статус позволяет изменение (Создана, В работе, Дедлайн)
+            allowed_current_statuses = [
+                Task.StatusChoices.CREATED,
+                Task.StatusChoices.IN_PROGRESS,
+                Task.StatusChoices.OVERDUE
+            ]
+
+            if task.status_flag not in allowed_current_statuses:
+                return JsonResponse(
+                    {"success": False, "error": "Текущий статус не позволяет изменение"}, status=400
+                )
+
+            # Обновляем статус и время изменения
+            task.status_flag = new_status
+            task.status_changed_at = timezone.now()
+            task.save(update_fields=["status_flag", "status_changed_at"])
+
+            return JsonResponse({
+                "success": True,
+                "status": task.status_flag,
+                "status_display": task.get_status_flag_display()
+            })
+
+        except ValueError:
+            return JsonResponse(
+                {"success": False, "error": "Некорректное значение статуса"}, status=400
+            )
+        except Exception as e:
+            return JsonResponse(
+                {"success": False, "error": f"Ошибка сервера: {e!s}"}, status=500
+            )
+
+
 class TaskDeleteView(LoginRequiredMixin, DeleteView):
     """
     Представление для удаления задачи.
@@ -666,6 +740,38 @@ class BookmarkUpdateExternalApiView(RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Bookmark.objects.filter(owner=self.request.user)
+
+
+class TaskUpdateExternalApiView(RetrieveUpdateDestroyAPIView):
+    """
+    API-представление для просмотра(GET), обновления(PUT / PATCH) и удаления(DELETE) конкретной задачи.
+    Аутентификация через JWT-токен в заголовке Authorization.
+    Поддерживает изменение статуса только на 'Выполнена' из статусов 'Создана', 'В работе', 'Дедлайн'.
+    """
+
+    serializer_class = TaskUpdateSerializer
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+    authentication_classes: ClassVar[list] = [
+        JWTAuthentication
+    ]  # Защита токеном, а не сессией браузера
+
+    def get_queryset(self):
+        return Task.objects.filter(owner=self.request.user)
+
+    def perform_update(self, serializer):
+        """
+        При обновлении статуса автоматически устанавливаем время изменения.
+        """
+        instance = serializer.instance
+        old_status = instance.status_flag
+        new_status = serializer.validated_data.get('status_flag')
+
+        # Если статус изменяется на 'Выполнена', обновляем время изменения
+        if new_status is not None and new_status != old_status:
+            if new_status == Task.StatusChoices.COMPLETED:
+                serializer.validated_data['status_changed_at'] = timezone.now()
+
+        serializer.save()
 
 
 class BookmarkListCreateAPIView(ListCreateAPIView):

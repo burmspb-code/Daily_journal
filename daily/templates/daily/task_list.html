@@ -204,7 +204,6 @@
                             <ul class="dropdown-menu dropdown-menu-dark shadow-lg p-0"
                                 style="border: 1px solid #444; max-height: 230px; overflow-y: auto;">
 
-                                <!-- Убрали active, теперь строка будет идеально прозрачной, как в Наименовании -->
                                 <li>
                                     <a href="?{% if current_bookmark %}bookmark={{ current_bookmark.id }}&{% endif %}{% if current_title %}title={{ current_title|urlencode }}&{% endif %}{% if current_sort %}sort={{ current_sort }}&{% endif %}flag="
                                        class="dropdown-item py-2 px-3">
