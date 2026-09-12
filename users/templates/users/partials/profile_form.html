@@ -1,16 +1,33 @@
 {% for field in form.visible_fields %}
 <div class="mb-3">
-    <label for="{{ field.id_for_label }}" class="form-label fw-semibold text-secondary small">
-        {{ field.label }}
-    </label>
-    {{ field.as_widget }}
-    {% if field.errors %}
-    <div class="invalid-feedback d-block small">
-        {{ field.errors|striptags }}
-    </div>
-    {% endif %}
-    {% if field.help_text %}
-    <div class="form-text text-white-50 small">{{ field.help_text|safe }}</div>
+    {% if field.field.widget.input_type == 'checkbox' %}
+        <div class="form-check">
+            {{ field.as_widget }}
+            <label for="{{ field.id_for_label }}" class="form-check-label fw-semibold text-secondary small">
+                {{ field.label }}
+            </label>
+            {% if field.errors %}
+            <div class="invalid-feedback d-block small">
+                {{ field.errors|striptags }}
+            </div>
+            {% endif %}
+            {% if field.help_text %}
+            <div class="form-text text-white-50 small">{{ field.help_text|safe }}</div>
+            {% endif %}
+        </div>
+    {% else %}
+        <label for="{{ field.id_for_label }}" class="form-label fw-semibold text-secondary small">
+            {{ field.label }}
+        </label>
+        {{ field.as_widget }}
+        {% if field.errors %}
+        <div class="invalid-feedback d-block small">
+            {{ field.errors|striptags }}
+        </div>
+        {% endif %}
+        {% if field.help_text %}
+        <div class="form-text text-white-50 small">{{ field.help_text|safe }}</div>
+        {% endif %}
     {% endif %}
 </div>
 {% endfor %}

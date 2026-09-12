@@ -63,6 +63,18 @@ class CustomUser(AbstractUser):
         ]
     )
 
+    email_notifications = models.BooleanField(
+        default=True,
+        verbose_name="Уведомления по email",
+        help_text="Получать уведомления по электронной почте"
+    )
+
+    telegram_notifications = models.BooleanField(
+        default=False,
+        verbose_name="Уведомления в Telegram",
+        help_text="Получать уведомления в Telegram"
+    )
+
     USERNAME_FIELD = "username"  # Поле для входа (логин)
     REQUIRED_FIELDS: ClassVar[list[str]] = [
         "email"

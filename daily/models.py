@@ -101,7 +101,7 @@ class Task(models.Model):
     )
 
     # Комментарий к задаче
-    comment = models.TextField(blank=True, verbose_name="Комментарий")
+    comment = models.TextField(blank=True, default='', verbose_name="Комментарий")
 
     # Признак для логики управления данными (по умолчанию 0)
     status_flag = models.IntegerField(
@@ -144,6 +144,7 @@ class Task(models.Model):
     # Хранит технический отчет (например, "Имитация отправки выполнена в 22:00")
     execution_log = models.TextField(
         blank=True,
+        default='',
         verbose_name="Технический лог выполнения"
     )
 

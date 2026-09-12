@@ -32,6 +32,8 @@ class CustomUserAdmin(UserAdmin):
         "email",
         "get_tariff_plan",  # Выводит красивое название тарифа
         "phone_number",
+        "email_notifications",
+        "telegram_notifications",
         "avatar",
         "is_staff",
         "is_superuser",
@@ -50,6 +52,14 @@ class CustomUserAdmin(UserAdmin):
         (
             "Личная информация",
             {"fields": ("username", "email", "phone_number", "avatar")},
+        ),
+        (
+            "Telegram",
+            {"fields": ("tg_chat_id", "telegram_notifications")},
+        ),
+        (
+            "Уведомления",
+            {"fields": ("email_notifications",)},
         ),
         (
             "Права доступа",
