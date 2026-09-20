@@ -6,24 +6,21 @@
 а также валидации одноразовых токенов активации.
 """
 
-from typing import Callable
-
+import requests
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
-from django.core.mail import send_mail
+from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
-from django.http import HttpRequest
 from django.urls import reverse
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
 from users.models import CustomUser
 
+from .exceptions import EmailActivationError  # Твое кастомное исключение
 
-class EmailActivationError(Exception):
-    """Исключение для ошибок отправки письма активации."""
-
-    pass
+# Константа таймаута для HTTP-запроса
+REQUEST_TIMEOUT = 15
 
 
 class InvalidActivationToken(Exception):
@@ -32,32 +29,29 @@ class InvalidActivationToken(Exception):
     pass
 
 
-def register_inactive_user(
-    request: HttpRequest, save_callback: Callable[[], CustomUser]
-) -> CustomUser:
-    """Бизнес-логика регистрации неактивного пользователя и отправки email.
-
-    Args:
-        request: Объект HTTP-запроса (нужен для хоста и схемы).
-        save_callback: Функция/метод, который сохраняет пользователя в БД.
-
-    Returns:
-        User: Созданный объект пользователя.
-
-    Raises:
-        EmailActivationError: Если отправка письма завершилась сбоем.
+def register_inactive_user(request, save_callback):
     """
+    Регистрирует пользователя как неактивного и отправляет письмо активации
+    через Cloud Function в Yandex Cloud.
+    """
+    mail_url = getattr(settings, 'MAIL_FUNCTION_URL', None)
+    if not mail_url:
+        print("❌ MAIL_FUNCTION_URL не настроен в settings.py", flush=True)
+        raise ImproperlyConfigured("MAIL_FUNCTION_URL не настроен в settings.py")
+
     with transaction.atomic():
-        # Сохраняем пользователя (подходит и для формы, и для сериализатора)
+        print("💾 Начинаем транзакцию. Сохраняем пользователя...", flush=True)
+
+        # 1. Сохраняем пользователя
         user = save_callback()
         user.is_active = False
         user.save()
+        print(f"✅ Пользователь {user.email} создан (is_active=False).", flush=True)
 
-        # Генерируем uid и токен
+        # 2. Генерируем токен и ссылку
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user)
 
-        # Собираем абсолютную ссылку активации
         relative_url = reverse(
             "users:email_confirm", kwargs={"uidb64": uid, "token": token}
         )
@@ -65,21 +59,62 @@ def register_inactive_user(
         host = request.get_host()
         activation_url = f"{scheme}://{host}{relative_url}"
 
+        subject = "Подтверждение регистрации"
+        message = f"Спасибо за регистрацию!\n\nДля активации аккаунта перейдите по ссылке:\n{activation_url}"
+
+        # 3. Формируем payload
+        payload = {
+            "to_email": user.email,
+            "email_type": "registration",
+            "subject": subject,
+            "body_text": message,
+        }
+
+        print(f"📬 Отправляем запрос на {mail_url}", flush=True)
+        print(f"📬 Payload: to_email={user.email}, email_type=registration", flush=True)
+
         try:
-            send_mail(
-                subject="Подтверждение регистрации",
-                message=f"Спасибо за регистрацию! Ссылка для активации: {activation_url}",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=False,
+            response = requests.post(mail_url, json=payload, timeout=REQUEST_TIMEOUT)
+
+            print(
+                f"📥 Получен ответ: Status={response.status_code}, Body={response.text}",
+                flush=True,
             )
+
+            if response.status_code != 200:
+                print(
+                    f"❌ Cloud Function вернула HTTP {response.status_code}",
+                    flush=True,
+                )
+                transaction.set_rollback(True)
+                raise EmailActivationError(
+                    f"Сервис почты вернул HTTP {response.status_code}: {response.text}"
+                )
+
+            print("✅ Письмо успешно отправлено!", flush=True)
             return user
-        except Exception as e:
-            # Отменяем транзакцию в БД
+
+        except requests.exceptions.Timeout as e:
+            print("💥 Ошибка: Превышено время ожидания ответа от функции.", flush=True)
             transaction.set_rollback(True)
-            # Выбрасываем понятное сервису исключение
+            raise EmailActivationError("Сервис отправки писем не ответил вовремя.") from e
+        except requests.exceptions.ConnectionError as e:
+            print("💥 Ошибка: Не удалось соединиться с сервисом отправки писем.", flush=True)
+            transaction.set_rollback(True)
             raise EmailActivationError(
-                "Сбой SMTP при отправке письма подтверждения."
+                "Не удалось соединиться с сервисом отправки писем."
+            ) from e
+        except ValueError as e:
+            print(f"💥 Ошибка парсинга JSON: {e}", flush=True)
+            transaction.set_rollback(True)
+            raise EmailActivationError("Неверный формат ответа от сервиса.") from e
+        except EmailActivationError:
+            raise
+        except Exception as e:
+            print(f"💥 Непредвиденная ошибка: {e}", flush=True)
+            transaction.set_rollback(True)
+            raise EmailActivationError(
+                "Произошла непредвиденная ошибка при отправке письма."
             ) from e
 
 

@@ -25,6 +25,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
+from users.constants import TARIFF_LIMITS
 from users.models import TariffPlans
 
 from .forms import BookmarkForm, TaskEditForm, TaskForm
@@ -142,7 +143,7 @@ class TaskCreateView(LoginRequiredMixin, View):
         try:
             tasks_limit = user.tariff_plan.max_tasks
         except TariffPlans.DoesNotExist:
-            tasks_limit = 5
+            tasks_limit = TARIFF_LIMITS["BASE"]["MAX_TASKS"]
 
         if tasks_count >= tasks_limit:
             return JsonResponse(
@@ -261,8 +262,7 @@ class TaskUpdateView(LoginRequiredMixin, View):
 
             if task.reminder_at != new_reminder:
                 task.reminder_at = new_reminder
-                task.is_notified = False
-                updated_fields.extend(["reminder_at", "is_notified"])
+                updated_fields.extend(["reminder_at"])
 
                 # Если дата удалена, намертво стираем периодичность из новых полей БД
                 if new_reminder is None:
@@ -536,7 +536,7 @@ class BookmarkCreateView(LoginRequiredMixin, CreateView):
         try:
             bookmarks_limit = user.tariff_plan.max_bookmarks
         except TariffPlans.DoesNotExist:
-            bookmarks_limit = 5  # Безопасный дефолт
+            bookmarks_limit = TARIFF_LIMITS["BASE"]["MAX_BOOKMARKS"]
 
         # Если лимит достигнут или превышен, прерываем сохранение
         if bookmark_count >= bookmarks_limit:

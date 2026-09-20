@@ -7,10 +7,12 @@
 import logging
 from datetime import timedelta
 
+from django.db import transaction
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from daily.models import Task
+from daily.models import NotificationAttempt, Task
+from daily.tasks import send_email_notification, send_telegram_notification
 
 from .models import Bookmark
 
@@ -162,6 +164,11 @@ class ReminderNotificationService:
     Предоставляет методы для автоматической обработки, фильтрации и отправки
     наступивших напоминаний, а также для динамического перевода невыполненных
     задач в статус просроченных на основе конфигурационной матрицы таймаутов.
+
+    Отправка уведомлений (Email, Telegram) вынесена в отдельные асинхронные
+    Celery-задачи. Сервис только ищет задачи, создаёт записи NotificationAttempt
+    и ставит задачи в очередь через .delay(). Это предотвращает блокировку
+    воркера синхронными HTTP-запросами и обеспечивает повторные попытки (retry).
     """
 
     def __init__(self):
@@ -171,51 +178,110 @@ class ReminderNotificationService:
         """Главный управляющий метод конвейера фоновой обработки задач.
 
         Метод координирует последовательное выполнение двух ключевых этапов:
-        выборку и отправку новых наступивших напоминаний, а затем — поиск
-        и перевод залежавшихся задач в статус OVERDUE. Предназначен для регулярного
-        вызова внутри минутного планировщика Celery Beat.
+        выборку и постановку в очередь новых наступивших напоминаний, а затем —
+        поиск и перевод залежавшихся задач в статус OVERDUE. Предназначен для
+        регулярного вызова внутри минутного планировщика Celery Beat.
 
         Returns:
             dict: Словарь со статистикой выполнения операции:
-                - sent (int): Количество успешно обработанных и отправленных напоминаний.
-                - overdue (int): Количество задач, автоматически переведённых в статус просроченных.
+                - sent (int): Количество задач, поставленных в очередь на отправку.
+                - overdue (int): Количество задач, переведённых в статус просроченных.
         """
         sent_count = self._process_new_reminders()
         overdue_count = self._check_and_set_dynamic_overdue()
 
         return {
             "sent": sent_count,
-            "overdue": overdue_count
+            "overdue": overdue_count,
         }
 
+    @transaction.atomic
     def _process_new_reminders(self) -> int:
-        """Осуществляет поиск, фильтрацию и перевод новых напоминаний в работу.
+        """Ищет наступившие напоминания и ставит задачи отправки в очередь Celery.
 
-        Метод делает один точечный оптимизированный SQL-запрос к базе данных,
-        выбирая все наступившие задачи в статусе CREATED. Использует select_related("owner")
-        для предзагрузки данных пользователей, предотвращая проблему N+1. Обновляет
-        поля статуса, времени изменения и текстового лога непосредственно в базовой таблице.
+        Метод делает один оптимизированный SQL-запрос к базе данных, выбирая
+        все наступившие задачи в статусе CREATED. Для каждой задачи проверяет
+        наличие успешной записи NotificationAttempt по каждому каналу. Если
+        успешной отправки ещё не было — создаёт запись pending и ставит
+        асинхронную Celery-задачу через .delay().
 
         Returns:
-            int: Количество обработанных и переведенных в работу напоминаний.
+            int: Количество задач, для которых инициирована отправка.
         """
-        active_reminders = Task.objects.filter(
-            reminder_at__lte=self.now,
-            status_flag=StatusChoices.CREATED
-        ).select_related("owner")
+        active_reminders = (
+            Task.objects
+            .filter(reminder_at__lte=self.now, status_flag=StatusChoices.CREATED)
+            .select_related("owner")
+            .order_by("id")
+        )
 
         count = 0
+
         for task in active_reminders:
-            # Вывод детальной информации в логи Docker Compose
-            logger.info(f"== [ОТПРАВКА] Задача ID {task.id} переведена в статус IN_PROGRESS для {task.owner.email} ==")
+            logger.info(
+                f"== [ОТПРАВКА] Задача ID {task.id} → {task.owner.email} =="
+            )
 
-            # Синхронизация данных и фиксация лога в строке базовой таблицы на VPS
-            task.status_flag = StatusChoices.IN_PROGRESS
-            task.status_changed_at = self.now
-            task.execution_log = f"Имитация отправки успешно выполнена в {self.now.strftime('%H:%M:%S')}."
-            task.save(update_fields=['status_flag', 'status_changed_at', 'execution_log'])
+            deadline_str = task.reminder_at.strftime("%Y-%m-%d %H:%M")
+            task_changed = False
 
-            count += 1
+            # --- Email ---
+            if task.owner.email_notifications:
+                already_sent = NotificationAttempt.objects.filter(
+                    task=task,
+                    channel=NotificationAttempt.CHANNEL_EMAIL,
+                    status=NotificationAttempt.STATUS_SENT,
+                ).exists()
+
+                if not already_sent:
+                    attempt = NotificationAttempt.objects.create(
+                        task=task,
+                        channel=NotificationAttempt.CHANNEL_EMAIL,
+                        status=NotificationAttempt.STATUS_PENDING,
+                    )
+                    send_email_notification.delay(
+                        attempt_id=attempt.id,
+                        to_email=task.owner.email,
+                        task_name=task.title,
+                        deadline=deadline_str,
+                    )
+                    task_changed = True
+                    logger.info(f"  → Email: задача {attempt.id} поставлена в очередь")
+
+            # --- Telegram ---
+            if task.owner.telegram_notifications and task.owner.tg_chat_id:
+                already_sent = NotificationAttempt.objects.filter(
+                    task=task,
+                    channel=NotificationAttempt.CHANNEL_TELEGRAM,
+                    status=NotificationAttempt.STATUS_SENT,
+                ).exists()
+
+                if not already_sent:
+                    attempt = NotificationAttempt.objects.create(
+                        task=task,
+                        channel=NotificationAttempt.CHANNEL_TELEGRAM,
+                        status=NotificationAttempt.STATUS_PENDING,
+                    )
+                    send_telegram_notification.delay(
+                        attempt_id=attempt.id,
+                        chat_id=task.owner.tg_chat_id,
+                        task_name=task.title,
+                        deadline=deadline_str,
+                    )
+                    task_changed = True
+                    logger.info(f"  → Telegram: задача {attempt.id} поставлена в очередь")
+
+            # --- Перевод статуса ---
+            # Меняем статус только если хотя бы по одному каналу была попытка
+            if task_changed:
+                task.status_flag = StatusChoices.IN_PROGRESS
+                task.status_changed_at = self.now
+                task.save(update_fields=[
+                    "status_flag",
+                    "status_changed_at",
+                ])
+                count += 1
+
         return count
 
     def _check_and_set_dynamic_overdue(self) -> int:
@@ -233,19 +299,23 @@ class ReminderNotificationService:
         overdue_tasks_ids = []
 
         for task in active_tasks:
-            timeout_delta = OVERDUE_TIMEOUTS.get(task.periodicity_unit, OVERDUE_TIMEOUTS['none'])
+            timeout_delta = OVERDUE_TIMEOUTS.get(
+                task.periodicity_unit, OVERDUE_TIMEOUTS["none"]
+            )
             deadline_time = task.reminder_at + timeout_delta
 
             if self.now > deadline_time:
-                # Фиксация триггера просрочки в логи консоли
-                logger.warning(f"== [ПРОСРОЧКА] Задача ID {task.id} превысила лимит на реакцию ({timeout_delta}) ==")
+                logger.warning(
+                    f"== [ПРОСРОЧКА] Задача ID {task.id} превысила лимит "
+                    f"на реакцию ({timeout_delta}) =="
+                )
 
-                # Обновление полей логов и статуса индивидуально для отображения в БД
                 task.status_flag = StatusChoices.OVERDUE
                 task.status_changed_at = self.now
-                task.execution_log = (f"Просрочено. Лимит реакции {timeout_delta} "
-                                      f"превышен. Дедлайн был: {deadline_time.strftime('%H:%M:%S')}.")
-                task.save(update_fields=['status_flag', 'status_changed_at', 'execution_log'])
+                task.save(update_fields=[
+                    "status_flag",
+                    "status_changed_at",
+                ])
 
                 overdue_tasks_ids.append(task.id)
 

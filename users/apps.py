@@ -9,3 +9,4 @@ class UsersConfig(AppConfig):
     def ready(self):
         """Этот метод вызывается автоматически, когда Django запускается."""
         # Импортируем сигналы именно здесь, чтобы избежать круговых импортов
+        import users.signals  # noqa: F401

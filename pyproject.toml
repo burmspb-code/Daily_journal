@@ -20,7 +20,9 @@ dependencies = [
     "django-filter (>=26.1,<27.0)",
     "djangorestframework-simplejwt (>=5.5.1,<6.0.0)",
     "drf-spectacular (>=0.30.0,<0.31.0)",
-    "django-celery-beat (>=2.9.0,<3.0.0)"
+    "django-celery-beat (>=2.9.0,<3.0.0)",
+    "djangorestframework-stubs (>=3.18.1,<4.0.0)",
+    "requests (>=2.34.2,<3.0.0)"
 ]
 
 [tool.poetry]
