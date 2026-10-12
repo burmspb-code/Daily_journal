@@ -4,15 +4,14 @@
 Включает в себя маршруты для стандартного веб-интерфейса (HTML-страницы)
 и версионируемые эндпоинты REST API v1 (JSON).
 """
-from tempfile import template
 
 from django.contrib.auth import views as auth_views
 from django.urls import path
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExample, inline_serializer
+from drf_spectacular.utils import OpenApiExample, extend_schema, extend_schema_view, inline_serializer
 from drf_spectacular.views import (
     SpectacularAPIView,
-    SpectacularSwaggerView,
     SpectacularRedocView,
+    SpectacularSwaggerView,
 )
 from rest_framework import serializers
 from rest_framework_simplejwt.views import TokenBlacklistView, TokenRefreshView
@@ -21,14 +20,14 @@ from users.apps import UsersConfig
 from users.views import (
     EmailConfirmationSentView,
     EmailConfirmView,
-    UserRegisterAPIView,
-    UserRegisterView,
-    UserVerifyEmailAPIView,
+    UserMeAPIView,
     UserPasswordResetAPIView,
     UserPasswordResetConfirmAPIView,
-    UserMeAPIView,
-    UserTokenObtainPairView,
     UserProfileUpdateView,
+    UserRegisterAPIView,
+    UserRegisterView,
+    UserTokenObtainPairView,
+    UserVerifyEmailAPIView,
 )
 
 # Пространство имен для URL-адресов приложения
@@ -129,7 +128,10 @@ urlpatterns = [
         extend_schema_view(
             post=extend_schema(
                 summary="Выход из системы (Инвалидация токена)",
-                description="Принимает `refresh` токен и заносит его в черный список базы данных. После этого токен становится недействительным.",
+                description=(
+                    "Принимает `refresh` токен и заносит его в черный список базы данных. "
+                    "После этого токен становится недействительным."
+                ),
                 responses={
                     200: inline_serializer(
                         name="TokenBlacklistSuccessResponse",

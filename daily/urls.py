@@ -6,17 +6,19 @@ from django.urls import path
 
 from .apps import DailyConfig
 from .views import (
-    TaskUpdateView,
-    UpdateTaskPeriodicityView,
-    TaskDeleteView,
     BookmarkCreateView,
-    TaskCreateView,
-    TaskListView,
-    BookmarkUpdateWebResponseView,
-    TaskListAPIView,
+    BookmarkDeleteView,
     BookmarkListCreateAPIView,
     BookmarkUpdateExternalApiView,
-    BookmarkDeleteView,
+    BookmarkUpdateWebResponseView,
+    TaskCreateView,
+    TaskDeleteView,
+    TaskListAPIView,
+    TaskListView,
+    TaskUpdateExternalApiView,
+    TaskUpdateView,
+    UpdateTaskPeriodicityView,
+    UpdateTaskStatusView,
 )
 
 app_name = DailyConfig.name
@@ -38,6 +40,12 @@ urlpatterns = [
         "task/update-periodicity/",
         UpdateTaskPeriodicityView.as_view(),
         name="update_task_periodicity",
+    ),
+    # Маршрут инлайн редактирования статуса задачи
+    path(
+        "task/update-status/",
+        UpdateTaskStatusView.as_view(),
+        name="update_task_status",
     ),
     # Маршрут для удаления задачи
     path("task/delete/", TaskDeleteView.as_view(), name="task_delete"),
@@ -70,5 +78,11 @@ urlpatterns = [
         "api/v1/bookmarks/<int:pk>/",
         BookmarkUpdateExternalApiView.as_view(),
         name="bookmark_api",
+    ),
+    # URL для просмотра(GET), обновления(PUT / PATCH) и удаления(DELETE) конкретной задачи
+    path(
+        "api/v1/tasks/<int:pk>/",
+        TaskUpdateExternalApiView.as_view(),
+        name="task_api",
     ),
 ]

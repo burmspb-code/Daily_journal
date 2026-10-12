@@ -7,12 +7,12 @@
 с сервисом защиты от роботов Google ReCAPTCHA.
 """
 
+from typing import ClassVar
+
 from django import forms
-from django.contrib.auth.forms import UserCreationForm, UserChangeForm
-from django.db import models
+from django.contrib.auth.forms import UserChangeForm, UserCreationForm
 
 from users.models import CustomUser
-
 
 # Импортируем библиотеки для работы капчи
 # from django_recaptcha.fields import ReCaptchaField
@@ -83,16 +83,29 @@ class UserProfileForm(forms.ModelForm):
     class Meta:
         model = CustomUser
         # Перечисляем поля, которые пользователю разрешено редактировать
-        fields = ("phone_number", "avatar", "tg_chat_id")
+        fields = ("phone_number", "avatar", "tg_chat_id", "email_notifications", "telegram_notifications")
+        widgets: ClassVar[dict[str, forms.Widget]] = {
+            'email_notifications': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'telegram_notifications': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Автоматически добавляем Bootstrap-класс ко всем полям
-        for field_name, field in self.fields.items():
+        for _field_name, field in self.fields.items():
             field.widget.attrs.update({"class": "form-control"})
 
         self.fields["phone_number"].widget.attrs.update({"autocomplete": "tel"})
+
+        # Убираем form-control у чекбоксов, так как они используют form-check-input
+        self.fields["email_notifications"].widget.attrs.pop('class', None)
+        self.fields["telegram_notifications"].widget.attrs.pop('class', None)
+
+        # Если у пользователя нет tg_chat_id, отключаем чекбокс telegram_notifications
+        if not self.instance or not self.instance.tg_chat_id:
+            self.fields["telegram_notifications"].widget.attrs.update({'disabled': 'disabled'})
+            self.fields["telegram_notifications"].help_text = "Для включения уведомлений необходимо указать ID Telegram"
 
 
 class CustomUserAdminCreationForm(UserCreationForm):

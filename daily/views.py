@@ -1,32 +1,37 @@
 import json
 import logging
+from typing import ClassVar
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse
-from django.shortcuts import render, get_object_or_404
+from django.contrib.messages.views import SuccessMessageMixin
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views import View
-from django.contrib.messages.views import SuccessMessageMixin
-from django.views.generic import ListView, CreateView, DeleteView
+from django.views.generic import CreateView, DeleteView, ListView
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.authentication import SessionAuthentication
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import (
-    RetrieveUpdateDestroyAPIView,
-    ListCreateAPIView,
     ListAPIView,
+    ListCreateAPIView,
+    RetrieveUpdateDestroyAPIView,
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from .forms import TaskEditForm, TaskForm, BookmarkForm
+from users.constants import TARIFF_LIMITS
+from users.models import TariffPlans
+
+from .forms import BookmarkForm, TaskEditForm, TaskForm
 from .models import Bookmark, Task
 from .paginators import TaskListAPIViewPagination
-from .serializers import BookmarkUpdateSerializer, TaskSerializer, BookmarkSerializer
+from .serializers import BookmarkSerializer, BookmarkUpdateSerializer, TaskSerializer, TaskUpdateSerializer
 from .services import TaskService
 
 logger = logging.getLogger(__name__)
@@ -102,9 +107,19 @@ class TaskCreateView(LoginRequiredMixin, View):
     """
 
     def post(self, request, *args, **kwargs):
+        user = request.user
+
+        # СНАЧАЛА читаем и валидируем JSON из тела запроса
+        try:
+            json_data = json.loads(request.body)
+        except (json.JSONDecodeError, TypeError):
+            return JsonResponse(
+                {"status": "error", "message": "Некорректный JSON-формат"}, status=400
+            )
+
         # Проверяем наличие закладок у пользователя перед созданием задачи
         first_bookmark = (
-            Bookmark.objects.filter(owner=request.user).order_by("id").first()
+            Bookmark.objects.filter(owner=user).order_by("id").first()
         )
         if not first_bookmark:
             return JsonResponse(
@@ -115,18 +130,30 @@ class TaskCreateView(LoginRequiredMixin, View):
                 status=400,
             )
 
-        # Читаем и валидируем JSON из тела запроса
-        try:
-            json_data = json.loads(request.body)
-        except json.JSONDecodeError, TypeError:
-            return JsonResponse(
-                {"status": "error", "message": "Некорректный JSON-формат"}, status=400
-            )
-
-        # Собираем данные для формы. Если закладка не передана, берем первую доступную
+        # Определяем ID целевой закладки (из JSON или берем первую доступную)
         bookmark_id = json_data.get("bookmark_id") or first_bookmark.id
         row_number = json_data.get("row_number", 1)
 
+        # ТЕПЕРЬ безопасно ищем текущую закладку
+        current_bookmark = get_object_or_404(Bookmark, id=bookmark_id, owner=user)
+
+        # Проверяем количество задач именно на этой закладке
+        tasks_count = current_bookmark.tasks.all().count()
+
+        try:
+            tasks_limit = user.tariff_plan.max_tasks
+        except TariffPlans.DoesNotExist:
+            tasks_limit = TARIFF_LIMITS["BASE"]["MAX_TASKS"]
+
+        if tasks_count >= tasks_limit:
+            return JsonResponse(
+                {
+                    "status": "limit_error",
+                    "message": f"Превышен лимит задач для текущей закладки (макс. {tasks_limit})."
+                }
+            )
+
+        # Собираем данные для формы
         form_data = {
             "title": str(json_data.get("title", "")).strip(),
             "bookmark": bookmark_id,
@@ -235,8 +262,7 @@ class TaskUpdateView(LoginRequiredMixin, View):
 
             if task.reminder_at != new_reminder:
                 task.reminder_at = new_reminder
-                task.is_notified = False
-                updated_fields.extend(["reminder_at", "is_notified"])
+                updated_fields.extend(["reminder_at"])
 
                 # Если дата удалена, намертво стираем периодичность из новых полей БД
                 if new_reminder is None:
@@ -293,7 +319,9 @@ class TaskUpdateView(LoginRequiredMixin, View):
                     "bookmark_id": task.bookmark_id,
                     "periodicity_value": task.periodicity_value or "",
                     "periodicity_unit": task.periodicity_unit,
-                    "periodicity_display": f"{task.periodicity_value} {task.get_periodicity_unit_display()}" if task.periodicity_value and task.periodicity_unit != 'none' else ""
+                    "periodicity_display":
+                        f"{task.periodicity_value} {task.get_periodicity_unit_display()}"
+                        if task.periodicity_value and task.periodicity_unit != 'none' else ""
                 },
             }
         )
@@ -350,7 +378,81 @@ class UpdateTaskPeriodicityView(LoginRequiredMixin, View):
             )
         except Exception as e:
             return JsonResponse(
-                {"success": False, "error": f"Ошибка сервера: {str(e)}"}, status=500
+                {"success": False, "error": f"Ошибка сервера: {e!s}"}, status=500
+            )
+
+
+class UpdateTaskStatusView(LoginRequiredMixin, View):
+    """
+    Класс для быстрого инлайн-обновления статуса задачи из таблицы.
+    Ожидает POST-запрос с 'task_id' (или 'id') и 'status_flag'.
+    Разрешает изменение статуса только на 'Выполнена' (2) из статусов:
+    'Создана' (0), 'В работе' (1), 'Дедлайн' (3).
+    """
+
+    def post(self, request, *args, **kwargs):
+        # Безопасно поддерживаем оба варианта именования ID для защиты от опечаток в JS
+        task_id = request.POST.get("task_id") or request.POST.get("id")
+        new_status = request.POST.get("status_flag")
+
+        if not task_id:
+            return JsonResponse(
+                {"success": False, "error": "ID задачи не указан"}, status=400
+            )
+
+        if new_status is None:
+            return JsonResponse(
+                {"success": False, "error": "Статус не указан"}, status=400
+            )
+
+        try:
+            # Ищем задачу, проверяя владение текущим пользователем (безопасность)
+            task = Task.objects.get(id=task_id, owner=request.user)
+        except Task.DoesNotExist:
+            return JsonResponse(
+                {"success": False, "error": "Задача не найдена или доступ запрещен"},
+                status=404,
+            )
+
+        try:
+            new_status = int(new_status)
+
+            # Разрешаем только изменение на статус "Выполнена" (2)
+            if new_status != Task.StatusChoices.COMPLETED:
+                return JsonResponse(
+                    {"success": False, "error": "Разрешено менять статус только на 'Выполнена'"}, status=400
+                )
+
+            # Проверяем, что текущий статус позволяет изменение (Создана, В работе, Дедлайн)
+            allowed_current_statuses = [
+                Task.StatusChoices.CREATED,
+                Task.StatusChoices.IN_PROGRESS,
+                Task.StatusChoices.OVERDUE
+            ]
+
+            if task.status_flag not in allowed_current_statuses:
+                return JsonResponse(
+                    {"success": False, "error": "Текущий статус не позволяет изменение"}, status=400
+                )
+
+            # Обновляем статус и время изменения
+            task.status_flag = new_status
+            task.status_changed_at = timezone.now()
+            task.save(update_fields=["status_flag", "status_changed_at"])
+
+            return JsonResponse({
+                "success": True,
+                "status": task.status_flag,
+                "status_display": task.get_status_flag_display()
+            })
+
+        except ValueError:
+            return JsonResponse(
+                {"success": False, "error": "Некорректное значение статуса"}, status=400
+            )
+        except Exception as e:
+            return JsonResponse(
+                {"success": False, "error": f"Ошибка сервера: {e!s}"}, status=500
             )
 
 
@@ -421,12 +523,33 @@ class BookmarkCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         """
-        После успешного заполнения формы создания закладки добавляем
-        в форму авторизованного пользователя вручную, т.к. данное поле
-        отсутствует в форме.
+        После успешного заполнения формы создания закладки проверяем лимиты тарифа.
+        Если лимит не превышен, добавляем в форму авторизованного пользователя
+        вручную и сохраняем.
         """
-        # Привязываем к полю owner объект текущего авторизованного пользователя
-        form.instance.owner = self.request.user
+        user = self.request.user
+
+        # Проверяем количество текущих закладок пользователя
+        bookmark_count = Bookmark.objects.filter(owner=user).count()
+
+        # Безопасно получаем лимит из тарифного плана пользователя
+        try:
+            bookmarks_limit = user.tariff_plan.max_bookmarks
+        except TariffPlans.DoesNotExist:
+            bookmarks_limit = TARIFF_LIMITS["BASE"]["MAX_BOOKMARKS"]
+
+        # Если лимит достигнут или превышен, прерываем сохранение
+        if bookmark_count >= bookmarks_limit:
+            # Добавляем общую ошибку в форму (отобразится в шаблоне над полями)
+            form.add_error(
+                None,
+                f"Превышен лимит закладок для вашего тарифа (макс. {bookmarks_limit})."
+            )
+            # Возвращаем форму обратно пользователю с заполненными полями и ошибкой
+            return self.form_invalid(form)
+
+        # Если всё в порядке, привязываем объект текущего пользователя к полю owner
+        form.instance.owner = user
 
         # Запускаем стандартный процесс сохранения формы Django
         return super().form_valid(form)
@@ -442,8 +565,8 @@ class BookmarkUpdateWebResponseView(APIView):
     Аутентификация по сессии браузера + обязательная CSRF-защита.
     """
 
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+    authentication_classes: ClassVar[list] = [
         SessionAuthentication
     ]  # Завязано на вошедшего в браузер юзера
 
@@ -493,9 +616,9 @@ class BookmarkDeleteView(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
         try:
             # Извлекаем объект напрямую по полученному ID
             obj = Bookmark.objects.get(id=bookmark_id)
-        except Bookmark.DoesNotExist:
+        except Bookmark.DoesNotExist as err:
             # Если объект не найден, отдаем стандартную 404 ошибку Django
-            raise Http404("Закладка не найдена.")
+            raise Http404("Закладка не найдена.") from err
 
         # Проверяем права владельца
         if obj.owner != self.request.user:
@@ -515,8 +638,8 @@ class TaskListAPIView(ListAPIView):
     """
 
     serializer_class = TaskSerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [SessionAuthentication]
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+    authentication_classes: ClassVar[list] = [SessionAuthentication]
     pagination_class = TaskListAPIViewPagination
 
     # Явно задаем queryset, чтобы заглушить предупреждение Swagger в консоли
@@ -524,7 +647,10 @@ class TaskListAPIView(ListAPIView):
 
     @extend_schema(
         summary="Получение списка задач с метаданными",
-        description="Возвращает массив задач текущего пользователя с учетом пагинации, а также метаданные фильтров и закладок.",
+        description=(
+                "Возвращает массив задач текущего пользователя с учетом пагинации, "
+                "а также метаданные фильтров и закладок."
+        ),
         responses={
             200: inline_serializer(
                 name="TaskListWithMetaResponse",
@@ -607,13 +733,45 @@ class BookmarkUpdateExternalApiView(RetrieveUpdateDestroyAPIView):
     """
 
     serializer_class = BookmarkUpdateSerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+    authentication_classes: ClassVar[list] = [
         JWTAuthentication
     ]  # Защита токеном, а не сессией браузера
 
     def get_queryset(self):
         return Bookmark.objects.filter(owner=self.request.user)
+
+
+class TaskUpdateExternalApiView(RetrieveUpdateDestroyAPIView):
+    """
+    API-представление для просмотра(GET), обновления(PUT / PATCH) и удаления(DELETE) конкретной задачи.
+    Аутентификация через JWT-токен в заголовке Authorization.
+    Поддерживает изменение статуса только на 'Выполнена' из статусов 'Создана', 'В работе', 'Дедлайн'.
+    """
+
+    serializer_class = TaskUpdateSerializer
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+    authentication_classes: ClassVar[list] = [
+        JWTAuthentication
+    ]  # Защита токеном, а не сессией браузера
+
+    def get_queryset(self):
+        return Task.objects.filter(owner=self.request.user)
+
+    def perform_update(self, serializer):
+        """
+        При обновлении статуса автоматически устанавливаем время изменения.
+        """
+        instance = serializer.instance
+        old_status = instance.status_flag
+        new_status = serializer.validated_data.get('status_flag')
+
+        # Если статус изменяется на 'Выполнена', обновляем время изменения
+        if new_status is not None and new_status != old_status:
+            if new_status == Task.StatusChoices.COMPLETED:
+                serializer.validated_data['status_changed_at'] = timezone.now()
+
+        serializer.save()
 
 
 class BookmarkListCreateAPIView(ListCreateAPIView):
@@ -623,8 +781,8 @@ class BookmarkListCreateAPIView(ListCreateAPIView):
     """
 
     serializer_class = BookmarkSerializer
-    permission_classes = [IsAuthenticated]
-    authentication_classes = [JWTAuthentication]
+    permission_classes: ClassVar[list] = [IsAuthenticated]
+    authentication_classes: ClassVar[list] = [JWTAuthentication]
 
     def get_queryset(self):
         """Фильтруем список под текущего пользователя."""

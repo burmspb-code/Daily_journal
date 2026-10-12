@@ -53,6 +53,23 @@ function saveInlineDate(input, taskId) {
         return;
     }
 
+    // Проверяем, что время в будущем (если значение не пустое)
+    if (newDateTime) {
+        const selectedDate = new Date(newDateTime);
+        const now = new Date();
+        if (selectedDate < now) {
+            // Показываем модальное окно предупреждения
+            const modal = new bootstrap.Modal(document.getElementById('pastTimeWarningModal'));
+            modal.show();
+            // Восстанавливаем старое значение
+            cell.innerHTML = cell.dataset.oldHtml || `
+                <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                    <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i>
+                </span>`;
+            return;
+        }
+    }
+
     const formData = new FormData();
     formData.append('id', taskId);
     formData.append('reminder_at', newDateTime);

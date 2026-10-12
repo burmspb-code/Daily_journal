@@ -8,7 +8,10 @@
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 
 from users.models import CustomUser
@@ -39,7 +42,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
             validate_password(value)
         except DjangoValidationError as e:
             # Перехватываем ошибку Django и возвращаем её в формате DRF
-            raise serializers.ValidationError(list(e.messages))
+            raise serializers.ValidationError(list(e.messages)) from e
         return value
 
     def create(self, validated_data):
@@ -126,7 +129,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
                 {
                     "uid": "Неверный идентификатор пользователя или пользователь не существует."
                 }
-            )
+            ) from None
 
         # Проверяем, валиден ли токен безопасности для этого конкретного пользователя
         if not default_token_generator.check_token(user, token):

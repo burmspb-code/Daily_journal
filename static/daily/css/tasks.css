@@ -476,6 +476,53 @@ tr:has(.task-reminder-cell .add-reminder-icon) .task-periodicity-cell:hover .bi-
     border-radius: 6px;
 }
 
+/* Стили для полей ввода в модальном окне редактирования задачи */
+#editTaskModal input[type="text"],
+#editTaskModal input[type="datetime-local"],
+#editTaskModal textarea,
+#editTaskModal select {
+    background-color: rgba(18, 22, 28, 0.6) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 8px !important;
+    padding: 0.55rem 0.85rem !important;
+    font-size: 0.85rem !important;
+    width: 100%;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+#id_periodicity_1 {
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background-color: rgba(24, 30, 38, 0.7) !important;
+}
+
+#editTaskModal input:focus,
+#editTaskModal textarea:focus,
+#editTaskModal select:focus {
+    border-color: rgba(255, 193, 7, 0.5) !important;
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.1) !important;
+    background-color: rgba(14, 17, 22, 0.8) !important;
+    outline: 0 !important;
+}
+
+#editTaskModal textarea {
+    resize: none;
+    border-radius: 8px !important;
+}
+
+#editTaskModal input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.8) sepia(1) saturate(5) hue-rotate(5deg);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+#editTaskModal input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
 /* ==========================================================================
    10. TOOLTIPS (ВСПЛЫВАЮЩИЕ ПОДСКАЗКИ)
    ========================================================================== */

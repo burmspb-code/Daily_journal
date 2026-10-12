@@ -48,7 +48,8 @@ INSTALLED_APPS = [
     "django_celery_beat",
 
     "daily",
-    "users",
+    # Явно указываем конфигурационный класс для корректного запуска ready()
+    "users.apps.UsersConfig",
 ]
 
 MIDDLEWARE = [
@@ -131,24 +132,13 @@ AUTH_USER_MODEL = "users.CustomUser"
 
 # Временно комментируем SMTP и включаем вывод в консоль:
 # EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
-# Конфигурация SMTP Яндекс
-EMAIL_HOST = "smtp.yandex.ru"
-EMAIL_PORT = 465  # Яндекс использует порт 465 для SSL
-EMAIL_USE_SSL = True  # Использование SSL вместо TLS (для Яндекса это надежнее)
-EMAIL_USE_TLS = False  # Отключаем TLS
+# Кастомная функция для отправки почтовых рассылок через Yandex.cloud
+# Вся конфеденциальная информация для работы с почтой находится в
+# секретах Yandex.cloud, что повышает уровень безопасности
+MAIL_FUNCTION_URL = "https://functions.yandexcloud.net/d4ek3sfv0h3v8022e025"
 
-# Логин и пароль приложения почты
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
-
-# 16-значный пароль приложения почты
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
-
-# Email отправителя по умолчанию
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
-
-# Email для получения уведомлений о просмотрах
+# Email для получения уведомлений для администрирования ресурса
 EMAIL_ADMIN_NOTIFICATION = os.getenv("EMAIL_ADMIN_NOTIFICATION")
 
 
