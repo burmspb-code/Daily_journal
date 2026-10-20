@@ -20,6 +20,7 @@ from users.apps import UsersConfig
 from users.views import (
     EmailConfirmationSentView,
     EmailConfirmView,
+    ResendActivationView,
     UserMeAPIView,
     UserPasswordResetAPIView,
     UserPasswordResetConfirmAPIView,
@@ -48,6 +49,12 @@ urlpatterns = [
         "email-confirm/<str:uidb64>/<str:token>/",
         EmailConfirmView.as_view(),
         name="email_confirm",
+    ),
+    # Повторная отправка ссылки активации, если письмо не дошло
+    path(
+        "resend-activation/",
+        ResendActivationView.as_view(),
+        name="resend_activation",
     ),
     # Вход и выход из системы (Сессии)
     path(

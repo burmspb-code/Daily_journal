@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.utils.functional import cached_property
 from django.views import View
 from django.views.generic import CreateView, DeleteView, ListView
 from drf_spectacular.utils import extend_schema, inline_serializer
@@ -271,6 +272,13 @@ class TaskUpdateView(LoginRequiredMixin, View):
                         task.periodicity_unit = 'none'
                         updated_fields.extend(["periodicity_value", "periodicity_unit"])
 
+                # Изменение или удаление времени напоминания возвращает задачу
+                # в статус «Создана», чтобы фоновый робот обработал её заново.
+                if task.status_flag != Task.StatusChoices.CREATED:
+                    task.status_flag = Task.StatusChoices.CREATED
+                    task.status_changed_at = timezone.now()
+                    updated_fields.extend(["status_flag", "status_changed_at"])
+
         # Обновляем периодичность повторения по НОВЫМ именам полей Django-формы
         # Пропускаем этот блок, если напоминание было удалено (периодичность уже очищена выше)
         if "reminder_at" not in request.POST or request.POST.get("reminder_at", "").strip():
@@ -465,6 +473,18 @@ class TaskDeleteView(LoginRequiredMixin, DeleteView):
 
     model = Task
 
+    def get_queryset(self):
+        """Ограничивает удаление задачами текущего пользователя.
+
+        Без этого переопределения `DeleteView` отдаёт `Task.objects.all()`,
+        и любой авторизованный пользователь мог бы удалить чужую задачу,
+        передав её ID в теле запроса.
+        """
+        user = getattr(self.request, "user", None)
+        if user is None or not user.is_authenticated:
+            return Task.objects.none()
+        return Task.objects.filter(owner=user)
+
     def get_object(self, queryset=None):
         """
         Стандартный DeleteView ищет один объект.
@@ -642,8 +662,34 @@ class TaskListAPIView(ListAPIView):
     authentication_classes: ClassVar[list] = [SessionAuthentication]
     pagination_class = TaskListAPIViewPagination
 
-    # Явно задаем queryset, чтобы заглушить предупреждение Swagger в консоли
-    queryset = Task.objects.none()
+    @cached_property
+    def service_context(self) -> dict:
+        """Единый контекст сервиса на время обработки запроса.
+
+        Вычисляется один раз и переиспользуется в `get_queryset` и `list`,
+        чтобы не дублировать обращения к сервисному слою. При генерации
+        схемы (swagger_fake_view) не вызывается вовсе.
+        """
+        return TaskService.get_task_list_context(
+            user=self.request.user, params=self.request.query_params
+        )
+
+    def get_queryset(self):
+        """Возвращает отфильтрованный QuerySet задач текущего пользователя.
+
+        Переопределён вместо класса-атрибута `queryset`, чтобы drf-spectacular
+        мог корректно вывести схему, а фильтрация и сортировка оставались
+        в сервисном слое. При генерации схемы и для анонимного пользователя
+        возвращается пустой QuerySet.
+        """
+        if getattr(self, "swagger_fake_view", False):
+            return Task.objects.none()
+
+        user = getattr(self.request, "user", None)
+        if user is None or not user.is_authenticated:
+            return Task.objects.none()
+
+        return self.service_context["tasks"]
 
     @extend_schema(
         summary="Получение списка задач с метаданными",
@@ -678,23 +724,30 @@ class TaskListAPIView(ListAPIView):
     def list(self, request, *args, **kwargs):
         """Формирует структурированный JSON-ответ со списком задач и метаданных."""
         # Логирование для диагностики
-        logger.info(f"[API] Запрос списка задач. User: {request.user}, Authenticated: {request.user.is_authenticated}")
-        logger.info(f"[API] Query params: {request.query_params}")
+        logger.info(
+            "[API] Запрос списка задач. User: %s, Authenticated: %s",
+            request.user,
+            request.user.is_authenticated,
+        )
+        logger.info("[API] Query params: %s", request.query_params)
 
-        # Получаем весь готовый контекст из сервиса
-        service_context = TaskService.get_task_list_context(
-            user=request.user, params=request.query_params
+        # QuerySet берём через стандартный хук DRF (см. get_queryset),
+        # а метаданные — из того же закэшированного контекста сервиса.
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+
+        logger.info(
+            "[API] Получено задач в контексте: %s",
+            len(page) if page is not None else queryset.count(),
         )
 
-        logger.info(f"[API] Получено задач в контексте: {service_context['tasks'].count()}")
-
         # Сериализуем список задач с поддержкой пагинации
-        queryset = service_context["tasks"]
-        page = self.paginate_queryset(queryset)
         if page is not None:
             tasks_data = self.get_serializer(page, many=True).data
         else:
             tasks_data = self.get_serializer(queryset, many=True).data
+
+        service_context = self.service_context
 
         # Сериализуем метаданные закладок
         bookmarks_serialized = BookmarkSerializer(

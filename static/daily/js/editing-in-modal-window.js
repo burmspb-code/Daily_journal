@@ -211,8 +211,10 @@ export function saveTaskChanges(event) {
                 }
 
                 // 5. Автоматическое обновление бейджа статуса строки задачи
+                // Передаём ЧИСЛОВОЙ флаг: getStatusConfig() делает parseInt,
+                // и от текста status_display свалился бы в fallback «Создана».
                 if (data.task && typeof updateRowStatusBadge === 'function') {
-                    updateRowStatusBadge(taskId, data.task.status_display);
+                    updateRowStatusBadge(taskId, data.task.status);
                 }
             }
 

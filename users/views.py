@@ -12,7 +12,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
-from django.views.generic import CreateView, TemplateView, UpdateView, View
+from django.views.generic import CreateView, FormView, TemplateView, UpdateView, View
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view, inline_serializer
 from rest_framework import exceptions, serializers, status
 from rest_framework.generics import CreateAPIView, RetrieveUpdateDestroyAPIView
@@ -22,7 +22,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .forms import CustomUserCreateForm, UserProfileForm
+from .forms import CustomUserCreateForm, ResendActivationForm, UserProfileForm
 from .models import CustomUser
 from .serializers import (
     EmailVerificationSerializer,
@@ -36,6 +36,7 @@ from .services import (
     InvalidActivationToken,
     activate_user_by_token,
     register_inactive_user,
+    resend_activation_email,
 )
 
 User = get_user_model()
@@ -68,11 +69,13 @@ class UserRegisterView(CreateView):
         try:
             register_inactive_user(self.request, save_callback=form.save)
             return redirect(self.success_url)
-        except EmailActivationError:
+        except EmailActivationError as e:
+            # Аккаунт уже создан и остаётся неактивным — сообщаем это явно,
+            # чтобы пользователь не пытался регистрироваться заново.
             messages.error(
                 self.request,
-                "Произошла ошибка при отправке письма с подтверждением. "
-                "Пожалуйста, проверьте правильность ввода email или попробуйте позже.",
+                f"{e} Данные для входа сохранились, дождитесь письма "
+                "или воспользуйтесь отправкой ссылки повторно.",
             )
             return self.render_to_response(self.get_context_data(form=form))
 
@@ -91,7 +94,8 @@ class EmailConfirmView(View):
         Активирует пользователя через сервис `activate_user_by_token`.
 
         В случае успеха перенаправляет на логин с GET-параметром email.
-        При ошибке `InvalidActivationToken` рендерит страницу сбоя активации.
+        При ошибке `InvalidActivationToken` рендерит страницу сбоя активации,
+        передавая ей причину: аккаунт не создан или токен недействителен.
         """
         try:
             # Вызываем единый сервис активации
@@ -104,9 +108,53 @@ class EmailConfirmView(View):
             login_url = reverse("users:login")
             return redirect(f"{login_url}?email={user.email}")
 
-        except InvalidActivationToken:
-            # Если сервис выкинул ошибку (токен неверный/истек), рендерим страницу ошибки
-            return render(request, "users/email_confirmation_failed.html")
+        except InvalidActivationToken as e:
+            # Если сервис выкинул ошибку, рендерим страницу ошибки с причиной
+            return render(
+                request,
+                "users/email_confirmation_failed.html",
+                {"reason": e.reason},
+            )
+
+
+class ResendActivationView(FormView):
+    """Повторная отправка ссылки активации для неактивного аккаунта.
+
+    Нужен в ситуации, когда письмо не дошло или аккаунт остался неактивным
+    после сбоя почтового сервиса. Ответ всегда одинаковый, независимо от того,
+    существует ли аккаунт с указанным email, иначе форма превратилась бы в
+    способ перебора зарегистрированных адресов.
+    """
+
+    template_name = "users/resend_activation.html"
+    form_class = ResendActivationForm
+    success_url = reverse_lazy("users:email_confirmation_sent")
+
+    # Показываем один и тот же текст в любом случае
+    NEUTRAL_MESSAGE = (
+        "Если аккаунт с таким email существует и ещё не активирован, "
+        "мы отправили на него новую ссылку. Проверьте почту и папку «Спам»."
+    )
+
+    def form_valid(self, form):
+        email = form.cleaned_data["email"]
+
+        try:
+            resend_activation_email(self.request, email)
+        except EmailActivationError as e:
+            # Сбой доставки не раскрываем пользователю: причина может быть
+            # в конфигурации на нашей стороне. Пишем в лог и отвечаем нейтрально.
+            logger.error(f"💥 Не удалось отправить ссылку активации: {e}")
+
+        messages.success(self.request, self.NEUTRAL_MESSAGE)
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        messages.error(
+            self.request,
+            "Укажите корректный email и попробуйте ещё раз.",
+        )
+        return super().form_invalid(form)
 
 
 class UserProfileUpdateView(LoginRequiredMixin, UpdateView):
@@ -154,8 +202,10 @@ class UserProfileUpdateView(LoginRequiredMixin, UpdateView):
     # Привязываем успешный ответ к сериализатору токенов
     responses={
         200: TokenObtainPairSerializer,
-        400: serializers.Serializer,  # Ошибка валидации структуры (например, пустые поля)
-        401: serializers.Serializer,  # Ошибка аутентификации (неверный логин/пароль)
+        400: OpenApiResponse(
+            description="Ошибка валидации структуры запроса (например, пустые поля)"
+        ),
+        401: OpenApiResponse(description="Неверный логин или пароль"),
     },
     tags=["Аутентификация"],
 )

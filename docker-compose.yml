@@ -40,6 +40,7 @@ services:
     # Благодаря этому код обновляется «на лету» без пересборки образа.
     volumes:
       - .:/app
+      - /app/.venv
     # ПОДКЛЮЧЕНИЕ .ENV ФАЙЛА: Docker сам прочитает ваш файл .env и передаст
     # все переменные (SECRET_KEY, DB_NAME, DB_USER и т.д.) прямо в Django.
     env_file:
@@ -75,6 +76,7 @@ services:
     # Также монтируем код, чтобы Celery мгновенно подхватывал изменения в файлах tasks.py
     volumes:
       - .:/app
+      - /app/.venv
     # Передаем те же самые доступы к базе данных из .env файла
     env_file:
       - .env
@@ -103,6 +105,7 @@ services:
         max-file: "3"   # Docker будет хранить максимум 3 старых файла (итого 30 МБ)
     volumes:
       - .:/app
+      - /app/.venv
     env_file:
       - .env
     environment:

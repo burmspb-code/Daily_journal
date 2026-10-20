@@ -1,0 +1,58 @@
+# =============================================================================
+# .dockerignore — что НЕ копировать в образ при сборке (COPY . /app/)
+# =============================================================================
+# Важно: без этого файла хостовая папка .venv (например, Windows-окружение
+# с Lib/ и Scripts/) попадает в образ по пути /app/.venv и ломает
+# Linux-окружение внутри контейнера.
+# =============================================================================
+
+# --- Виртуальные окружения (зависимости ставит Poetry при сборке) ---
+.venv
+venv
+env
+ENV
+
+# --- Кэш и артефакты Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Секреты и локальные настройки (передаются через env_file в compose) ---
+.env
+.env.*
+!.env.sample
+
+# --- Локальные данные и мусор ---
+*.sqlite3
+*.log
+logs/
+staticfiles/
+media/
+# Загруженные пользователями аватары и артефакты биты — нарабатываются в рантайме
+avatars/
+celerybeat-schedule*
+.qodo
+
+# --- Редакторы и IDE ---
+.idea/
+.vscode/
+*.swp
+
+# --- Служебные файлы репозитория и Docker ---
+.git
+.gitignore
+.gitattributes
+.github/
+docker-compose*.yml
+dockerfile
+Dockerfile
+.dockerignore
+README.md
+docs/

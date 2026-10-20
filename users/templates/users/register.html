@@ -101,6 +101,13 @@
                         <a href="{% url 'users:login' %}" class="text-decoration-none small fw-bold ms-1">Войти</a>
                     </div>
 
+                    <div class="text-center mt-2">
+                        <span class="text-muted small">Не получили письмо?</span>
+                        <a href="{% url 'users:resend_activation' %}" class="text-decoration-none small fw-bold ms-1">
+                            Отправить ссылку повторно
+                        </a>
+                    </div>
+
                 </div>
             </div>
         </div>

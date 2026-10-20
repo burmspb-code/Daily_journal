@@ -11,14 +11,33 @@ from django.db import transaction
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from daily.models import NotificationAttempt, Task
+from daily.models import Bookmark, NotificationAttempt, Task
 from daily.tasks import send_email_notification, send_telegram_notification
-
-from .models import Bookmark
 
 logger = logging.getLogger(__name__)
 
 StatusChoices = Task.StatusChoices
+
+
+def _dispatch(items: list) -> None:
+    """Ставит в очередь Celery список отложенных вызовов доставки.
+
+    Вызывается через `transaction.on_commit`, поэтому запускается уже после
+    успешного COMMIT. Ошибка отправки одного сообщения не должна отменять
+    остальные, поэтому каждый вызов обёрнут в try/except.
+
+    Args:
+        items: Список кортежей (celery_task, kwargs).
+    """
+    for celery_task, kwargs in items:
+        try:
+            celery_task.delay(**kwargs)
+        except Exception:
+            logger.error(
+                f"❌ Не удалось поставить задачу {celery_task.name} в очередь: "
+                f"attempt_id={kwargs.get('attempt_id')}",
+                exc_info=True,
+            )
 
 # Заранее подготовленный словарь соответствия единиц времени и таймаутов просрочки
 # Ключ — periodicity_unit, значение — интервал timedelta до перевода в OVERDUE
@@ -199,11 +218,16 @@ class ReminderNotificationService:
     def _process_new_reminders(self) -> int:
         """Ищет наступившие напоминания и ставит задачи отправки в очередь Celery.
 
-        Метод делает один оптимизированный SQL-запрос к базе данных, выбирая
-        все наступившие задачи в статусе CREATED. Для каждой задачи проверяет
-        наличие успешной записи NotificationAttempt по каждому каналу. Если
-        успешной отправки ещё не было — создаёт запись pending и ставит
-        асинхронную Celery-задачу через .delay().
+        Метод делает один SQL-запрос, выбирая все наступившие задачи в статусе
+        CREATED. Строки блокируются через `select_for_update(skip_locked=True)`:
+        параллельный прогон Celery Beat пропустит уже захваченные задачи, а не
+        создаст для них вторую пару уведомлений.
+
+        Для каждого канала проверяется наличие активной попытки доставки —
+        уже успешной ИЛИ ещё выполняющейся (pending, способная завершиться
+        собственным retry). Если активной попытки нет, создаётся запись
+        pending, а сама доставка ставится в очередь через `transaction.on_commit`,
+        чтобы воркер не начал выполнение раньше коммита транзакции.
 
         Returns:
             int: Количество задач, для которых инициирована отправка.
@@ -212,14 +236,18 @@ class ReminderNotificationService:
             Task.objects
             .filter(reminder_at__lte=self.now, status_flag=StatusChoices.CREATED)
             .select_related("owner")
+            .select_for_update(skip_locked=True, of=("self",))
             .order_by("id")
         )
 
         count = 0
+        # Список для отложенного запуска Celery-задач строго после коммита БД
+        tasks_to_delay = []
 
         for task in active_reminders:
+            # Логируем безопасный ID пользователя
             logger.info(
-                f"== [ОТПРАВКА] Задача ID {task.id} → {task.owner.email} =="
+                f"== [ОТПРАВКА] Задача ID {task.id} → Пользователь ID {task.owner.id} =="
             )
 
             deadline_str = task.reminder_at.strftime("%Y-%m-%d %H:%M")
@@ -227,52 +255,35 @@ class ReminderNotificationService:
 
             # --- Email ---
             if task.owner.email_notifications:
-                already_sent = NotificationAttempt.objects.filter(
+                if self._enqueue_notification(
                     task=task,
                     channel=NotificationAttempt.CHANNEL_EMAIL,
-                    status=NotificationAttempt.STATUS_SENT,
-                ).exists()
-
-                if not already_sent:
-                    attempt = NotificationAttempt.objects.create(
-                        task=task,
-                        channel=NotificationAttempt.CHANNEL_EMAIL,
-                        status=NotificationAttempt.STATUS_PENDING,
-                    )
-                    send_email_notification.delay(
-                        attempt_id=attempt.id,
-                        to_email=task.owner.email,
-                        task_name=task.title,
-                        deadline=deadline_str,
-                    )
+                    celery_task=send_email_notification,
+                    delivery_kwargs={
+                        "to_email": task.owner.email,
+                        "task_name": task.title,
+                        "deadline": deadline_str,
+                    },
+                    tasks_to_delay=tasks_to_delay,
+                ):
                     task_changed = True
-                    logger.info(f"  → Email: задача {attempt.id} поставлена в очередь")
 
             # --- Telegram ---
             if task.owner.telegram_notifications and task.owner.tg_chat_id:
-                already_sent = NotificationAttempt.objects.filter(
+                if self._enqueue_notification(
                     task=task,
                     channel=NotificationAttempt.CHANNEL_TELEGRAM,
-                    status=NotificationAttempt.STATUS_SENT,
-                ).exists()
-
-                if not already_sent:
-                    attempt = NotificationAttempt.objects.create(
-                        task=task,
-                        channel=NotificationAttempt.CHANNEL_TELEGRAM,
-                        status=NotificationAttempt.STATUS_PENDING,
-                    )
-                    send_telegram_notification.delay(
-                        attempt_id=attempt.id,
-                        chat_id=task.owner.tg_chat_id,
-                        task_name=task.title,
-                        deadline=deadline_str,
-                    )
+                    celery_task=send_telegram_notification,
+                    delivery_kwargs={
+                        "chat_id": str(task.owner.tg_chat_id),
+                        "task_name": task.title,
+                        "deadline": deadline_str,
+                    },
+                    tasks_to_delay=tasks_to_delay,
+                ):
                     task_changed = True
-                    logger.info(f"  → Telegram: задача {attempt.id} поставлена в очередь")
 
             # --- Перевод статуса ---
-            # Меняем статус только если хотя бы по одному каналу была попытка
             if task_changed:
                 task.status_flag = StatusChoices.IN_PROGRESS
                 task.status_changed_at = self.now
@@ -282,7 +293,65 @@ class ReminderNotificationService:
                 ])
                 count += 1
 
+        # Безопасный запуск Celery-задач. Вызовутся только тогда,
+        # когда транзакция полностью и успешно запишется в базу данных.
+        if tasks_to_delay:
+            transaction.on_commit(lambda items=list(tasks_to_delay): _dispatch(items))
+
         return count
+
+    @staticmethod
+    def _enqueue_notification(
+        task,
+        channel: str,
+        celery_task,
+        delivery_kwargs: dict,
+        tasks_to_delay: list,
+    ) -> bool:
+        """Создаёт запись NotificationAttempt и планирует доставку в очередь.
+
+        Args:
+            task: Задача, для которой создаётся уведомление.
+            channel: Канал доставки (`NotificationAttempt.CHANNEL_*`).
+            celery_task: Celery-задача, которую нужно запустить.
+            delivery_kwargs: Аргументы будущего вызова Celery-задачи.
+            tasks_to_delay: Список, в который копятся отложенные вызовы.
+
+        Returns:
+            bool: True, если попытка создана и запланирована к отправке.
+        """
+        # Повторно брать в работу нельзя, пока по каналу есть либо уже
+        # доставленное уведомление, либо незавершённая попытка (pending),
+        # которая может доставить его в ходе собственного retry.
+        has_active_attempt = NotificationAttempt.objects.filter(
+            task=task,
+            channel=channel,
+            status__in=(
+                NotificationAttempt.STATUS_PENDING,
+                NotificationAttempt.STATUS_SENT,
+            ),
+        ).exists()
+
+        if has_active_attempt:
+            logger.info(f"  → {channel}: активная попытка уже есть, пропускаем")
+            return False
+
+        attempt = NotificationAttempt.objects.create(
+            task=task,
+            channel=channel,
+            status=NotificationAttempt.STATUS_PENDING,
+        )
+
+        # Вместо .delay() складываем параметры в список для on_commit
+        tasks_to_delay.append((
+            celery_task,
+            {
+                "attempt_id": attempt.id,
+                **delivery_kwargs,
+            },
+        ))
+        logger.info(f"  → {channel}: попытка {attempt.id} запланирована к отправке")
+        return True
 
     def _check_and_set_dynamic_overdue(self) -> int:
         """Контролирует, фиксирует и записывает просрочку активных напоминаний.
@@ -295,8 +364,14 @@ class ReminderNotificationService:
         Returns:
             int: Количество задач, признанных просроченными за текущую итерацию.
         """
-        active_tasks = Task.objects.filter(status_flag=StatusChoices.IN_PROGRESS)
-        overdue_tasks_ids = []
+        # reminder_at nullable, а у задачи без напоминания нечего сравнивать
+        # с дедлайном. Без этой фильтрации получим TypeError на None + timedelta
+        # и упадёт весь планировщик, а не одна задача.
+        active_tasks = Task.objects.filter(
+            status_flag=StatusChoices.IN_PROGRESS,
+            reminder_at__isnull=False,
+        )
+        overdue_tasks = []
 
         for task in active_tasks:
             timeout_delta = OVERDUE_TIMEOUTS.get(
@@ -312,11 +387,11 @@ class ReminderNotificationService:
 
                 task.status_flag = StatusChoices.OVERDUE
                 task.status_changed_at = self.now
-                task.save(update_fields=[
-                    "status_flag",
-                    "status_changed_at",
-                ])
 
-                overdue_tasks_ids.append(task.id)
+                overdue_tasks.append(task)
 
-        return len(overdue_tasks_ids)
+        # Одним UPDATE вместо сохранения каждой задачи по отдельности
+        if overdue_tasks:
+            Task.objects.bulk_update(overdue_tasks, ["status_flag", "status_changed_at"])
+
+        return len(overdue_tasks)
