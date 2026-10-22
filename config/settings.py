@@ -11,22 +11,56 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
-from celery.schedules import crontab
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Загружаем переменные из файла .env, который лежит в корне проекта
-load_dotenv(override=True)
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-fallback-key")
+# Загружаем переменные из файла .env, который лежит в корне проекта.
+# override=False означает, что реальные переменные окружения (docker-compose,
+# systemd, CI/CD) имеют приоритет над .env. Иначе, например, DEBUG=False,
+# переданный при запуске, был бы молча перекрыт значением из .env.
+load_dotenv(override=False)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "True") == "True"
+# Явное включение обязательно: любое значение, кроме перечисленных,
+# трактуется как False. Так случайно забытый DEBUG в .env не откроет
+# отладочные страницы с трассировками стека на продакшене.
+DEBUG = os.getenv("DEBUG", "False").strip().lower() in ("1", "true", "yes", "on")
 
-ALLOWED_HOSTS = ["*"]
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured(
+            "SECRET_KEY не задан. Добавьте его в .env (см. .env.sample). "
+            "Запуск в продакшене с отладочным ключом запрещён."
+        )
+    # Резервный ключ допустим только для локальной отладки.
+    SECRET_KEY = "django-insecure-dev-only-fallback-key"
+
+# Загружаем токен для Телеграм
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Список хостов задаётся через .env, например:
+# ALLOWED_HOSTS=localhost,127.0.0.1,example.com
+# Пустое значение трактуется как «не задано» — подставляются локальные хосты,
+# чтобы случайно не заблокировать весь сайт.
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv("ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+] or ["localhost", "127.0.0.1", "[::1]"]
+
+# Домены, которым доверяется CSRF при работе через HTTPS.
+# Указываются СО СХЕМОЙ, например: https://example.com,https://www.example.com
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
 
 # Application definition
 
@@ -88,7 +122,7 @@ DATABASES = {
         "NAME": os.getenv("DB_NAME"),
         "USER": os.getenv("DB_USER"),
         "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": "host.docker.internal",
+        "HOST": os.getenv("DB_HOST", "host.docker.internal"),
         "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
@@ -136,8 +170,7 @@ AUTH_USER_MODEL = "users.CustomUser"
 # Кастомная функция для отправки почтовых рассылок через Yandex.cloud
 # Вся конфеденциальная информация для работы с почтой находится в
 # секретах Yandex.cloud, что повышает уровень безопасности
-MAIL_FUNCTION_URL = "https://functions.yandexcloud.net/d4ek3sfv0h3v8022e025"
-
+MAIL_FUNCTION_URL = os.getenv("MAIL_FUNCTION_URL")
 # Email для получения уведомлений для администрирования ресурса
 EMAIL_ADMIN_NOTIFICATION = os.getenv("EMAIL_ADMIN_NOTIFICATION")
 
@@ -156,11 +189,11 @@ PASSWORD_RESET_TIMEOUT = 24 * 60 * 60  # 86400 секунд
 
 
 # ==================== НАСТРОЙКИ CELERY И REDIS ================================
-from celery.schedules import crontab
 
-# КРИТИЧЕСКИ ВАЖНО: Используем имя Docker-контейнера "redis" вместо "127.0.0.1"
-CELERY_BROKER_URL = "redis://redis:6379/0"
-CELERY_RESULT_BACKEND = "redis://redis:6379/0"
+# Celery читает эти переменные из окружения с приоритетом над значениями
+# ниже, поэтому docker-compose может переопределить адрес брокера.
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL") or "redis://redis:6379/0"
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND") or CELERY_BROKER_URL
 
 # Часовой пояс для планировщика Celery (должен совпадать с Django)
 CELERY_TIMEZONE = TIME_ZONE

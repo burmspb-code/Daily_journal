@@ -1,6 +1,6 @@
 // === РЕДАКТИРОВАНИЕ В МОДАЛЬНОМ ОКНЕ ЧЕРЕЗ HTMX ===
 
-import { getCookie } from './secondary-system-functions.js';
+import { getCookie, showNotification } from './secondary-system-functions.js';
 
 export function openEditModal() {
     // 1. Находим единственный отмеченный чекбокс
@@ -92,7 +92,7 @@ export function saveTaskChanges(event) {
 
     const taskId = document.getElementById('edit-task-id')?.value;
     if (!taskId) {
-        alert('Не удалось определить ID редактируемой задачи.');
+        showNotification('Не удалось определить ID редактируемой задачи.', 'error');
         return;
     }
 
@@ -211,8 +211,10 @@ export function saveTaskChanges(event) {
                 }
 
                 // 5. Автоматическое обновление бейджа статуса строки задачи
+                // Передаём ЧИСЛОВОЙ флаг: getStatusConfig() делает parseInt,
+                // и от текста status_display свалился бы в fallback «Создана».
                 if (data.task && typeof updateRowStatusBadge === 'function') {
-                    updateRowStatusBadge(taskId, data.task.status_display);
+                    updateRowStatusBadge(taskId, data.task.status);
                 }
             }
 
@@ -226,11 +228,11 @@ export function saveTaskChanges(event) {
             // Отправляем событие для снятия галочек с чекбоксов
             document.dispatchEvent(new Event('taskUpdated'));
         } else {
-            alert('Ошибка при сохранении: ' + (data.error || 'Неизвестный сбой на бэкенде.'));
+            showNotification('Ошибка при сохранении: ' + (data.error || 'Неизвестный сбой на бэкенде.'), 'error');
         }
     })
     .catch(error => {
         console.error('Ошибка при отправке изменений формы задачи:', error);
-        alert('Критическая ошибка сохранения. Подробности выведены в консоль браузера.');
+        showNotification('Критическая ошибка сохранения. Подробности выведены в консоль браузера.', 'error');
     });
 }

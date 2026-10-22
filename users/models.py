@@ -75,6 +75,24 @@ class CustomUser(AbstractUser):
         help_text="Получать уведомления в Telegram"
     )
 
+    # Метка времени последней отправки ссылки активации. Служит для
+    # ограничения частоты повторных отправок: пользователь не должен
+    # спамить почтовым сервисом одним и тем же письмом.
+    last_activation_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Последняя отправка ссылки активации",
+        help_text="Время последней отправки ссылки активации",
+    )
+
+    # Счётчик отправок ссылки активации за текущие сутки. Обнуляется
+    # плановой задачей либо лениво при проверке суточного лимита.
+    activation_emails_sent_today = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Отправок ссылки активации за сутки",
+        help_text="Сколько раз письмо активации отправлялось за последние сутки",
+    )
+
     USERNAME_FIELD = "username"  # Поле для входа (логин)
     REQUIRED_FIELDS: ClassVar[list[str]] = [
         "email"

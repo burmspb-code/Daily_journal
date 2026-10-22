@@ -1,7 +1,7 @@
 // === ПОЛЛИНГ СТАТУСОВ ЗАДАЧ ===
 // Периодически проверяет изменения статусов задач на сервере и обновляет UI
 
-import { getStatusConfig } from './status-icons-config.js';
+import { renderTaskStatusCell } from './secondary-system-functions.js';
 
 let pollingInterval = null;
 const POLLING_INTERVAL_MS = 30000; // 30 секунд
@@ -92,23 +92,32 @@ async function updateTaskStatuses() {
             }
         }
 
-        // Обновляем статусы в таблице
+        // Обновляем статусы и время напоминания в таблице
         let updatedCount = 0;
         tasks.forEach(task => {
             const row = document.getElementById(`task-row-${task.id}`);
             if (row) {
-                const currentBadge = row.querySelector('.task-status-cell .badge');
-                if (currentBadge) {
+                const statusCell = row.querySelector('.task-status-cell');
+                const currentBadge = statusCell ? statusCell.querySelector('.badge') : null;
+                if (statusCell && currentBadge) {
                     const currentStatus = parseInt(currentBadge.getAttribute('data-status') || '0');
-                    const newStatus = task.status_flag;
+                    const newStatus = parseInt(task.status_flag, 10);
 
-                    // Если статус изменился, обновляем бейдж
+                    // Если статус изменился, перерисовываем ВСЮ ячейку: только
+                    // замена бейджа ломает обёртку-триггер дропдауна и меню
+                    // «Изменить статус», после чего с задачей нельзя
+                    // взаимодействовать (см. renderTaskStatusCell).
                     if (currentStatus !== newStatus) {
-                        updateStatusBadge(currentBadge, newStatus);
-                        currentBadge.setAttribute('data-status', newStatus);
+                        const isPeriodic = row.getAttribute('data-periodic') === '1';
+                        renderTaskStatusCell(statusCell, newStatus, isPeriodic);
                         updatedCount++;
                     }
                 }
+
+                // Периодическая задача при просрочке/новом наступлении сдвигает
+                // reminder_at на сервере. Без синхронизации ячейки время в
+                // таблице оставалось старым до перезагрузки страницы.
+                syncReminderCell(row, task.reminder_at);
             }
         });
 
@@ -118,20 +127,55 @@ async function updateTaskStatuses() {
 }
 
 /**
- * Обновляет визуальное отображение бейджа статуса
+ * Синхронизирует ячейку времени напоминания с данными сервера.
+ *
+ * Сравнивает текущее значение скрытого инпута с пришедшим `reminder_at` и
+ * перерисовывает ячейку только при реальном расхождении, чтобы не сбивать
+ * открытый пользователем инлайн-редактор даты (`datetime-local`).
+ *
+ * @param {HTMLElement} row - строка таблицы задачи (`<tr>`).
+ * @param {string|null} reminderAtIso - значение `reminder_at` из API (UTC ISO).
  */
-function updateStatusBadge(badge, statusFlag) {
-    const config = getStatusConfig(statusFlag);
-    if (!config) return;
+function syncReminderCell(row, reminderAtIso) {
+    const cell = row.querySelector('.task-reminder-cell');
+    if (!cell) return;
 
-    badge.className = `badge rounded-pill ${config.bg} px-2 py-1 d-inline-flex align-items-center gap-1`;
-    badge.setAttribute('title', config.text);
-    badge.innerHTML = `<i class="bi ${config.icon}"></i> ${config.text}`;
+    // Не трогаем ячейку, если в ней открыт инлайн-редактор даты.
+    if (cell.querySelector('.inline-date-input')) return;
 
-    // Небольшая визуальная индикация обновления
-    badge.style.transition = 'transform 0.2s';
-    badge.style.transform = 'scale(1.1)';
-    setTimeout(() => {
-        badge.style.transform = 'scale(1)';
-    }, 200);
+    const hiddenInput = cell.querySelector('.raw-reminder-date');
+    if (!hiddenInput) return;
+
+    const pad = (n) => String(n).padStart(2, '0');
+
+    if (!reminderAtIso) {
+        // Напоминание снято на сервере — показываем иконку «Добавить».
+        if (hiddenInput.value !== '') {
+            cell.innerHTML = `
+                <input type="hidden" class="raw-reminder-date" value="">
+                <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                    <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить"></i>
+                </span>
+            `.trim();
+        }
+        return;
+    }
+
+    const date = new Date(reminderAtIso);
+    if (Number.isNaN(date.getTime())) return;
+
+    const raw = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    // Значение скрытого инпута отрендерено Django в часовом поясе сервера
+    // (TIME_ZONE), а `raw` — в часовом поясе браузера. В нормальной ситуации
+    // (браузер и сервер в одном поясе) совпадение означает, что время не
+    // менялось, и перерисовывать ячейку не нужно.
+    if (hiddenInput.value === raw) return;
+
+    const formatted = `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    cell.innerHTML = `
+        <input type="hidden" class="raw-reminder-date" value="${raw}">
+        <span class="d-inline-flex align-items-center gap-1 text-warning">
+            <i class="bi bi-bell-fill"></i> ${formatted}
+        </span>
+    `;
 }

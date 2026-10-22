@@ -1,31 +1,40 @@
+import html
 import logging
-import os
 
 import requests
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 
+from daily.exceptions import RETRYABLE_STATUS_CODES, NotificationError
 from daily.models import NotificationAttempt
-from users.exceptions import EmailActivationError
 
 logger = logging.getLogger(__name__)
+
+# Единый таймаут для всех исходящих HTTP-запросов к внешним сервисам
+REQUEST_TIMEOUT = 15
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_email_notification(self, attempt_id: int, to_email: str,
-                            task_name: str, deadline: str) -> None:
+                            task_name: str, deadline: str,
+                            is_late: bool = False) -> None:
     """Асинхронная задача отправки email-уведомления через Cloud Function.
 
     Загружает запись NotificationAttempt по ID, выполняет HTTP-запрос к
     облачной функции отправки писем, фиксирует результат в БД.
-    При сетевой ошибке — повторяет попытку с задержкой 60 секунд.
+
+    Повторяет попытку с экспоненциальной задержкой только при временных сбоях
+    (сетевые ошибки, 429 и 5xx). Остальные коды считаются терминальными:
+    повтор не изменит результат, поэтому попытка фиксируется как failed.
 
     Args:
         attempt_id: ID записи NotificationAttempt (создаётся оркестратором).
         to_email: Email получателя.
         task_name: Название задачи для текста письма.
         deadline: Дедлайн задачи (строка).
+        is_late: True, если напоминание доставляется с опозданием (простом
+            сервера); в текст добавляется пометка «Пропущенное напоминание».
     """
     try:
         attempt = NotificationAttempt.objects.get(id=attempt_id)
@@ -47,6 +56,7 @@ def send_email_notification(self, attempt_id: int, to_email: str,
         "email_type": "reminder",
         "task_name": task_name,
         "deadline": deadline,
+        "is_late": is_late,
     }
 
     logger.info(f"📬 Отправляем email: {task_name} → {to_email}")
@@ -55,139 +65,187 @@ def send_email_notification(self, attempt_id: int, to_email: str,
         attempt.attempts += 1
         attempt.save(update_fields=["attempts"])
 
-        response = requests.post(mail_url, json=payload, timeout=15)
+        response = requests.post(mail_url, json=payload, timeout=REQUEST_TIMEOUT)
 
         if response.status_code != 200:
-            raise EmailActivationError(
-                f"Сервис почты вернул HTTP {response.status_code}: {response.text}"
+            raise NotificationError(
+                message=f"Сервис почты вернул HTTP {response.status_code}: {response.text}",
+                details={
+                    "status_code": response.status_code,
+                    "response_text": response.text,
+                },
             )
-
-        attempt.status = NotificationAttempt.STATUS_SENT
-        attempt.sent_at = timezone.now()
-        attempt.error_message = None
-        attempt.save(update_fields=["status", "sent_at", "error_message"])
-
-        logger.info(f"✅ Email отправлен: {task_name} → {to_email}")
 
     except (requests.exceptions.Timeout,
             requests.exceptions.ConnectionError) as e:
         attempt.status = NotificationAttempt.STATUS_FAILED
-        attempt.error_message = str(e)
+        attempt.error_message = f"Сетевая ошибка: {e}"
         attempt.save(update_fields=["status", "error_message"])
 
         logger.warning(
             f"⚠️ Сетевая ошибка email (попытка {attempt.attempts}/3): {e}"
         )
-        raise self.retry(exc=e) from e
+        countdown = self.default_retry_delay * (2 ** self.request.retries)
+        raise self.retry(exc=e, countdown=countdown) from e
 
-    except EmailActivationError as e:
+    except NotificationError as e:
         attempt.status = NotificationAttempt.STATUS_FAILED
         attempt.error_message = str(e)
         attempt.save(update_fields=["status", "error_message"])
 
-        logger.warning(
-            f"⚠️ Сервис почты вернул ошибку (попытка {attempt.attempts}/3): {e}"
+        status_code = e.details.get("status_code")
+
+        # Повторяем только при временных сбоях сервиса, а не при ошибках запроса.
+        if status_code in RETRYABLE_STATUS_CODES:
+            logger.warning(
+                f"⚠️ Сервис почты вернул {status_code} "
+                f"(попытка {attempt.attempts}/3). Перезапуск: {e}"
+            )
+            countdown = self.default_retry_delay * (2 ** self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        logger.error(
+            f"❌ Неустранимая ошибка сервиса почты. HTTP {status_code}: {e}"
         )
-        if self.request.retries < self.max_retries:
-            raise self.retry(exc=e) from e
 
     except Exception as e:
         attempt.status = NotificationAttempt.STATUS_FAILED
-        attempt.error_message = str(e)
+        attempt.error_message = f"Непредвиденная ошибка: {e}"
         attempt.save(update_fields=["status", "error_message"])
 
         logger.error(f"❌ Фатальная ошибка отправки email: {e}", exc_info=True)
+        raise
+
+    else:
+        attempt.status = NotificationAttempt.STATUS_SENT
+        attempt.sent_at = timezone.now()
+        # Поле NOT NULL (blank=True без null=True): очищаем пустой строкой,
+        # а не None, иначе PostgreSQL падает на IntegrityError и попытка
+        # остаётся pending, хотя письмо уже доставлено.
+        attempt.error_message = ""
+        attempt.save(update_fields=["status", "sent_at", "error_message"])
+
+        logger.info(f"✅ Email отправлен: {task_name} → {to_email}")
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_telegram_notification(self, attempt_id: int, chat_id: str,
-                              task_name: str, deadline: str) -> None:
+                               task_name: str, deadline: str,
+                               is_late: bool = False) -> None:
     """Асинхронная задача отправки Telegram-уведомления через Bot API.
 
     Загружает запись NotificationAttempt по ID, выполняет запрос к
     Telegram Bot API, фиксирует результат в БД.
-    При сетевой ошибке — повторяет попытку с задержкой 60 секунд.
+
+    Повторяет попытку с экспоненциальной задержкой только при временных сбоях
+    (сетевые ошибки, 429 и 5xx). Остальные коды считаются терминальными:
+    например, 400 из-за неэкранированной разметки повтором не лечится.
 
     Args:
         attempt_id: ID записи NotificationAttempt (создаётся оркестратором).
         chat_id: ID чата получателя в Telegram.
+        task_name: Название задачи для текста сообщения.
         deadline: Дедлайн задачи (строка).
+        is_late: True, если напоминание доставляется с опозданием (простом
+            сервера); в текст добавляется пометка «Пропущенное напоминание».
     """
+
+    # БЛОК 1: Подготовка данных (без логики перезапусков)
     try:
         attempt = NotificationAttempt.objects.get(id=attempt_id)
     except NotificationAttempt.DoesNotExist:
         logger.error(f"❌ NotificationAttempt ID {attempt_id} не существует")
         return
 
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    bot_token = settings.TELEGRAM_BOT_TOKEN
     if not bot_token:
         attempt.status = NotificationAttempt.STATUS_FAILED
-        attempt.error_message = "TELEGRAM_BOT_TOKEN не задан в .env"
+        attempt.error_message = "TELEGRAM_BOT_TOKEN не задан в конфигурации Django"
         attempt.save(update_fields=["status", "error_message"])
-        logger.error("❌ TELEGRAM_BOT_TOKEN не задан в .env")
+        logger.error("❌ TELEGRAM_BOT_TOKEN не задан в конфигурации Django")
         return
+
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
-    message_text = (
-        f"⏰ *Время выполнить задачу!*\n\n"
-        f"💪 *Задача:* {task_name}\n"
-        f"⏳ *Дедлайн:* {deadline}"
+    # task_name приходит из пользовательского ввода. Без экранирования
+    # символы < > & ломают разметку HTML, и Telegram отвечает 400
+    # "can't parse entities", из-за чего уведомление не доставляется вовсе.
+    header = (
+        "⏰ <b>Пропущенное напоминание</b>"
+        if is_late
+        else "⏰ <b>Время выполнить задачу!</b>"
     )
-
+    message_text = (
+        f"{header}\n\n"
+        f"💪 <b>Задача:</b> {html.escape(task_name)}\n"
+        f"⏳ <b>Дедлайн:</b> {html.escape(deadline)}"
+    )
     payload = {
         "chat_id": chat_id,
         "text": message_text,
-        "parse_mode": "Markdown",
+        "parse_mode": "HTML",
     }
 
     logger.info(f"📬 Отправляем Telegram: {task_name} → {chat_id}")
 
+    # БЛОК 2: Отправка и обработка исключений
     try:
         attempt.attempts += 1
         attempt.save(update_fields=["attempts"])
 
-        response = requests.post(url, json=payload, timeout=15)
+        response = requests.post(url, json=payload, timeout=REQUEST_TIMEOUT)
 
         if response.status_code != 200:
-            raise EmailActivationError(
-                f"Telegram API вернул HTTP {response.status_code}: {response.text}"
+            raise NotificationError(
+                message=f"Telegram API вернул HTTP {response.status_code}: {response.text}",
+                details={
+                    "status_code": response.status_code,
+                    "response_text": response.text,
+                },
             )
 
-        attempt.status = NotificationAttempt.STATUS_SENT
-        attempt.sent_at = timezone.now()
-        attempt.error_message = None
-        attempt.save(update_fields=["status", "sent_at", "error_message"])
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        attempt.status = NotificationAttempt.STATUS_FAILED
+        attempt.error_message = f"Сетевая ошибка: {e}"
+        attempt.save(update_fields=["status", "error_message"])
+        logger.warning(f"⚠️ Сетевая ошибка Telegram (попытка {attempt.attempts}/3): {e}")
 
-        logger.info(f"✅ Telegram отправлен: {task_name} → {chat_id}")
+        # Вычисляем задержку и вызываем ретрай
+        countdown = self.default_retry_delay * (2 ** self.request.retries)
+        raise self.retry(exc=e, countdown=countdown) from e
 
-    except (requests.exceptions.Timeout,
-            requests.exceptions.ConnectionError) as e:
+    except NotificationError as e:
         attempt.status = NotificationAttempt.STATUS_FAILED
         attempt.error_message = str(e)
         attempt.save(update_fields=["status", "error_message"])
 
-        logger.warning(
-            f"⚠️ Сетевая ошибка Telegram (попытка {attempt.attempts}/3): {e}"
-        )
-        raise self.retry(exc=e) from e
+        status_code = e.details.get("status_code")
 
-    except EmailActivationError as e:
-        attempt.status = NotificationAttempt.STATUS_FAILED
-        attempt.error_message = str(e)
-        attempt.save(update_fields=["status", "error_message"])
+        # Исправлено: добавлен список кодов [429, 500, 502, 503, 504]
+        if status_code in RETRYABLE_STATUS_CODES:
+            logger.warning(f"⚠️ Ошибка Telegram API (попытка {attempt.attempts}/3). Перезапуск... Ошибка: {e}")
+            countdown = self.default_retry_delay * (2 ** self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
 
-        logger.warning(
-            f"⚠️ Telegram API вернул ошибку (попытка {attempt.attempts}/3): {e}"
-        )
-        if self.request.retries < self.max_retries:
-            raise self.retry(exc=e) from e
+        logger.error(f"❌ Фатальная ошибка Telegram API (повторы не требуются). HTTP {status_code}. Ошибка: {e}")
 
     except Exception as e:
         attempt.status = NotificationAttempt.STATUS_FAILED
-        attempt.error_message = str(e)
+        attempt.error_message = f"Непредвиденная ошибка: {e}"
         attempt.save(update_fields=["status", "error_message"])
-
         logger.error(f"❌ Фатальная ошибка отправки в Telegram: {e}", exc_info=True)
+        raise
+
+    else:
+        # Успешный исход
+        attempt.status = NotificationAttempt.STATUS_SENT
+        attempt.sent_at = timezone.now()
+        # Поле NOT NULL (blank=True без null=True): очищаем пустой строкой,
+        # а не None, иначе PostgreSQL падает на IntegrityError и попытка
+        # остаётся pending, хотя письмо уже доставлено.
+        attempt.error_message = ""
+        attempt.save(update_fields=["status", "sent_at", "error_message"])
+        logger.info(f"✅ Telegram отправлен: {task_name} → {chat_id}")
 
 
 @shared_task

@@ -1,5 +1,7 @@
 // === ИНЛАЙН РЕДАКТИРОВАНИЕ ВРЕМЕНИ НАПОМИНАНИЯ (КАЛЕНДАРЬ) ===
 
+import { showNotification } from './secondary-system-functions.js';
+
 export function initReminderEditing() {
     document.addEventListener('click', function(e) {
         const cell = e.target.closest('.task-reminder-cell') || e.target.closest('.remind-cell');
@@ -131,7 +133,7 @@ function saveInlineDate(input, taskId) {
         }
     })
     .catch(error => {
-        alert("Не удалось сохранить время напоминания. Причина: " + error.message);
+        showNotification("Не удалось сохранить время напоминания. Причина: " + error.message, 'error');
         cell.innerHTML = cell.dataset.oldHtml || `
             <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
                 <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить напоминание"></i>

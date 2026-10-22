@@ -1,5 +1,5 @@
 // === Модуль для инлайн-управления периодичностью прямо в таблице задач ===
-import { getCookie } from './secondary-system-functions.js';
+import { getCookie, showNotification } from './secondary-system-functions.js';
 
 export function initInlinePeriodicity() {
     const tableBody = document.getElementById('tasks-table-body');
@@ -84,7 +84,7 @@ export function initInlinePeriodicity() {
 
         // Если период выбран, но число невалидно
         if (pUnit !== 'none' && pValue <= 0) {
-            alert('Пожалуйста, укажите значение периода больше нуля');
+            showNotification('Пожалуйста, укажите значение периода больше нуля', 'error');
             valueInput.focus();
             return;
         }
@@ -142,7 +142,7 @@ export function initInlinePeriodicity() {
         })
         .catch(error => {
             console.error("Ошибка инлайн-сохранения:", error);
-            alert("Не удалось сохранить изменения. Подробности в консоли.");
+            showNotification("Не удалось сохранить изменения. Подробности в консоли.", 'error');
         });
     });
 }
@@ -181,7 +181,7 @@ function saveInlinePeriodicity(taskId, value, unit, cell) {
     })
     .then(data => {
         if (data.success === false) {
-            alert('Ошибка при сохранении: ' + (data.error || 'Неизвестная ошибка'));
+            showNotification('Ошибка при сохранении: ' + (data.error || 'Неизвестная ошибка'), 'error');
             return;
         }
 
@@ -213,6 +213,6 @@ function saveInlinePeriodicity(taskId, value, unit, cell) {
     })
     .catch(error => {
         console.error('Ошибка инлайн-сохранения:', error);
-        alert('Не удалось сохранить изменения. Подробности в консоли.');
+        showNotification('Не удалось сохранить изменения. Подробности в консоли.', 'error');
     });
 }

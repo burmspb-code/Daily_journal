@@ -42,14 +42,20 @@ class CustomUserCreateForm(UserCreationForm):
         username = self.cleaned_data.get('username')
 
         # Ищем пользователя с таким username
-        inactive_user = CustomUser.objects.filter(username=username).first()
-        if inactive_user:
-            if not inactive_user.is_active:
-                # Если он не активен — удаляем «пустышку»
-                inactive_user.delete()
-            else:
+        existing_user = CustomUser.objects.filter(username=username).first()
+        if existing_user:
+            if existing_user.is_active:
                 # Если активен — вызываем стандартную ошибку Django
                 raise forms.ValidationError("Пользователь с таким Username уже существует.")
+
+            # Неактивный аккаунт НЕ удаляем: возможно, ему уже отправлено
+            # письмо со ссылкой активации, и удаление обрушит её.
+            # Пользователю предлагается запросить новую ссылку.
+            raise forms.ValidationError(
+                "Этот Username уже занят неактивным аккаунтом. "
+                "Если письмо с подтверждением не дошло, запросите "
+                "повторную отправку ссылки активации."
+            )
 
         return username
 
@@ -57,14 +63,20 @@ class CustomUserCreateForm(UserCreationForm):
         email = self.cleaned_data.get('email')
 
         # Ищем пользователя с таким email
-        inactive_user = CustomUser.objects.filter(email=email).first()
-        if inactive_user:
-            if not inactive_user.is_active:
-                # Если он не активен — удаляем «пустышку»
-                inactive_user.delete()
-            else:
+        existing_user = CustomUser.objects.filter(email=email).first()
+        if existing_user:
+            if existing_user.is_active:
                 # Если активен — вызываем стандартную ошибку Django
                 raise forms.ValidationError("Пользователь с таким Email уже существует.")
+
+            # Неактивный аккаунт НЕ удаляем: возможно, ему уже отправлено
+            # письмо со ссылкой активации, и удаление обрушит её.
+            # Пользователю предлагается запросить новую ссылку.
+            raise forms.ValidationError(
+                "На этот Email уже зарегистрирован неактивный аккаунт. "
+                "Если письмо с подтверждением не дошло, запросите "
+                "повторную отправку ссылки активации."
+            )
 
         return email
 
@@ -76,6 +88,31 @@ class CustomUserCreateForm(UserCreationForm):
                 self.fields[field].widget.attrs.update({
                     'class': f'{current_class} is-invalid'
                 })
+
+class ResendActivationForm(forms.Form):
+    """Форма для повторной отправки ссылки активации.
+
+    Запрашивается только email: пользователю не нужно вспоминать Username.
+    """
+
+    email = forms.EmailField(
+        label="Email",
+        required=True,
+        widget=forms.EmailInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "you@example.com",
+                "autocomplete": "email",
+                "autofocus": True,
+            },
+        ),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({"class": "form-control"})
+
 
 class UserProfileForm(forms.ModelForm):
     """Форма для редактирования профиля пользователя."""

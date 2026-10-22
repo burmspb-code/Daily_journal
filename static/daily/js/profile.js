@@ -69,7 +69,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(error => {
-                alert('Ошибка при сохранении профиля');
+                if (typeof window.showNotification === 'function') {
+                    window.showNotification('Ошибка при сохранении профиля', 'error');
+                } else {
+                    console.error('Ошибка при сохранении профиля:', error);
+                }
             });
         });
     }

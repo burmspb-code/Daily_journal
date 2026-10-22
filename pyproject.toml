@@ -37,7 +37,10 @@ dev = [
     "python-dotenv (>=1.2.2,<2.0.0)",
     "drf-spectacular[sidecar] (>=0.30.0,<0.31.0)",
     "eventlet (>=0.41.2,<0.42.0)",
-    "ruff (>=0.16.5,<0.17.0)"
+    "ruff (>=0.16.5,<0.17.0)",
+    "pytest (>=8.0,<9.0)",
+    "pytest-django (>=4.9,<5.0)",
+    "factory-boy (>=3.3,<4.0)"
 ]
 
 [tool.ruff]
@@ -78,6 +81,12 @@ ignore = [
         "RUF003", # Игнорировать русскую раскладку в комментариях (#)
 ]
 
+# В тестовых модулях пароли — это тестовые данные, а не секреты.
+[tool.ruff.lint.per-file-ignores]
+"**/tests.py" = ["S105", "S106"]
+"tests/*" = ["S105", "S106"]
+"conftest.py" = ["S106"]
+
 [tool.ruff.format]
 quote-style = "double"
 
@@ -85,4 +94,16 @@ quote-style = "double"
 [tool.ruff.lint.isort]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 # Укажите через запятую имена всех ваших Django-приложений в проекте:
-known-first-party = ["routines", "users"]
+known-first-party = ["daily", "users"]
+
+# =============================================================================
+# НАСТРОЙКИ PYTEST
+# =============================================================================
+[tool.pytest.ini_options]
+# Отдельные настройки: SQLite в памяти, eager-Celery, быстрый хэшер паролей.
+DJANGO_SETTINGS_MODULE = "config.test_settings"
+python_files = ["tests.py", "test_*.py"]
+python_classes = ["Test*", "*Tests"]
+testpaths = ["daily", "users"]
+pythonpath = ["."]
+addopts = "-ra"

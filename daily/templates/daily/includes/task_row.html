@@ -1,4 +1,4 @@
-<tr id="task-row-{{ task.id }}" data-id="{{ task.id }}">
+<tr id="task-row-{{ task.id }}" data-id="{{ task.id }}" data-periodic="{% if task.periodicity_value and task.periodicity_unit != 'none' %}1{% else %}0{% endif %}">
     <td class="ps-4">
         <input class="form-check-input task-checkbox" type="checkbox" data-id="{{ task.id }}"
                aria-label="Выбрать задачу">
@@ -15,6 +15,7 @@
 
     <td>{{ task.created_at|date:"d.m.Y H:i" }}</td>
 
+    <!-- Ячейка для установки времени напоминания -->
     <td class="task-reminder-cell align-middle text-nowrap small" data-id="{{ task.id }}">
         {% if task.reminder_at %}
             <input type="hidden"
@@ -97,7 +98,7 @@
         </div>
     </td>
 
-
+    <!-- Ячейка для редактирования комментария -->
     <td class="task-comment-cell align-middle"
         onclick="this.querySelector('.editable-task-comment').focus()">
         <span class="editable-task-comment text-muted small d-inline-block" contenteditable="true"
@@ -108,6 +109,7 @@
         </span>
     </td>
 
+    <!-- Ячейка для показа статуса задачи -->
     <td class="text-center task-status-cell dropdown position-relative" data-id="{{ task.id }}" data-status="{{ task.status_flag }}">
         {% if task.status_flag == 0 %}
             <!-- Добавлены: justify-content-center (центр) и fs-6 (крупнее) -->
@@ -117,7 +119,7 @@
                  aria-expanded="false"
                  style="cursor: pointer;">
                 <span class="badge bg-transparent text-success p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
-                      title="Создана" data-status="{{ task.status_flag }}">
+                      data-status="{{ task.status_flag }}">
                     <i class="bi bi-file-earmark-plus"></i> Создана
                 </span>
             </div>
@@ -128,13 +130,13 @@
                  aria-expanded="false"
                  style="cursor: pointer;">
                 <span class="badge bg-transparent text-warning p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
-                      title="В работе" data-status="{{ task.status_flag }}">
+                      data-status="{{ task.status_flag }}">
                     <i class="bi bi-gear"></i> В работе
                 </span>
             </div>
         {% elif task.status_flag == 2 %}
             <span class="badge bg-transparent text-secondary p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
-                  title="Выполнена" data-status="{{ task.status_flag }}">
+                  data-status="{{ task.status_flag }}">
                 <i class="bi bi-check2-circle"></i> Выполнена
             </span>
         {% elif task.status_flag == 3 %}
@@ -144,7 +146,7 @@
                  aria-expanded="false"
                  style="cursor: pointer;">
                 <span class="badge bg-transparent text-danger p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
-                      title="Дедлайн" data-status="{{ task.status_flag }}">
+                      data-status="{{ task.status_flag }}">
                     <i class="bi bi-clock-history"></i> Дедлайн
                 </span>
             </div>
@@ -161,7 +163,7 @@
                         data-task-id="{{ task.id }}"
                         data-status="2">
                     <i class="bi bi-check2-circle text-secondary"></i>
-                    Выполнена
+                    {% if task.periodicity_value and task.periodicity_unit != 'none' %}Завершить цикл{% else %}Выполнена{% endif %}
                 </button>
             </div>
         {% endif %}

@@ -32,8 +32,17 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         """Класс метаданных."""
 
         model = CustomUser
-        # ЯВНО перечисляем только безопасные поля
-        fields = ("username", "email", "phone_number", "avatar", "tg_chat_id")
+        # ЯВНО перечисляем только безопасные поля.
+        # "password" обязателен здесь: поле объявлено выше, и без него
+        # drf-spectacular не может построить схему (ошибка E001).
+        fields = (
+            "username",
+            "email",
+            "phone_number",
+            "avatar",
+            "tg_chat_id",
+            "password",
+        )
 
     def validate_password(self, value):
         """Проверка пароля на соответствие политике безопасности Django."""
