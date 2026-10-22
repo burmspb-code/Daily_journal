@@ -1,4 +1,4 @@
-<tr id="task-row-{{ task.id }}" data-id="{{ task.id }}">
+<tr id="task-row-{{ task.id }}" data-id="{{ task.id }}" data-periodic="{% if task.periodicity_value and task.periodicity_unit != 'none' %}1{% else %}0{% endif %}">
     <td class="ps-4">
         <input class="form-check-input task-checkbox" type="checkbox" data-id="{{ task.id }}"
                aria-label="Выбрать задачу">
@@ -163,7 +163,7 @@
                         data-task-id="{{ task.id }}"
                         data-status="2">
                     <i class="bi bi-check2-circle text-secondary"></i>
-                    Выполнена
+                    {% if task.periodicity_value and task.periodicity_unit != 'none' %}Завершить цикл{% else %}Выполнена{% endif %}
                 </button>
             </div>
         {% endif %}

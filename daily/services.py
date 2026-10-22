@@ -8,7 +8,7 @@ import logging
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from daily.models import Bookmark, NotificationAttempt, Task
@@ -50,6 +50,154 @@ OVERDUE_TIMEOUTS = {
     'months': timedelta(minutes=30),  # Месяцев -> 30 минут на реакцию
     'years': timedelta(hours=1),      # Лет -> 1 час на реакцию
 }
+
+# Единицы периода, которые считаются корректными для периодической задачи.
+PERIODIC_UNITS = ('minutes', 'hours', 'days', 'weeks', 'months', 'years')
+
+# TODO: заменить на календарно точный расчёт месяцев и лет (add_months).
+# Пока используется упрощённая аппроксимация, чтобы не блокировать v1.
+DAYS_IN_MONTH = 30
+DAYS_IN_YEAR = 365
+
+
+def is_periodic(task) -> bool:
+    """Возвращает True, если задача является периодической.
+
+    Периодической считается задача с известной единицей периода и положительным
+    значением периода. Проверка значения защищает от «полунастроенных» задач,
+    которые иначе могли бы зацикливаться на каждом прогоне планировщика.
+    """
+    return (
+        task.periodicity_unit in PERIODIC_UNITS
+        and bool(task.periodicity_value)
+        and task.periodicity_value > 0
+    )
+
+
+def get_period_delta(task):
+    """Возвращает шаг периода задачи в виде timedelta.
+
+    Для месяцев и лет пока используется упрощённая аппроксимация (30/365 дней).
+    """
+    if not is_periodic(task):
+        return None
+
+    value = task.periodicity_value
+
+    if task.periodicity_unit == 'months':
+        return timedelta(days=DAYS_IN_MONTH * value)
+    if task.periodicity_unit == 'years':
+        return timedelta(days=DAYS_IN_YEAR * value)
+
+    return timedelta(**{task.periodicity_unit: value})
+
+
+def get_next_occurrence(reminder_at, period, now):
+    """Возвращает ближайший момент сетки периода строго больше ``now``.
+
+    Сдвиг выполняется по сетке от исходного ``reminder_at``, а не от момента
+    реакции пользователя. Если ``now`` ещё не достиг ``reminder_at`` (или задача
+    не периодическая), возвращается исходное значение.
+    """
+    if reminder_at is None or period is None or period <= timedelta(0):
+        return reminder_at
+
+    if now <= reminder_at:
+        return reminder_at
+
+    elapsed_periods = (now - reminder_at) // period
+    return reminder_at + period * (elapsed_periods + 1)
+
+
+def close_occurrence(task, now=None) -> bool:
+    """Закрывает текущее наступление периодической задачи.
+
+    Сдвигает ``reminder_at`` на следующее наступление по сетке, но только если
+    текущее наступление уже наступило (``reminder_at <= now``). Благодаря этому
+    повторный вызов из статуса OVERDUE не двигает время ещё раз.
+
+    Returns:
+        bool: True, если ``reminder_at`` был изменён.
+    """
+    if not is_periodic(task):
+        return False
+
+    now = now or timezone.now()
+    next_at = get_next_occurrence(task.reminder_at, get_period_delta(task), now)
+
+    if next_at is None or next_at == task.reminder_at:
+        return False
+
+    task.reminder_at = next_at
+    return True
+
+
+def format_reminder_at(value) -> str:
+    """Форматирует время напоминания для сообщений пользователю."""
+    if value is None:
+        return "не задано"
+    return timezone.localtime(value).strftime('%d.%m.%Y %H:%M')
+
+
+def complete_task(task, now=None) -> dict:
+    """Завершает текущий цикл задачи по действию пользователя «Выполнено».
+
+    Для разовой задачи сохраняет статус COMPLETED (как и раньше). Для
+    периодической задачи статус COMPLETED в БД не пишется: цикл закрывается
+    сдвигом ``reminder_at`` и возвратом в CREATED. Если наступление ещё не
+    наступило (статус CREATED и время в будущем), действие ничего не меняет и
+    лишь сообщает пользователю запланированное время.
+
+    Returns:
+        dict: Результат операции для веб-интерфейса и API.
+    """
+    now = now or timezone.now()
+
+    if not is_periodic(task):
+        task.status_flag = StatusChoices.COMPLETED
+        task.status_changed_at = now
+        task.save(update_fields=['status_flag', 'status_changed_at'])
+        return {
+            'changed': True,
+            'completed': True,
+            'is_periodic': False,
+            'status': task.status_flag,
+            'status_display': task.get_status_flag_display(),
+            'reminder_at': task.reminder_at,
+            'message': 'Задача выполнена.',
+        }
+
+    # Периодическая задача в статусе CREATED с ещё не наступившим временем:
+    # реагировать не на что, цикл двигать рано.
+    if task.status_flag == StatusChoices.CREATED and task.reminder_at and task.reminder_at > now:
+        return {
+            'changed': False,
+            'completed': False,
+            'is_periodic': True,
+            'status': task.status_flag,
+            'status_display': task.get_status_flag_display(),
+            'reminder_at': task.reminder_at,
+            'message': f"Время напоминания запланировано на {format_reminder_at(task.reminder_at)}.",
+        }
+
+    shifted = close_occurrence(task, now)
+    task.status_flag = StatusChoices.CREATED
+    task.status_changed_at = now
+
+    update_fields = ['status_flag', 'status_changed_at']
+    if shifted:
+        update_fields.append('reminder_at')
+    task.save(update_fields=update_fields)
+
+    return {
+        'changed': True,
+        'completed': False,
+        'is_periodic': True,
+        'status': task.status_flag,
+        'status_display': task.get_status_flag_display(),
+        'reminder_at': task.reminder_at,
+        'message': f"Цикл завершён. Следующее напоминание: {format_reminder_at(task.reminder_at)}.",
+    }
 
 
 class TaskService:
@@ -218,23 +366,35 @@ class ReminderNotificationService:
     def _process_new_reminders(self) -> int:
         """Ищет наступившие напоминания и ставит задачи отправки в очередь Celery.
 
-        Метод делает один SQL-запрос, выбирая все наступившие задачи в статусе
-        CREATED. Строки блокируются через `select_for_update(skip_locked=True)`:
+        Метод выбирает все задачи, у которых ``reminder_at`` уже наступил и
+        которые ждут обработки: новые (CREATED) и периодические, ожидающие
+        следующего цикла (OVERDUE). Задачи в статусе IN_PROGRESS не трогаются —
+        это «уведомление отправлено, ждём реакции пользователя». Разовые задачи
+        в OVERDUE тоже не трогаются, иначе уведомление уходило бы повторно.
+
+        Строки блокируются через `select_for_update(skip_locked=True)`:
         параллельный прогон Celery Beat пропустит уже захваченные задачи, а не
         создаст для них вторую пару уведомлений.
 
         Для каждого канала проверяется наличие активной попытки доставки —
         уже успешной ИЛИ ещё выполняющейся (pending, способная завершиться
-        собственным retry). Если активной попытки нет, создаётся запись
-        pending, а сама доставка ставится в очередь через `transaction.on_commit`,
-        чтобы воркер не начал выполнение раньше коммита транзакции.
+        собственным retry). Дедупликация привязана к конкретному наступлению
+        (``scheduled_for = reminder_at``), поэтому после сдвига периодической
+        задачи создаётся новая попытка. Сама доставка ставится в очередь через
+        `transaction.on_commit`, чтобы воркер не начал выполнение раньше коммита.
 
         Returns:
             int: Количество задач, для которых инициирована отправка.
         """
+        periodic_units = list(PERIODIC_UNITS)
+
         active_reminders = (
             Task.objects
-            .filter(reminder_at__lte=self.now, status_flag=StatusChoices.CREATED)
+            .filter(
+                Q(status_flag=StatusChoices.CREATED)
+                | Q(status_flag=StatusChoices.OVERDUE, periodicity_unit__in=periodic_units)
+            )
+            .filter(reminder_at__lte=self.now)
             .select_related("owner")
             .select_for_update(skip_locked=True, of=("self",))
             .order_by("id")
@@ -245,12 +405,21 @@ class ReminderNotificationService:
         tasks_to_delay = []
 
         for task in active_reminders:
-            # Логируем безопасный ID пользователя
+            deadline_str = task.reminder_at.strftime("%Y-%m-%d %H:%M")
+
+            # Насколько задача опоздала к моменту отправки: если now ушёл дальше
+            # дедлайна реакции, уведомление помечается как «Пропущенное».
+            timeout_delta = OVERDUE_TIMEOUTS.get(
+                task.periodicity_unit, OVERDUE_TIMEOUTS['none']
+            )
+            is_late = self.now > task.reminder_at + timeout_delta
+            late_marker = '[ПРОПУЩЕНО] ' if is_late else ''
+
             logger.info(
-                f"== [ОТПРАВКА] Задача ID {task.id} → Пользователь ID {task.owner.id} =="
+                f"== [ОТПРАВКА] {late_marker}Задача ID {task.id} → "
+                f"Пользователь ID {task.owner_id} =="
             )
 
-            deadline_str = task.reminder_at.strftime("%Y-%m-%d %H:%M")
             task_changed = False
 
             # --- Email ---
@@ -263,6 +432,7 @@ class ReminderNotificationService:
                         "to_email": task.owner.email,
                         "task_name": task.title,
                         "deadline": deadline_str,
+                        "is_late": is_late,
                     },
                     tasks_to_delay=tasks_to_delay,
                 ):
@@ -278,13 +448,16 @@ class ReminderNotificationService:
                         "chat_id": str(task.owner.tg_chat_id),
                         "task_name": task.title,
                         "deadline": deadline_str,
+                        "is_late": is_late,
                     },
                     tasks_to_delay=tasks_to_delay,
                 ):
                     task_changed = True
 
             # --- Перевод статуса ---
-            if task_changed:
+            # Статус IN_PROGRESS ставится независимо от наличия включённых
+            # каналов: задача уже «наступила», ждём реакции пользователя.
+            if task.status_flag != StatusChoices.IN_PROGRESS:
                 task.status_flag = StatusChoices.IN_PROGRESS
                 task.status_changed_at = self.now
                 task.save(update_fields=[
@@ -292,6 +465,10 @@ class ReminderNotificationService:
                     "status_changed_at",
                 ])
                 count += 1
+            elif task_changed:
+                logger.info(
+                    f"  → Задача ID {task.id} уже в работе, но создана новая попытка"
+                )
 
         # Безопасный запуск Celery-задач. Вызовутся только тогда,
         # когда транзакция полностью и успешно запишется в базу данных.
@@ -320,12 +497,15 @@ class ReminderNotificationService:
         Returns:
             bool: True, если попытка создана и запланирована к отправке.
         """
-        # Повторно брать в работу нельзя, пока по каналу есть либо уже
-        # доставленное уведомление, либо незавершённая попытка (pending),
-        # которая может доставить его в ходе собственного retry.
+        # Повторно брать в работу нельзя, пока по каналу для ЭТОГО наступления
+        # (scheduled_for) есть либо уже доставленное уведомление, либо
+        # незавершённая попытка (pending), которая может доставить его в ходе
+        # собственного retry. Привязка к scheduled_for позволяет periodic-задаче
+        # отправить уведомление заново после сдвига reminder_at.
         has_active_attempt = NotificationAttempt.objects.filter(
             task=task,
             channel=channel,
+            scheduled_for=task.reminder_at,
             status__in=(
                 NotificationAttempt.STATUS_PENDING,
                 NotificationAttempt.STATUS_SENT,
@@ -340,6 +520,7 @@ class ReminderNotificationService:
             task=task,
             channel=channel,
             status=NotificationAttempt.STATUS_PENDING,
+            scheduled_for=task.reminder_at,
         )
 
         # Вместо .delay() складываем параметры в список для on_commit
@@ -359,7 +540,8 @@ class ReminderNotificationService:
         Метод сканирует все задачи со статусом IN_PROGRESS, динамически извлекает
         из словаря OVERDUE_TIMEOUTS соответствующий лимит времени на реакцию для
         каждой единицы периодичности и переводит задачи, превысившие этот лимит,
-        в статус OVERDUE. Записывает причину просрочки в лог строки.
+        в статус OVERDUE. Для периодических задач дополнительно сдвигает
+        ``reminder_at`` на следующее наступление по сетке периода, замыкая цикл.
 
         Returns:
             int: Количество задач, признанных просроченными за текущую итерацию.
@@ -371,7 +553,7 @@ class ReminderNotificationService:
             status_flag=StatusChoices.IN_PROGRESS,
             reminder_at__isnull=False,
         )
-        overdue_tasks = []
+        overdue_tasks_ids = []
 
         for task in active_tasks:
             timeout_delta = OVERDUE_TIMEOUTS.get(
@@ -380,18 +562,25 @@ class ReminderNotificationService:
             deadline_time = task.reminder_at + timeout_delta
 
             if self.now > deadline_time:
+                update_fields = ["status_flag", "status_changed_at"]
+
+                task.status_flag = StatusChoices.OVERDUE
+                task.status_changed_at = self.now
+
+                # Для периодической задачи сразу закрываем наступление и
+                # возвращаем reminder_at в будущее, иначе цикл застрянет.
+                # Из статуса OVERDUE повторно время не сдвигается: close_occurrence
+                # проверяет, что reminder_at <= now, а после сдвига это уже не так.
+                if close_occurrence(task, self.now):
+                    update_fields.append("reminder_at")
+
+                task.save(update_fields=update_fields)
+
                 logger.warning(
                     f"== [ПРОСРОЧКА] Задача ID {task.id} превысила лимит "
                     f"на реакцию ({timeout_delta}) =="
                 )
 
-                task.status_flag = StatusChoices.OVERDUE
-                task.status_changed_at = self.now
+                overdue_tasks_ids.append(task.id)
 
-                overdue_tasks.append(task)
-
-        # Одним UPDATE вместо сохранения каждой задачи по отдельности
-        if overdue_tasks:
-            Task.objects.bulk_update(overdue_tasks, ["status_flag", "status_changed_at"])
-
-        return len(overdue_tasks)
+        return len(overdue_tasks_ids)

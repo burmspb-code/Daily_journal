@@ -103,6 +103,7 @@ known-first-party = ["daily", "users"]
 # Отдельные настройки: SQLite в памяти, eager-Celery, быстрый хэшер паролей.
 DJANGO_SETTINGS_MODULE = "config.test_settings"
 python_files = ["tests.py", "test_*.py"]
+python_classes = ["Test*", "*Tests"]
 testpaths = ["daily", "users"]
 pythonpath = ["."]
 addopts = "-ra"

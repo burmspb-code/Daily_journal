@@ -264,6 +264,16 @@ class NotificationAttempt(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Время создания")
     sent_at = models.DateTimeField(null=True, blank=True, verbose_name="Время отправки")
     attempts = models.PositiveIntegerField(default=0, verbose_name="Количество попыток")
+    # Момент reminder_at, к которому относится попытка. Нужен, чтобы
+    # дедупликация была привязана к конкретному наступлению: у периодической
+    # задачи после сдвига времени создаётся новая попытка.
+    scheduled_for = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="Наступление напоминания",
+        help_text="Момент reminder_at, к которому относится попытка отправки",
+    )
 
     class Meta:
         verbose_name = "Уведомление"

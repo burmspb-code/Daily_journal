@@ -31,3 +31,7 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 # Celery выполняет задачи синхронно, без подключения к Redis.
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# Адрес Cloud Function для писем. В тестах реальных запросов нет (requests.post
+# мокается), но сервисы проверяют наличие настройки до его вызова.
+MAIL_FUNCTION_URL = "http://mail.test/activation"

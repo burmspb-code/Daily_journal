@@ -65,6 +65,29 @@ class TaskForm(forms.ModelForm):
             raise forms.ValidationError("Напоминания можно устанавливать только в будущем времени.")
         return reminder_at
 
+    def clean(self):
+        """
+        Проверяет, что периодичность задана вместе с временем напоминания.
+        """
+        cleaned_data = super().clean()
+        periodicity_unit = cleaned_data.get('periodicity_unit')
+        periodicity_value = cleaned_data.get('periodicity_value')
+        reminder_at = cleaned_data.get('reminder_at')
+
+        if periodicity_unit and periodicity_unit != 'none':
+            if not periodicity_value:
+                self.add_error(
+                    'periodicity_value',
+                    'Укажите количество для периодичности.',
+                )
+            if not reminder_at:
+                self.add_error(
+                    'reminder_at',
+                    'Для периодической задачи укажите время напоминания.',
+                )
+
+        return cleaned_data
+
 
 class TaskEditForm(TaskForm):
     """

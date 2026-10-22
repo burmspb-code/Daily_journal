@@ -17,7 +17,8 @@ REQUEST_TIMEOUT = 15
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_email_notification(self, attempt_id: int, to_email: str,
-                            task_name: str, deadline: str) -> None:
+                            task_name: str, deadline: str,
+                            is_late: bool = False) -> None:
     """Асинхронная задача отправки email-уведомления через Cloud Function.
 
     Загружает запись NotificationAttempt по ID, выполняет HTTP-запрос к
@@ -32,6 +33,8 @@ def send_email_notification(self, attempt_id: int, to_email: str,
         to_email: Email получателя.
         task_name: Название задачи для текста письма.
         deadline: Дедлайн задачи (строка).
+        is_late: True, если напоминание доставляется с опозданием (простом
+            сервера); в текст добавляется пометка «Пропущенное напоминание».
     """
     try:
         attempt = NotificationAttempt.objects.get(id=attempt_id)
@@ -53,6 +56,7 @@ def send_email_notification(self, attempt_id: int, to_email: str,
         "email_type": "reminder",
         "task_name": task_name,
         "deadline": deadline,
+        "is_late": is_late,
     }
 
     logger.info(f"📬 Отправляем email: {task_name} → {to_email}")
@@ -123,7 +127,8 @@ def send_email_notification(self, attempt_id: int, to_email: str,
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_telegram_notification(self, attempt_id: int, chat_id: str,
-                               task_name: str, deadline: str) -> None:
+                               task_name: str, deadline: str,
+                               is_late: bool = False) -> None:
     """Асинхронная задача отправки Telegram-уведомления через Bot API.
 
     Загружает запись NotificationAttempt по ID, выполняет запрос к
@@ -138,6 +143,8 @@ def send_telegram_notification(self, attempt_id: int, chat_id: str,
         chat_id: ID чата получателя в Telegram.
         task_name: Название задачи для текста сообщения.
         deadline: Дедлайн задачи (строка).
+        is_late: True, если напоминание доставляется с опозданием (простом
+            сервера); в текст добавляется пометка «Пропущенное напоминание».
     """
 
     # БЛОК 1: Подготовка данных (без логики перезапусков)
@@ -160,8 +167,13 @@ def send_telegram_notification(self, attempt_id: int, chat_id: str,
     # task_name приходит из пользовательского ввода. Без экранирования
     # символы < > & ломают разметку HTML, и Telegram отвечает 400
     # "can't parse entities", из-за чего уведомление не доставляется вовсе.
+    header = (
+        "⏰ <b>Пропущенное напоминание</b>"
+        if is_late
+        else "⏰ <b>Время выполнить задачу!</b>"
+    )
     message_text = (
-        f"⏰ <b>Время выполнить задачу!</b>\n\n"
+        f"{header}\n\n"
         f"💪 <b>Задача:</b> {html.escape(task_name)}\n"
         f"⏳ <b>Дедлайн:</b> {html.escape(deadline)}"
     )

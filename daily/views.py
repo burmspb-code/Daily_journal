@@ -33,7 +33,7 @@ from .forms import BookmarkForm, TaskEditForm, TaskForm
 from .models import Bookmark, Task
 from .paginators import TaskListAPIViewPagination
 from .serializers import BookmarkSerializer, BookmarkUpdateSerializer, TaskSerializer, TaskUpdateSerializer
-from .services import TaskService
+from .services import TaskService, complete_task
 
 logger = logging.getLogger(__name__)
 
@@ -396,6 +396,10 @@ class UpdateTaskStatusView(LoginRequiredMixin, View):
     Ожидает POST-запрос с 'task_id' (или 'id') и 'status_flag'.
     Разрешает изменение статуса только на 'Выполнена' (2) из статусов:
     'Создана' (0), 'В работе' (1), 'Дедлайн' (3).
+
+    Для периодической задачи действие «Выполнено» не пишет статус COMPLETED,
+    а завершает текущий цикл (сдвиг reminder_at + возврат в CREATED) через
+    общий сервис complete_task.
     """
 
     def post(self, request, *args, **kwargs):
@@ -443,15 +447,19 @@ class UpdateTaskStatusView(LoginRequiredMixin, View):
                     {"success": False, "error": "Текущий статус не позволяет изменение"}, status=400
                 )
 
-            # Обновляем статус и время изменения
-            task.status_flag = new_status
-            task.status_changed_at = timezone.now()
-            task.save(update_fields=["status_flag", "status_changed_at"])
+            # Единая бизнес-логика «Выполнено»: для разовой задачи COMPLETED,
+            # для периодической — завершение цикла без записи COMPLETED.
+            result = complete_task(task)
 
             return JsonResponse({
                 "success": True,
-                "status": task.status_flag,
-                "status_display": task.get_status_flag_display()
+                "status": result["status"],
+                "status_display": result["status_display"],
+                "is_periodic": result["is_periodic"],
+                "message": result["message"],
+                "reminder_at": (
+                    result["reminder_at"].isoformat() if result["reminder_at"] else None
+                ),
             })
 
         except ValueError:
@@ -814,13 +822,32 @@ class TaskUpdateExternalApiView(RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         """
         При обновлении статуса автоматически устанавливаем время изменения.
+
+        Для периодической задачи действие «Выполнено» не пишет статус COMPLETED,
+        а завершает текущий цикл через общий сервис complete_task. Изменение
+        reminder_at вручную возвращает задачу в статус CREATED.
         """
         instance = serializer.instance
         old_status = instance.status_flag
         new_status = serializer.validated_data.get('status_flag')
+        new_reminder = serializer.validated_data.get('reminder_at', serializers.empty)
 
-        # Если статус изменяется на 'Выполнена', обновляем время изменения
-        if new_status is not None and new_status != old_status:
+        # Завершение задачи через API: единая бизнес-логика с веб-интерфейсом.
+        if new_status is not None and new_status == Task.StatusChoices.COMPLETED:
+            # Для периодической/разовой задачи с расхождением завершаем цикл
+            # через сервис и больше ничего не сохраняем сериализатором,
+            # чтобы не перезаписать результат устаревшими данными.
+            if new_reminder is serializers.empty and old_status != new_status:
+                complete_task(instance)
+                serializer.validated_data.pop('status_flag', None)
+                return
+
+        # Смена времени напоминания возвращает задачу в статус «Создана».
+        if new_reminder is not serializers.empty and new_reminder != instance.reminder_at:
+            serializer.validated_data['status_flag'] = Task.StatusChoices.CREATED
+            serializer.validated_data['status_changed_at'] = timezone.now()
+
+        elif new_status is not None and new_status != old_status:
             if new_status == Task.StatusChoices.COMPLETED:
                 serializer.validated_data['status_changed_at'] = timezone.now()
 
