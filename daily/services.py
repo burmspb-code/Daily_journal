@@ -405,8 +405,10 @@ class ReminderNotificationService:
         tasks_to_delay = []
 
         for task in active_reminders:
-            deadline_str = task.reminder_at.strftime("%Y-%m-%d %H:%M")
-
+            # reminder_at хранится как UTC-aware. Без localtime() в текст
+            # попадало бы UTC, и дедлайн в уведомлении отставал бы на смещение
+            # часового пояса (для Europe/Moscow — на 3 часа).
+            deadline_str = timezone.localtime(task.reminder_at).strftime("%Y-%m-%d %H:%M")
             # Насколько задача опоздала к моменту отправки: если now ушёл дальше
             # дедлайна реакции, уведомление помечается как «Пропущенное».
             timeout_delta = OVERDUE_TIMEOUTS.get(

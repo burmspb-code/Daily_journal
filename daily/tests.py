@@ -742,6 +742,34 @@ class ReminderPipelineTests:
             count = ReminderNotificationService()._process_new_reminders()
         assert count == 1
 
+    def test_notification_deadline_is_in_local_time(self, user):
+        """Дедлайн в уведомлении — в локальном времени, а не в UTC.
+
+        reminder_at хранится как UTC-aware; без timezone.localtime() текст
+        уведомления отставал бы на смещение часового пояса (для
+        Europe/Moscow — на 3 часа).
+        """
+        reminder_at = timezone.localtime().replace(second=0, microsecond=0)
+        make_periodic(
+            user,
+            periodicity_unit="hours",
+            reminder_at=reminder_at,
+        )
+
+        service = ReminderNotificationService()
+        captured = {}
+        original = service._enqueue_notification
+
+        def spy(**kwargs):
+            captured.update(kwargs["delivery_kwargs"])
+            return original(**kwargs)
+
+        service._enqueue_notification = spy
+        service._process_new_reminders()
+
+        expected = timezone.localtime(reminder_at).strftime("%Y-%m-%d %H:%M")
+        assert captured.get("deadline") == expected
+
     def test_late_occurrence_is_marked_as_missed(self, user):
         """Пропущенное наступление (простой сервера) всегда с пометкой."""
         make_periodic(
