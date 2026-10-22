@@ -1,5 +1,7 @@
 // === ИНЛАЙН РЕДАКТИРОВАНИЕ НАЗВАНИЙ И КОММЕНТАРИЕВ (CONTENTEDITABLE) ===
 
+import { showNotification } from './secondary-system-functions.js';
+
 let originalNameText = "";
 let originalCommentText = "";
 
@@ -45,7 +47,7 @@ document.addEventListener('focusout', function (e) {
         const taskId = editableField.getAttribute('data-id');
 
         if (newName === "") {
-            alert("Наименование задачи не может быть пустым");
+            showNotification("Наименование задачи не может быть пустым", 'error');
             editableField.innerText = originalNameText;
             return;
         }
@@ -68,7 +70,7 @@ document.addEventListener('focusout', function (e) {
             if (response.ok) {
                 originalNameText = newName;
             } else {
-                alert("Не удалось сохранить наименование задачи");
+                showNotification("Не удалось сохранить наименование задачи", 'error');
                 editableField.innerText = originalNameText;
             }
         })
@@ -105,7 +107,7 @@ document.addEventListener('focusout', function (e) {
                 originalCommentText = newComment;
                 if (newComment === "") editableField.innerHTML = iconHtml;
             } else {
-                alert("Не удалось сохранить комментарий");
+                showNotification("Не удалось сохранить комментарий", 'error');
                 editableField.innerHTML = originalCommentText === "" ? iconHtml : originalCommentText;
             }
         })

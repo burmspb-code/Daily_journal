@@ -1,5 +1,7 @@
 // === РЕДАКТИРОВАНИЕ НАЗВАНИЯ ЗАКЛАДКИ (ИСПРАВЛЕННАЯ СИНХРОНИЗАЦИЯ) ===
 
+import { showNotification } from './secondary-system-functions.js';
+
 let originalBookmarkText = ""; // Глобальный буфер для отмены изменений
 
 // Запоминаем текст в момент фокуса (клик по названию закладки)
@@ -35,7 +37,7 @@ document.addEventListener('focusout', function (e) {
 
         if (newBookmarkName === "" || newBookmarkName === originalBookmarkText) {
             if (newBookmarkName === "") {
-                alert("Название закладки не может быть пустым");
+                showNotification("Название закладки не может быть пустым", 'error');
                 editableField.innerText = originalBookmarkText;
             }
             return;
@@ -70,7 +72,7 @@ document.addEventListener('focusout', function (e) {
             }
         })
         .catch(error => {
-            alert(error.error || "Не удалось сохранить название закладки");
+            showNotification(error.error || "Не удалось сохранить название закладки", 'error');
             editableField.innerText = originalBookmarkText;
         });
     }

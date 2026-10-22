@@ -58,7 +58,7 @@ export function renderTaskStatusCell(cell, flagValue, isPeriodic = false) {
 
     const badge = `
         <span class="badge ${config.bg}"
-              title="${config.text}" data-status="${flag}">
+              data-status="${flag}">
             <i class="bi ${config.icon}"></i> ${config.text}
         </span>
     `.trim();

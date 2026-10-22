@@ -1,6 +1,7 @@
 // ===  ИНЛАЙН СОЗДАНИЕ ЗАДАЧИ ===
 
 import { getStatusConfig } from './status-icons-config.js';
+import { showNotification } from './secondary-system-functions.js';
 
 export function appendNewTaskRow() {
     if (document.getElementById('inline-task-input')) {
@@ -103,7 +104,7 @@ export function saveInlineTask(title, bookmarkId, rowNumber) {
                 if (tempRow) tempRow.remove();
                 checkIfTableIsEmpty();
             } else if (result.data.status === 'error') {
-                alert(result.data.message || "Не удалось сохранить задачу.");
+                showNotification(result.data.message || "Не удалось сохранить задачу.", 'error');
                 if (input) { input.disabled = false; input.focus(); }
             }
         } else {
@@ -116,7 +117,7 @@ export function saveInlineTask(title, bookmarkId, rowNumber) {
         }
     })
     .catch(() => {
-        alert("Не удалось сохранить задачу.");
+        showNotification("Не удалось сохранить задачу.", 'error');
         if (input) { input.disabled = false; input.focus(); }
     });
 }

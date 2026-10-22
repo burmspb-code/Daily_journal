@@ -1,5 +1,7 @@
 // === ИНЛАЙН УДАЛЕНИЕ ЗАДАЧИ ===
 
+import { showNotification } from './secondary-system-functions.js';
+
 let bootstrapDeleteModal = null;
 
 export function deleteSelectedTasks() {
@@ -73,13 +75,11 @@ export function deleteSelectedTasks() {
 
                 // Обновляем бейдж с количеством задач
                 updateTopTaskCounter(-taskIds.length);
-
-                //alert(data.message);
             } else {
-                alert('Ошибка выполнения: ' + data.message);
+                showNotification('Ошибка выполнения: ' + data.message, 'error');
             }
         })
-        .catch(error => alert('Ошибка удаления: ' + error.message));
+        .catch(error => showNotification('Ошибка удаления: ' + error.message, 'error'));
     });
 
     // Показываем красивое модальное окно Bootstrap вместо confirm()
