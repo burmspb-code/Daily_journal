@@ -119,7 +119,10 @@ def send_email_notification(self, attempt_id: int, to_email: str,
     else:
         attempt.status = NotificationAttempt.STATUS_SENT
         attempt.sent_at = timezone.now()
-        attempt.error_message = None
+        # Поле NOT NULL (blank=True без null=True): очищаем пустой строкой,
+        # а не None, иначе PostgreSQL падает на IntegrityError и попытка
+        # остаётся pending, хотя письмо уже доставлено.
+        attempt.error_message = ""
         attempt.save(update_fields=["status", "sent_at", "error_message"])
 
         logger.info(f"✅ Email отправлен: {task_name} → {to_email}")
@@ -237,7 +240,10 @@ def send_telegram_notification(self, attempt_id: int, chat_id: str,
         # Успешный исход
         attempt.status = NotificationAttempt.STATUS_SENT
         attempt.sent_at = timezone.now()
-        attempt.error_message = None
+        # Поле NOT NULL (blank=True без null=True): очищаем пустой строкой,
+        # а не None, иначе PostgreSQL падает на IntegrityError и попытка
+        # остаётся pending, хотя письмо уже доставлено.
+        attempt.error_message = ""
         attempt.save(update_fields=["status", "sent_at", "error_message"])
         logger.info(f"✅ Telegram отправлен: {task_name} → {chat_id}")
 

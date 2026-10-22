@@ -829,6 +829,71 @@ class NotificationTaskPayloadTests:
         _, kwargs = post.call_args
         assert "Пропущенное напоминание" in kwargs["json"]["text"]
 
+    def test_successful_delivery_clears_error_message_without_null(
+        self, monkeypatch, db, user
+    ):
+        """Успешная доставка пишет error_message="", а не None.
+
+        Поле в БД объявлено NOT NULL (blank=True без null=True), поэтому
+        присвоение None валит сохранение IntegrityError, и попытка навсегда
+        остаётся pending, хотя сообщение уже отправлено.
+        """
+        from daily import tasks as tasks_module
+
+        bookmark = BookmarkFactory(owner=user)
+        task = TaskFactory(bookmark=bookmark, owner=user)
+        attempt = NotificationAttempt.objects.create(
+            task=task,
+            channel=NotificationAttempt.CHANNEL_TELEGRAM,
+            status=NotificationAttempt.STATUS_PENDING,
+            error_message="предыдущая ошибка",
+        )
+
+        monkeypatch.setattr(tasks_module.settings, "TELEGRAM_BOT_TOKEN", "token")
+        monkeypatch.setattr(
+            tasks_module.requests,
+            "post",
+            Mock(return_value=Mock(status_code=200, text="ok")),
+        )
+
+        tasks_module.send_telegram_notification.run(
+            attempt.id, "123", "Задача", "2026-01-01 10:00"
+        )
+
+        attempt.refresh_from_db()
+        assert attempt.status == NotificationAttempt.STATUS_SENT
+        assert attempt.error_message == ""
+        assert attempt.sent_at is not None
+
+    def test_successful_email_delivery_clears_error_message_without_null(
+        self, monkeypatch, db, user
+    ):
+        from daily import tasks as tasks_module
+
+        bookmark = BookmarkFactory(owner=user)
+        task = TaskFactory(bookmark=bookmark, owner=user)
+        attempt = NotificationAttempt.objects.create(
+            task=task,
+            channel=NotificationAttempt.CHANNEL_EMAIL,
+            status=NotificationAttempt.STATUS_PENDING,
+            error_message="предыдущая ошибка",
+        )
+
+        monkeypatch.setattr(tasks_module.settings, "MAIL_FUNCTION_URL", "http://mail.test")
+        monkeypatch.setattr(
+            tasks_module.requests,
+            "post",
+            Mock(return_value=Mock(status_code=200, text="ok")),
+        )
+
+        tasks_module.send_email_notification.run(
+            attempt.id, "u@example.com", "Задача", "2026-01-01 10:00"
+        )
+
+        attempt.refresh_from_db()
+        assert attempt.status == NotificationAttempt.STATUS_SENT
+        assert attempt.error_message == ""
+
 
 class TaskUpdateSerializerTests:
     """Валидации API-сериализатора для периодических задач."""
