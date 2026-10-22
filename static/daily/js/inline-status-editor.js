@@ -70,57 +70,63 @@ export function initInlineStatusEditor() {
         const taskId = btn.getAttribute('data-task-id');
         const newStatus = btn.getAttribute('data-status');
         const cell = btn.closest('.task-status-cell');
-        const row = btn.closest('tr');
-        const isPeriodic = row && row.getAttribute('data-periodic') === '1';
 
         if (!taskId || !newStatus || !cell) return;
-        if (isPeriodic && !confirm('Завершить текущий цикл задачи?')) return;
 
-        // Отправка AJAX-запроса на бэкенд
-        const formData = new FormData();
-        formData.append('task_id', taskId);
-        formData.append('status_flag', newStatus);
+        // Закрываем выпадающее меню статуса перед обновлением ячейки.
+        const toggleBtn = cell.querySelector('[data-bs-toggle="dropdown"]');
+        if (toggleBtn) {
+            const bsDropdown = bootstrap.Dropdown.getInstance(toggleBtn);
+            if (bsDropdown) bsDropdown.hide();
+        }
 
-        fetch('/daily/task/update-status/', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken'),
-            },
-            body: formData
-        })
-        .then(response => {
-            if (!response.ok) throw new Error('Ошибка сервера');
-            return response.json();
-        })
-        .then(data => {
-            if (data.success === false) {
-                showToast('Ошибка при изменении статуса: ' + (data.error || 'Неизвестная ошибка'));
-                return;
-            }
+        // Смена статуса выполняется сразу, без подтверждающего окна.
+        changeTaskStatus(taskId, newStatus, cell);
+    });
+}
 
-            // Сначала закрываем выпадающий список Bootstrap — перерисовка ячейки
-            // уничтожит элемент-триггер, и у экземпляра дропдауна останется
-            // ссылка на удалённый узел.
-            const toggleBtn = cell.querySelector('[data-bs-toggle="dropdown"]');
-            if (toggleBtn) {
-                const bsDropdown = bootstrap.Dropdown.getInstance(toggleBtn);
-                if (bsDropdown) bsDropdown.hide();
-            }
+/**
+ * Отправляет запрос на смену статуса и обновляет ячейку по ответу сервера.
+ *
+ * @param {string} taskId - ID задачи.
+ * @param {string} newStatus - Новый флаг статуса.
+ * @param {HTMLElement} cell - Ячейка `.task-status-cell` этой задачи.
+ */
+function changeTaskStatus(taskId, newStatus, cell) {
+    const formData = new FormData();
+    formData.append('task_id', taskId);
+    formData.append('status_flag', newStatus);
 
-            // Полностью перерисовываем ячейку статуса: сохраняем обёртку-триггер
-            // и меню «Изменить статус», чтобы с задачей можно было продолжать
-            // взаимодействовать (наведение/клик по бейджу).
-            renderTaskStatusCell(cell, data.status, Boolean(data.is_periodic));
+    fetch('/daily/task/update-status/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Ошибка сервера');
+        return response.json();
+    })
+    .then(data => {
+        if (data.success === false) {
+            showToast('Ошибка при изменении статуса: ' + (data.error || 'Неизвестная ошибка'));
+            return;
+        }
 
-            if (data.is_periodic && data.reminder_at) {
-                updateReminderTime(cell, data.reminder_at);
-            }
+        // Полностью перерисовываем ячейку статуса: сохраняем обёртку-триггер
+        // и меню «Изменить статус», чтобы с задачей можно было продолжать
+        // взаимодействовать (наведение/клик по бейджу).
+        renderTaskStatusCell(cell, data.status, Boolean(data.is_periodic));
 
-            showToast(data.message);
-        })
-        .catch(error => {
-            console.error("Ошибка изменения статуса:", error);
-            showToast("Не удалось изменить статус. Подробности в консоли.");
-        });
+        if (data.is_periodic && data.reminder_at) {
+            updateReminderTime(cell, data.reminder_at);
+        }
+
+        showToast(data.message);
+    })
+    .catch(error => {
+        console.error("Ошибка изменения статуса:", error);
+        showToast("Не удалось изменить статус. Подробности в консоли.");
     });
 }
