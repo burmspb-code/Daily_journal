@@ -1,7 +1,7 @@
 // === ПОЛЛИНГ СТАТУСОВ ЗАДАЧ ===
 // Периодически проверяет изменения статусов задач на сервере и обновляет UI
 
-import { getStatusConfig } from './status-icons-config.js';
+import { renderTaskStatusCell } from './secondary-system-functions.js';
 
 let pollingInterval = null;
 const POLLING_INTERVAL_MS = 30000; // 30 секунд
@@ -97,15 +97,19 @@ async function updateTaskStatuses() {
         tasks.forEach(task => {
             const row = document.getElementById(`task-row-${task.id}`);
             if (row) {
-                const currentBadge = row.querySelector('.task-status-cell .badge');
-                if (currentBadge) {
+                const statusCell = row.querySelector('.task-status-cell');
+                const currentBadge = statusCell ? statusCell.querySelector('.badge') : null;
+                if (statusCell && currentBadge) {
                     const currentStatus = parseInt(currentBadge.getAttribute('data-status') || '0');
-                    const newStatus = task.status_flag;
+                    const newStatus = parseInt(task.status_flag, 10);
 
-                    // Если статус изменился, обновляем бейдж
+                    // Если статус изменился, перерисовываем ВСЮ ячейку: только
+                    // замена бейджа ломает обёртку-триггер дропдауна и меню
+                    // «Изменить статус», после чего с задачей нельзя
+                    // взаимодействовать (см. renderTaskStatusCell).
                     if (currentStatus !== newStatus) {
-                        updateStatusBadge(currentBadge, newStatus);
-                        currentBadge.setAttribute('data-status', newStatus);
+                        const isPeriodic = row.getAttribute('data-periodic') === '1';
+                        renderTaskStatusCell(statusCell, newStatus, isPeriodic);
                         updatedCount++;
                     }
                 }
@@ -174,23 +178,4 @@ function syncReminderCell(row, reminderAtIso) {
             <i class="bi bi-bell-fill"></i> ${formatted}
         </span>
     `;
-}
-
-/**
- * Обновляет визуальное отображение бейджа статуса
- */
-function updateStatusBadge(badge, statusFlag) {
-    const config = getStatusConfig(statusFlag);
-    if (!config) return;
-
-    badge.className = `badge rounded-pill ${config.bg} px-2 py-1 d-inline-flex align-items-center gap-1`;
-    badge.setAttribute('title', config.text);
-    badge.innerHTML = `<i class="bi ${config.icon}"></i> ${config.text}`;
-
-    // Небольшая визуальная индикация обновления
-    badge.style.transition = 'transform 0.2s';
-    badge.style.transform = 'scale(1.1)';
-    setTimeout(() => {
-        badge.style.transform = 'scale(1)';
-    }, 200);
 }

@@ -1,24 +1,6 @@
 // === Модуль для инлайн-управления статусом задачи прямо в таблице ===
 import { getCookie } from './secondary-system-functions.js';
-
-// Конфигурация отображения статусов: класс текста, иконка и подпись.
-const STATUS_RENDER = {
-    0: { color: 'text-success', icon: 'bi-file-earmark-plus', label: 'Создана' },
-    1: { color: 'text-warning', icon: 'bi-gear', label: 'В работе' },
-    2: { color: 'text-secondary', icon: 'bi-check2-circle', label: 'Выполнена' },
-    3: { color: 'text-danger', icon: 'bi-clock-history', label: 'Дедлайн' },
-};
-
-function renderStatusCell(cell, status) {
-    const cfg = STATUS_RENDER[status] || STATUS_RENDER[0];
-    cell.setAttribute('data-status', status);
-    cell.innerHTML = `
-        <span class="badge bg-transparent ${cfg.color} p-0 fw-medium d-inline-flex align-items-center justify-content-center gap-2 fs-6"
-              title="${cfg.label}" data-status="${status}">
-            <i class="bi ${cfg.icon}"></i> ${cfg.label}
-        </span>
-    `;
-}
+import { renderTaskStatusCell } from './secondary-system-functions.js';
 
 function showToast(message) {
     if (!message) return;
@@ -116,22 +98,25 @@ export function initInlineStatusEditor() {
                 return;
             }
 
-            // Для периодической задачи бэкенд возвращает её в статус «Создана»
-            // и сдвинутое время следующего напоминания.
-            renderStatusCell(cell, data.status);
+            // Сначала закрываем выпадающий список Bootstrap — перерисовка ячейки
+            // уничтожит элемент-триггер, и у экземпляра дропдауна останется
+            // ссылка на удалённый узел.
+            const toggleBtn = cell.querySelector('[data-bs-toggle="dropdown"]');
+            if (toggleBtn) {
+                const bsDropdown = bootstrap.Dropdown.getInstance(toggleBtn);
+                if (bsDropdown) bsDropdown.hide();
+            }
+
+            // Полностью перерисовываем ячейку статуса: сохраняем обёртку-триггер
+            // и меню «Изменить статус», чтобы с задачей можно было продолжать
+            // взаимодействовать (наведение/клик по бейджу).
+            renderTaskStatusCell(cell, data.status, Boolean(data.is_periodic));
 
             if (data.is_periodic && data.reminder_at) {
                 updateReminderTime(cell, data.reminder_at);
             }
 
             showToast(data.message);
-
-            // Закрываем выпадающий список Bootstrap
-            const toggleBtn = cell.querySelector('[data-bs-toggle="dropdown"]');
-            if (toggleBtn) {
-                const bsDropdown = bootstrap.Dropdown.getOrCreateInstance(toggleBtn);
-                if (bsDropdown) bsDropdown.hide();
-            }
         })
         .catch(error => {
             console.error("Ошибка изменения статуса:", error);

@@ -29,19 +29,87 @@ export function checkIfTableIsEmpty() {
     }
 }
 
-export function updateRowStatusBadge(taskId, flagValue) {
-    const row = document.getElementById(`task-row-${taskId}`);
-    if (!row) return;
+// Статусы, для которых в ячейке есть выпадающее меню «Изменить статус».
+// Аналогично условию в шаблоне daily/includes/task_row.html: у «Выполнена» (2)
+// меню не рендерится, поэтому и триггер дропдауна создавать не нужно.
+const STATUSES_WITH_DROPDOWN = [0, 1, 3];
 
-    const badge = row.querySelector('.task-status-cell .badge') || row.querySelector('.badge');
-    if (!badge) return;
+/**
+ * Полностью перерисовывает ячейку статуса задачи под новый флаг.
+ *
+ * Раньше обновлялся только сам `.badge`, из-за чего ломалась разметка:
+ * у ячейки пропадала обёртка-триггер дропдауна (`inline-status-trigger`) и
+ * меню «Изменить статус», поэтому после смены статуса с задачей нельзя было
+ * взаимодействовать наведением мыши. Здесь ячейка собирается заново ровно
+ * так же, как в шаблоне, включая триггер и меню для статусов 0/1/3.
+ *
+ * @param {HTMLElement} cell - ячейка `.task-status-cell`.
+ * @param {number|string} flagValue - новый флаг статуса.
+ * @param {boolean} isPeriodic - периодическая ли задача (меняет текст кнопки).
+ */
+export function renderTaskStatusCell(cell, flagValue, isPeriodic = false) {
+    if (!cell) return;
 
     const config = getStatusConfig(flagValue);
     if (!config) return;
 
-    badge.className = `badge rounded-pill ${config.bg} px-2 py-1 d-inline-flex align-items-center gap-1`;
-    badge.setAttribute('title', config.text);
-    badge.innerHTML = `<i class="bi ${config.icon}"></i> ${config.text}`;
+    const flag = parseInt(flagValue, 10);
+    const taskId = cell.getAttribute('data-id') || '';
+
+    const badge = `
+        <span class="badge ${config.bg}"
+              title="${config.text}" data-status="${flag}">
+            <i class="bi ${config.icon}"></i> ${config.text}
+        </span>
+    `.trim();
+
+    let triggerHtml;
+    if (STATUSES_WITH_DROPDOWN.includes(flag)) {
+        triggerHtml = `
+            <div class="inline-status-trigger d-inline-block cursor-pointer"
+                 data-bs-toggle="dropdown"
+                 data-bs-auto-close="outside"
+                 aria-expanded="false"
+                 style="cursor: pointer;">
+                ${badge}
+            </div>
+        `.trim();
+    } else {
+        triggerHtml = badge;
+    }
+
+    let dropdownHtml = '';
+    if (STATUSES_WITH_DROPDOWN.includes(flag)) {
+        const actionLabel = isPeriodic ? 'Завершить цикл' : 'Выполнена';
+        dropdownHtml = `
+            <div class="dropdown-menu p-2 shadow-lg border" style="min-width: 180px; z-index: 1050;">
+                <div class="mb-2 text-center border-bottom pb-2">
+                    <strong class="text-dark small">Изменить статус</strong>
+                </div>
+                <button type="button"
+                        class="dropdown-item d-flex align-items-center gap-2 btn-mark-completed"
+                        data-task-id="${taskId}"
+                        data-status="2">
+                    <i class="bi bi-check2-circle text-secondary"></i>
+                    ${actionLabel}
+                </button>
+            </div>
+        `.trim();
+    }
+
+    cell.setAttribute('data-status', flag);
+    cell.innerHTML = triggerHtml + dropdownHtml;
+}
+
+export function updateRowStatusBadge(taskId, flagValue) {
+    const row = document.getElementById(`task-row-${taskId}`);
+    if (!row) return;
+
+    const cell = row.querySelector('.task-status-cell');
+    if (!cell) return;
+
+    const isPeriodic = row.getAttribute('data-periodic') === '1';
+    renderTaskStatusCell(cell, flagValue, isPeriodic);
 }
 
 export function getCookie(name) {
