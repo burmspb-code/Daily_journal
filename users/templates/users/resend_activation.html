@@ -1,0 +1,83 @@
+{% extends 'daily/base.html' %}
+
+{% block title %}Отправить ссылку повторно | Daily Journal{% endblock %}
+
+{% block content %}
+<div class="container my-3">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-6">
+
+            <!-- Блок вывода всплывающих сообщений/ошибок Django -->
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show border-0 shadow-sm mb-2"
+                 role="alert">
+                {% if message.tags == 'error' or message.tags == 'danger' %}
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                {% elif message.tags == 'success' %}
+                <i class="bi bi-check-circle-fill me-2"></i>
+                {% else %}
+                <i class="bi bi-info-circle-fill me-2"></i>
+                {% endif %}
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            <div class="card shadow border-0 rounded-3">
+                <div class="card-body p-3 p-sm-4">
+
+                    <h2 class="card-title text-center mb-3 fw-bold text-dark">
+                        <i class="bi bi-envelope-arrow-up text-primary me-2"></i>
+                        Отправить ссылку повторно
+                    </h2>
+
+                    <p class="text-muted small text-center mb-3">
+                        Укажите email, который вы указывали при регистрации.
+                        Мы отправим на него новую ссылку для подтверждения аккаунта.
+                    </p>
+
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+
+                        {% for field in form.visible_fields %}
+                        <div class="mb-2">
+                            <label for="{{ field.id_for_label }}" class="form-label fw-semibold text-secondary mb-1">
+                                {{ field.label }}
+                            </label>
+
+                            {{ field.as_widget }}
+
+                            {% if field.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ field.errors|striptags }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+
+                        <div class="d-grid gap-2 mt-3">
+                            <button type="submit" class="btn btn-primary btn-lg shadow-sm">
+                                <i class="bi bi-send-fill me-2"></i>Отправить ссылку
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="text-center mt-4 border-top pt-3">
+                        <span class="text-muted small">Вспомнили пароль от действующего аккаунта?</span>
+                        <a href="{% url 'users:login' %}" class="text-decoration-none small fw-bold ms-1">Войти</a>
+                    </div>
+
+                    <div class="alert alert-info small mt-3 mb-0">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Запрос можно повторять не чаще одного раза в минуту.
+                        Если аккаунт уже активирован, письмо не отправляется.
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

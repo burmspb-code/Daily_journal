@@ -1,0 +1,222 @@
+[
+  {
+    "model": "daily.task",
+    "pk": 1,
+    "fields": {
+      "name": "Абриз",
+      "created_at": "2026-03-16T12:30:01Z",
+      "reminder_at": null,
+      "comment": "ручки для Томары",
+      "status_flag": 0
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 2,
+    "fields": {
+      "name": "ИП Тищенко И.П.",
+      "created_at": "2026-04-29T10:38:15Z",
+      "reminder_at": null,
+      "comment": "поменять брак",
+      "status_flag": 0
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 3,
+    "fields": {
+      "name": "ИП Малютин",
+      "created_at": "2026-01-19T11:52:11Z",
+      "reminder_at": null,
+      "comment": "недовоз",
+      "status_flag": 0
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 4,
+    "fields": {
+      "name": "ИП Гаджиахмедов",
+      "created_at": "2026-01-19T11:50:33Z",
+      "reminder_at": null,
+      "comment": "возврат Рижский 25",
+      "status_flag": 0
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 5,
+    "fields": {
+      "name": "ВсеИнструменты",
+      "created_at": "2026-01-29T12:22:37Z",
+      "reminder_at": "2026-02-25T13:00:00Z",
+      "comment": "поставка Самир Кили",
+      "status_flag": 3
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 6,
+    "fields": {
+      "name": "ИП Малютин",
+      "created_at": "2026-01-15T11:44:41Z",
+      "reminder_at": "2026-01-19T10:00:00Z",
+      "comment": "подготовить договор",
+      "status_flag": 3
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 7,
+    "fields": {
+      "name": "ИП Михелькевич Л.А.",
+      "created_at": "2026-06-08T09:24:29Z",
+      "reminder_at": null,
+      "comment": "заказ",
+      "status_flag": 1
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 8,
+    "fields": {
+      "name": "ИП Невзоров А.А.",
+      "created_at": "2026-06-15T10:53:37Z",
+      "reminder_at": null,
+      "comment": "заказ",
+      "status_flag": 0
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 9,
+    "fields": {
+      "name": "ВсеИнструменты",
+      "created_at": "2026-06-09T13:31:35Z",
+      "reminder_at": "2026-06-23T10:00:00Z",
+      "comment": "Повышение Цербер",
+      "status_flag": 2
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 10,
+    "fields": {
+      "name": "МегаТрак",
+      "created_at": "2026-06-15T09:15:43Z",
+      "reminder_at": "2026-06-19T15:00:00Z",
+      "comment": "заказ товара по счету",
+      "status_flag": 2
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 11,
+    "fields": {
+      "name": "Юг Межрегионстрой",
+      "created_at": "2026-06-15T09:52:36Z",
+      "reminder_at": null,
+      "comment": "счет",
+      "status_flag": 0
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 12,
+    "fields": {
+      "name": "Системы фиксации",
+      "created_at": "2026-06-15T16:25:55Z",
+      "reminder_at": "2026-06-22T10:30:00Z",
+      "comment": "запрос ручек 850 шт р",
+      "status_flag": 2
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 13,
+    "fields": {
+      "name": "Торговый дом св-строй",
+      "created_at": "2026-06-15T16:51:13Z",
+      "reminder_at": "2026-06-17T14:00:00Z",
+      "comment": "доставка на 18.06.26",
+      "status_flag": 2
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 14,
+    "fields": {
+      "name": "ВсеИнструменты",
+      "created_at": "2026-06-16T12:14:44Z",
+      "reminder_at": "2026-06-17T16:00:00Z",
+      "comment": "2 ПСО + 1 СПб + 1 КЗ д",
+      "status_flag": 2
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 15,
+    "fields": {
+      "name": "ИП Громыко Н.В.",
+      "created_at": "2026-06-16T15:56:49Z",
+      "reminder_at": "2026-06-18T09:00:00Z",
+      "comment": "документы самовыво",
+      "status_flag": 2
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 16,
+    "fields": {
+      "name": "ИП Солодунов С.И.",
+      "created_at": "2026-06-17T08:55:38Z",
+      "reminder_at": "2026-06-17T16:00:00Z",
+      "comment": "доставка 18.06.26",
+      "status_flag": 2
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 17,
+    "fields": {
+      "name": "ИП Дурков А.Ю.",
+      "created_at": "2026-06-17T09:21:37Z",
+      "reminder_at": "2026-06-18T16:00:00Z",
+      "comment": "доставка 19.06.26",
+      "status_flag": 2
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 18,
+    "fields": {
+      "name": "Рассвет",
+      "created_at": "2026-06-17T09:50:36Z",
+      "reminder_at": "2026-06-19T12:00:00Z",
+      "comment": "поступление товара г",
+      "status_flag": 2
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 19,
+    "fields": {
+      "name": "РСК Проспект",
+      "created_at": "2026-06-17T10:25:33Z",
+      "reminder_at": "2026-06-19T15:00:00Z",
+      "comment": "заказ товара по счету",
+      "status_flag": 2
+    }
+  },
+  {
+    "model": "daily.task",
+    "pk": 20,
+    "fields": {
+      "name": "ИП Горбань Е.В.",
+      "created_at": "2026-06-17T13:33:18Z",
+      "reminder_at": null,
+      "comment": "заказ",
+      "status_flag": 2
+    }
+  }
+]

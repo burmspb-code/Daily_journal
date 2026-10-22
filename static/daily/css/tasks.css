@@ -1,0 +1,604 @@
+/* ==========================================================================
+   0. Глобальная настройка для страницы целиком
+   ========================================================================== */
+
+/* Разрешаем каркасу занимать всю высоту */
+html {
+    height: 100%;
+}
+
+/* Намертво запираем скролл только на уровне body */
+body {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow: hidden !important;
+}
+
+/* ==========================================================================
+   1. ФИЛЬТРЫ, НАВБАР И ПОПАПЫ
+   ========================================================================== */
+
+.filter-icon {
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.filter-icon:hover,
+.filter-icon.active {
+    opacity: 1;
+    color: #ffc107 !important;
+}
+
+/* Разрешаем элементам шапки выпускать попапы наружу */
+thead.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+th.position-relative {
+    position: relative;
+}
+
+/* Чистый стандартный скролл таблицы */
+.table-responsive {
+    max-height: 540px;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+/* Базовый попап (абсолютное позиционирование) */
+.header-filter-popup {
+    display: none;
+    position: absolute;
+    background: #212529;
+    border: 1px solid #495057;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 2050;
+    min-width: 240px;
+    margin-top: 5px;
+    top: 100%;
+}
+
+/* Левый попап (Наименование) выравниваем по левому краю */
+.header-filter-popup:not(.popup-right) {
+    left: 0;
+    right: auto;
+}
+
+/* Стили для элементов внутри выпадающего списка */
+.filter-popup-item {
+    display: block;
+    width: 100%;
+    padding: 0.25rem 1rem;
+    clear: both;
+    font-weight: 400;
+    color: #fff;
+    text-align: inherit;
+    text-decoration: none;
+    white-space: nowrap;
+    background-color: transparent;
+    border: 0;
+    font-size: 0.875rem;
+    border-radius: 4px;
+}
+
+.filter-popup-item:hover {
+    background-color: #495057;
+    color: #fff;
+}
+
+.filter-popup-item.active {
+    background-color: #0d6efd;
+    color: #fff;
+}
+
+/* Эффект плавного изменения для ссылок в навбаре */
+.custom-hover {
+    transition: opacity 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+.custom-hover:hover {
+    opacity: 1 !important;
+}
+
+
+/* ==========================================================================
+   2. МЕНЮ ЗАКЛАДОК И КНОПКИ
+   ========================================================================= */
+
+/* Скрываем стандартную стрелку Bootstrap */
+.dropdown-toggle-custom::after {
+    display: none !important;
+}
+
+/* Строгое выпадающее меню закладок (ОРИГИНАЛЬНЫЙ ЦВЕТ SLATE) */
+.custom-dropdown-menu {
+    background-color: #1e293b !important; /* Глубокий темно-синий */
+    border: 1px solid #334155 !important; /* Тонкая рамка */
+    border-radius: 4px !important;        /* Минимальное классическое скругление */
+    min-width: 180px;
+    margin-top: 0px !important;           /* Меню прижато к навбару */
+    padding: 0 !important;                /* Полное отсутствие внутренних отступов контейнера */
+
+    /* Плавное проявление */
+    animation: fadeInDropdown 0.15s ease-out;
+}
+
+/* Пункты меню от края до края с комфортными отступами против слипания */
+.custom-dropdown-menu .dropdown-item {
+    display: flex !important;             /* Идеальное выравнивание иконок и текста по центру */
+    align-items: center !important;
+    padding: 0.6rem 1.25rem !important;   /* Добавлен воздух между пунктами закладок */
+    color: rgba(255, 255, 255, 0.8) !important;
+    font-size: 0.95rem;
+    border-radius: 0 !important;          /* Квадратные края для заполнения всей ширины */
+    transition: all 0.1s ease-in-out;
+}
+
+/* Подсветка при наведении — ИСПРАВЛЕНО: Золотой акцент для текста и иконок закладок */
+.custom-dropdown-menu .dropdown-item:hover {
+    color: #ffc107 !important;            /* Ваше фирменное золото при наведении */
+    background-color: #334155 !important; /* Сплошная заливка элемента */
+}
+
+/* Отдельная подсветка золотом для иконки плюса в пункте «Создать» при наведении */
+.custom-dropdown-menu .dropdown-item:hover i.text-success {
+    color: #ffc107 !important;
+    transition: color 0.1s ease-in-out;
+}
+
+/* Чистая анимация появления без движения */
+@keyframes fadeInDropdown {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Наш кастомный стиль для кнопки-закладки в таблице (оставляем без изменений) */
+.btn-bookmark {
+    background-color: #064e3b !important; /* Глубокий изумрудно-зеленый */
+    border: 1px solid #047857 !important; /* Яркий кант */
+    transition: filter 0.15s ease-in-out !important;
+}
+
+/* Эффект при наведении на всю кнопку-закладку */
+.btn-bookmark:hover {
+    filter: brightness(1.2) !important;  /* Увеличивает яркость всей кнопки на 20% */
+}
+
+/* --- РЕДАКТИРУЕМОЕ НАЗВАНИЕ ЗАКЛАДКИ ВНУТРИ КНОПКИ --- */
+.editable-bookmark-name {
+    display: inline-block;
+    border-bottom: 2px solid transparent !important;
+    padding-bottom: 2px;
+    margin-bottom: -2px;
+    outline: none !important;
+    box-shadow: none !important;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.editable-bookmark-name:hover {
+    cursor: text;
+    background-color: rgba(255, 193, 7, 0.1) !important;
+    border-bottom: 2px solid rgba(255, 193, 7, 0.4) !important;
+    border-radius: 3px 3px 0 0;
+}
+
+.editable-bookmark-name:focus {
+    background-color: transparent !important;
+    border-bottom: 2px solid #ffc107 !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* ==========================================================================
+   3. ГЕОМЕТРИЯ И СТРУКТУРА ТАБЛИЦЫ ЗАДАЧ
+   ========================================================================== */
+
+/* Заставляем контейнер таблицы внутри карточки выжать максимум высоты */
+.card .table-responsive {
+    height: 100% !important;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+/* Фиксируем раскладку таблицы, чтобы строго контролировать ширину колонок */
+#tasks-table {
+    table-layout: fixed;
+    width: 100%;
+    margin-bottom: 0 !important;
+}
+
+/* На всякий случай сбрасываем любые ограничения высоты у тела таблицы */
+#tasks-table-body {
+    height: auto !important;
+}
+
+/* Задаем базовую комфортную высоту для всех ячеек таблицы */
+#tasks-table tbody tr td {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    height: 38px; /* Уменьшили минимальную высоту с 45px до 38px */
+}
+
+/* Ограничиваем ширину столбца комментариев и включаем безопасный перенос */
+#tasks-table th:nth-child(6),
+#tasks-table td:nth-child(6) {
+    width: 250px;
+    max-width: 250px;
+    white-space: normal;
+    overflow-wrap: break-word; /* Современный стандарт переноса длинных слов */
+}
+
+/* ==========================================================================
+   4. ЕДИНЫЙ СТИЛЬ РЕДАКТИРУЕМЫХ ПОЛЕЙ (НАЗВАНИЯ И КОММЕНТАРИИ)
+   ========================================================================== */
+
+/* Базовое состояние: убираем рамки коробки, настраиваем золотую линию строго по ширине текста */
+.editable-task-name,
+.editable-task-comment {
+    display: inline-block;
+    max-width: 100%;
+    min-width: 10px;
+    border: none !important;
+    border-bottom: 2px solid transparent !important; /* Скрытая линия против прыжков текста */
+    padding-bottom: 4px; /* Оптимальный отступ, чтобы линия не прилипала к буквам */
+    margin-bottom: -2px; /* Компенсируем отступ, сохраняя высоту строки таблицы */
+    outline: none !important;
+    box-shadow: none !important;
+    transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Эффект при наведении курсора (подсказка для пользователя) */
+.editable-task-name:hover,
+.editable-task-comment:hover {
+    background-color: rgba(255, 193, 7, 0.06) !important; /* Едва заметный золотистый фон-подсветка */
+    border-bottom: 2px solid rgba(255, 193, 7, 0.3) !important; /* Мягкий полупрозрачный золотой контур */
+    border-radius: 4px 4px 0 0; /* Аккуратное скругление сверху у подсвеченной плашки */
+}
+
+/* Эффект фокуса: красивое плотное золотое подчеркивание */
+.editable-task-name:focus,
+.editable-task-comment:focus {
+    background-color: transparent !important; /* Сбрасываем фоновую плашку при активном вводе */
+    border-bottom: 2px solid #ffc107 !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Логика для выполненных задач */
+.editable-task-name.task-completed {
+    text-decoration: line-through;
+    color: #6c757d; /* Bootstrap text-muted */
+}
+
+/* Возвращаем обычный вид выполненной задачи при редактировании */
+.editable-task-name.task-completed:focus {
+    text-decoration: none;
+    color: #212529; /* Возвращаем темный цвет текста */
+}
+
+/* ==========================================================================
+   5. ИНПУТЫ ДАТЫ И ВРЕМЕНИ (ИСПРАВЛЕНО)
+   ========================================================================== */
+
+/* Полный сброс Bootstrap ТОЛЬКО для обычных полей (исключая наш инпут .inline-date-input) */
+#tasks-table input[type="datetime-local"]:not(.inline-date-input),
+#tasks-table input[type="date"]:not(.inline-date-input),
+#tasks-table input[type="time"]:not(.inline-date-input),
+#tasks-table .form-control:not(.inline-date-input) {
+    border: 1px solid transparent !important;
+    background: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+/* Гарантированная чистота обычных инпутов при клике внутрь (фокусе) */
+#tasks-table input[type="datetime-local"]:not(.inline-date-input):focus,
+#tasks-table input[type="date"]:not(.inline-date-input):focus,
+#tasks-table input[type="time"]:not(.inline-date-input):focus,
+#tasks-table .form-control:not(.inline-date-input):focus {
+    border-color: transparent !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+/* Кастомные стили безопасности для инлайнового календаря */
+#tasks-table .inline-date-input {
+    background-color: #ffffff !important; /* Белый фон, чтобы перекрыть текст сзади */
+    color: #212529 !important;            /* Темный читаемый цвет текста */
+    border: 1px solid #ced4da !important; /* Тонкая серая Bootstrap-рамка */
+    border-radius: 4px !important;        /* Аккуратные скругления */
+    padding: 4px 8px !important;          /* Внутренние отступы, чтобы фокус не слетал */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important; /* Легкая тень для объема */
+}
+
+/* ==========================================================================
+   6. ИКОНКИ ДЕЙСТВИЙ (КОММЕНТАРИИ, НАПОМИНАНИЯ И ПОВТОРЕНИЯ)
+   ========================================================================== */
+
+/* Базовое состояние иконок-карандашей, колокольчиков и стрелочек повторения */
+.add-comment-icon,
+.add-reminder-icon,
+.task-periodicity-cell .bi-arrow-repeat {
+    opacity: 0.4;
+    transition: all 0.2s ease-in-out;
+}
+
+.add-reminder-icon {
+    font-size: 0.95rem;
+}
+
+/* Если периодичность УЖЕ задана (иконка горит желтым из Django через класс text-warning),
+   возвращаем ей полную непрозрачность */
+.task-periodicity-cell .bi-arrow-repeat.text-warning {
+    opacity: 1;
+}
+
+/* Подсветка золотом при наведении на комментарии и напоминания */
+.task-comment-cell:hover .add-comment-icon,
+.add-comment-icon:hover,
+.task-reminder-cell:hover .add-reminder-icon,
+.add-reminder-icon:hover {
+    opacity: 1;
+    color: #ffc107 !important;
+}
+
+/* ==========================================================================
+   ДИНАМИЧЕСКИЙ HOVER ДЛЯ ПОВТОРЕНИЙ (ПРЕДОХРАНИТЕЛЬ)
+   ========================================================================== */
+
+/* Растягиваем область клика на всю доступную ширину ячейки, чтобы ховер не терялся */
+.task-periodicity-cell .inline-periodicity-trigger {
+    width: 100%;
+    display: inline-flex !important;
+    align-items: center;
+}
+
+/* Эффект наведения и палец (pointer) включаются НА ВСЕМ ПОЛЕ ТРИГГЕРА,
+   только если в строке НЕТ пустого колокольчика (.bi-bell) или (.add-reminder-icon) */
+tr:not(:has(.task-reminder-cell .bi-bell)):not(:has(.task-reminder-cell .add-reminder-icon)) .task-periodicity-cell:hover .inline-periodicity-trigger {
+    cursor: pointer !important; /* Курсор руки теперь активен на всей площади поля периода! */
+}
+
+tr:not(:has(.task-reminder-cell .bi-bell)):not(:has(.task-reminder-cell .add-reminder-icon)) .task-periodicity-cell:hover .bi-arrow-repeat,
+tr:not(:has(.task-reminder-cell .bi-bell)):not(:has(.task-reminder-cell .add-reminder-icon)) .task-periodicity-cell:hover .period-text {
+    opacity: 1;
+    color: #ffc107 !important; /* Синхронно подсвечиваем золотом */
+}
+
+/* Если времени нет — принудительно оставляем дефолтный курсор-стрелку на всей ячейке,
+   гасим прозрачность стрелочек и полностью запрещаем желтый цвет при наведении */
+tr:has(.task-reminder-cell .bi-bell) .task-periodicity-cell .inline-periodicity-trigger,
+tr:has(.task-reminder-cell .add-reminder-icon) .task-periodicity-cell .inline-periodicity-trigger {
+    cursor: default !important; /* Обычная стрелка мыши на всей площади */
+}
+
+tr:has(.task-reminder-cell .bi-bell) .task-periodicity-cell:hover .bi-arrow-repeat,
+tr:has(.task-reminder-cell .add-reminder-icon) .task-periodicity-cell:hover .bi-arrow-repeat {
+    opacity: 0.4 !important;
+    color: #6c757d !important; /* Иконка намертво остается серой */
+}
+
+/* ==========================================================================
+   7. КОНТЕЙНЕР ЗАКЛАДКИ
+   ========================================================================== */
+
+/* Стили для контейнера текущей закладки в шапке таблицы */
+.bookmark-container {
+    background-color: #0c513f !important;
+    border: 1px solid #0c513f;
+    min-height: 38px;
+}
+
+/* Кнопка удаления внутри контейнера закладки */
+.bookmark-container .delete-bookmark-btn {
+    color: #ffeb3b !important; /* Яркий жёлтый цвет */
+    opacity: 1 !important;     /* Полная видимость без прозрачности */
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+/* Эффект при наведении на корзину (интерактивность) */
+.bookmark-container .delete-bookmark-btn:hover {
+    color: #fff59d !important; /* Чуть более светлый жёлтый при наведении */
+    transform: scale(1.15);    /* Легкое увеличение для отклика */
+}
+
+/* Стилизация SVG внутри кнопки удаления */
+.bookmark-container .delete-bookmark-btn svg {
+    width: 20px;
+    height: 20px;
+    vertical-align: middle;
+    filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+/* ==========================================================================
+   8. ШИРИНА КОЛОНОК ТАБЛИЦЫ (ВЫНЕСЕНО ИЗ HTML)
+   ========================================================================== */
+
+/* Фиксированная ширина для чекбокса выбора всех задач */
+#tasks-table th:nth-child(1),
+#tasks-table td:nth-child(1) {
+    width: 40px;
+}
+
+/* Фиксированная ширина для колонки с номером задачи */
+#tasks-table th:nth-child(2),
+#tasks-table td:nth-child(2) {
+    width: 70px;
+}
+
+/* Фиксированная ширина для колонки времени создания */
+#tasks-table th:nth-child(4),
+#tasks-table td:nth-child(4) {
+    width: 180px;
+}
+
+/* Фиксированная ширина для колонки времени напоминания */
+#tasks-table th:nth-child(5),
+#tasks-table td:nth-child(5) {
+    width: 180px;
+}
+
+/* Фиксированная ширина для колонки повторения */
+#tasks-table th:nth-child(6),
+#tasks-table td:nth-child(6) {
+    width: 150px;
+}
+
+/* ==========================================================================
+   9. МОДАЛЬНЫЕ ОКНА
+   ========================================================================== */
+
+/* Стили для модального окна редактирования задачи */
+.edit-task-modal-content {
+    background-color: rgba(28, 34, 43, 0.96) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 14px !important;
+}
+
+/* Стили для фона модального окна (blur эффект) */
+.edit-task-modal-backdrop {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+/* Стили для кнопки сохранения в модальном окне */
+.btn-save-task {
+    border-radius: 6px;
+}
+
+/* Стили для полей ввода в модальном окне редактирования задачи */
+#editTaskModal input[type="text"],
+#editTaskModal input[type="datetime-local"],
+#editTaskModal textarea,
+#editTaskModal select {
+    background-color: rgba(18, 22, 28, 0.6) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 8px !important;
+    padding: 0.55rem 0.85rem !important;
+    font-size: 0.85rem !important;
+    width: 100%;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+#id_periodicity_1 {
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background-color: rgba(24, 30, 38, 0.7) !important;
+}
+
+#editTaskModal input:focus,
+#editTaskModal textarea:focus,
+#editTaskModal select:focus {
+    border-color: rgba(255, 193, 7, 0.5) !important;
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.1) !important;
+    background-color: rgba(14, 17, 22, 0.8) !important;
+    outline: 0 !important;
+}
+
+#editTaskModal textarea {
+    resize: none;
+    border-radius: 8px !important;
+}
+
+#editTaskModal input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.8) sepia(1) saturate(5) hue-rotate(5deg);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+#editTaskModal input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+/* ==========================================================================
+   10. TOOLTIPS (ВСПЛЫВАЮЩИЕ ПОДСКАЗКИ)
+   ========================================================================== */
+
+/* Кастомизация Bootstrap Tooltips для светло-желтого фона */
+.tooltip-inner {
+    background-color: #fff9c4 !important; /* Светло-желтый фон */
+    color: #333 !important; /* Темный текст для контраста */
+    border: 1px solid #fbc02d !important; /* Желтая рамка */
+    border-radius: 6px !important;
+    font-size: 0.875rem;
+}
+
+/* Скрываем стрелку tooltip */
+.tooltip-arrow {
+    display: none !important;
+}
+
+/* Стили для интерактивного tooltip закладки */
+.bookmark-tooltip {
+    pointer-events: auto !important; /* Разрешаем взаимодействие с tooltip */
+}
+
+.bookmark-tooltip-content {
+    min-height: 40px;
+    padding: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.bookmark-tooltip-content:hover {
+    background-color: #fff59d;
+    border-radius: 4px;
+}
+
+.bookmark-tooltip-content[contenteditable="true"] {
+    background-color: #fff9c4;
+    border: none;
+    border-radius: 4px;
+    outline: none;
+    cursor: text;
+}
+
+/* Кастомизация Bootstrap Popovers для светло-желтого фона */
+.popover {
+    background-color: #fff9c4 !important;
+    border: 1px solid #fbc02d !important;
+    border-radius: 6px !important;
+}
+
+.popover-header {
+    background-color: #fff59d !important;
+    border-bottom: 1px solid #fbc02d !important;
+    color: #333 !important;
+}
+
+.popover-body {
+    color: #333 !important;
+}
+
+/* Скрываем стрелку popover */
+.popover-arrow {
+    display: none !important;
+}
+
+/* Стили для редактируемого описания в popover */
+.bookmark-description-editable {
+    min-height: 60px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: #fff;
+    margin-bottom: 8px;
+}
+
+.bookmark-description-editable:focus {
+    outline: 2px solid #fbc02d;
+    outline-offset: -2px;
+}

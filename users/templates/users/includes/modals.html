@@ -1,0 +1,28 @@
+<!-- Модальное окно редактирования профиля пользователя -->
+<div class="modal fade edit-profile-modal-backdrop" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content text-white shadow-lg edit-task-modal-content">
+            <form method="post" enctype="multipart/form-data" id="edit-profile-form">
+                <div class="modal-header border-bottom border-light border-opacity-10 px-4 py-3">
+                    <h5 class="modal-title fw-bold text-white fs-5" id="editProfileModalLabel">
+                        Редактирование профиля
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white opacity-50" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+
+                <div class="modal-body px-4 py-4" id="profile-form-container">
+                    <div class="text-center">
+                        <div class="spinner-border text-warning" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-top border-light border-opacity-10 px-4 py-3">
+                    <button type="button" class="btn btn-sm btn-link text-white-50 text-decoration-none fw-semibold" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-sm btn-warning fw-bold text-dark px-4 shadow-sm">Сохранить изменения</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

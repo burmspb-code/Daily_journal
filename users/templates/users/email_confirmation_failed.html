@@ -1,0 +1,58 @@
+<!-- users/templates/users/email_confirmation_failed.html -->
+{% extends 'daily/base.html' %}
+
+{% block title %}Ошибка активации | Daily Journal{% endblock %}
+
+{% block content %}
+<div class="container my-5 text-center">
+    <!-- Карточка ошибки в едином стиле с остальными окнами подтверждения -->
+    <div class="card shadow border-0 p-4 p-sm-5 mx-auto" style="max-width: 500px; border-radius: 1rem;">
+        {% if reason == 'account_missing' %}
+            {# Такого аккаунта нет: регистрация не была завершена ранее #}
+            <i class="bi bi-person-x-fill text-danger display-1 mb-4"></i>
+
+            <h2 class="fw-bold mb-3 text-dark">Аккаунт не найден</h2>
+
+            <p class="text-muted small">
+                Мы не нашли аккаунт по этой ссылке. Возможно, при регистрации
+                произошёл сбой и учётная запись не была создана.
+                Пожалуйста, попробуйте зарегистрироваться ещё раз.
+            </p>
+
+            <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">
+                <a href="{% url 'users:register' %}" class="btn btn-primary shadow-sm px-4">
+                    <i class="bi bi-person-plus-fill me-2"></i>Зарегистрироваться
+                </a>
+            </div>
+        {% else %}
+            {# Аккаунт есть, но ссылка устарела или введена с ошибкой #}
+            <i class="bi bi-link-45deg text-warning display-1 mb-4"></i>
+
+            <h2 class="fw-bold mb-3 text-dark">Ссылка недействительна</h2>
+
+            <p class="text-muted small">
+                Ссылка для подтверждения устарела или была введена с ошибкой.
+                Ваш аккаунт сохранён&nbsp;— просто запросите новую ссылку,
+                и мы отправим её повторно на тот же email.
+            </p>
+
+            <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">
+                <a href="{% url 'users:resend_activation' %}" class="btn btn-primary shadow-sm px-4">
+                    <i class="bi bi-envelope-arrow-up me-2"></i>Отправить ссылку повторно
+                </a>
+            </div>
+
+            <p class="text-muted small mt-3 mb-0">
+                Не помните email? Тогда
+                <a href="{% url 'users:register' %}" class="text-decoration-none fw-bold">зарегистрируйтесь заново</a>.
+            </p>
+        {% endif %}
+
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">
+            <a href="{% url 'users:login' %}" class="btn btn-outline-secondary px-4">
+                <i class="bi bi-box-arrow-in-right me-2"></i>На страницу входа
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
