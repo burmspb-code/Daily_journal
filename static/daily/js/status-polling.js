@@ -92,7 +92,7 @@ async function updateTaskStatuses() {
             }
         }
 
-        // Обновляем статусы в таблице
+        // Обновляем статусы и время напоминания в таблице
         let updatedCount = 0;
         tasks.forEach(task => {
             const row = document.getElementById(`task-row-${task.id}`);
@@ -109,12 +109,71 @@ async function updateTaskStatuses() {
                         updatedCount++;
                     }
                 }
+
+                // Периодическая задача при просрочке/новом наступлении сдвигает
+                // reminder_at на сервере. Без синхронизации ячейки время в
+                // таблице оставалось старым до перезагрузки страницы.
+                syncReminderCell(row, task.reminder_at);
             }
         });
 
     } catch (error) {
         console.error('[Polling] Ошибка polling:', error);
     }
+}
+
+/**
+ * Синхронизирует ячейку времени напоминания с данными сервера.
+ *
+ * Сравнивает текущее значение скрытого инпута с пришедшим `reminder_at` и
+ * перерисовывает ячейку только при реальном расхождении, чтобы не сбивать
+ * открытый пользователем инлайн-редактор даты (`datetime-local`).
+ *
+ * @param {HTMLElement} row - строка таблицы задачи (`<tr>`).
+ * @param {string|null} reminderAtIso - значение `reminder_at` из API (UTC ISO).
+ */
+function syncReminderCell(row, reminderAtIso) {
+    const cell = row.querySelector('.task-reminder-cell');
+    if (!cell) return;
+
+    // Не трогаем ячейку, если в ней открыт инлайн-редактор даты.
+    if (cell.querySelector('.inline-date-input')) return;
+
+    const hiddenInput = cell.querySelector('.raw-reminder-date');
+    if (!hiddenInput) return;
+
+    const pad = (n) => String(n).padStart(2, '0');
+
+    if (!reminderAtIso) {
+        // Напоминание снято на сервере — показываем иконку «Добавить».
+        if (hiddenInput.value !== '') {
+            cell.innerHTML = `
+                <input type="hidden" class="raw-reminder-date" value="">
+                <span class="editable-task-reminder d-inline-block w-100" style="cursor: pointer; min-height: 20px;">
+                    <i class="bi bi-bell add-reminder-icon text-secondary" title="Добавить"></i>
+                </span>
+            `.trim();
+        }
+        return;
+    }
+
+    const date = new Date(reminderAtIso);
+    if (Number.isNaN(date.getTime())) return;
+
+    const raw = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    // Значение скрытого инпута отрендерено Django в часовом поясе сервера
+    // (TIME_ZONE), а `raw` — в часовом поясе браузера. В нормальной ситуации
+    // (браузер и сервер в одном поясе) совпадение означает, что время не
+    // менялось, и перерисовывать ячейку не нужно.
+    if (hiddenInput.value === raw) return;
+
+    const formatted = `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    cell.innerHTML = `
+        <input type="hidden" class="raw-reminder-date" value="${raw}">
+        <span class="d-inline-flex align-items-center gap-1 text-warning">
+            <i class="bi bi-bell-fill"></i> ${formatted}
+        </span>
+    `;
 }
 
 /**
