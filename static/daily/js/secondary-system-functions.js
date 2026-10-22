@@ -126,3 +126,43 @@ export function getCookie(name) {
     }
     return cookieValue;
 }
+
+// Варианты оформления уведомления: иконка, цвет и заголовок по умолчанию.
+const NOTIFICATION_TYPES = {
+    info: { icon: 'bi-info-circle', color: 'text-warning', title: 'Уведомление' },
+    success: { icon: 'bi-check2-circle', color: 'text-success', title: 'Готово' },
+    error: { icon: 'bi-exclamation-triangle', color: 'text-danger', title: 'Ошибка' },
+};
+
+/**
+ * Показывает уведомление в общем модальном окне по центру экрана.
+ *
+ * Единый стиль с окнами проекта: тот же матовый тёмный каркас, что и у
+ * редактирования задачи. Заменяет собой всплывающие toast-сообщения в углу.
+ *
+ * @param {string} message - Текст уведомления.
+ * @param {string} [type="info"] - Тип: `info`, `success` или `error`.
+ */
+export function showNotification(message, type = 'info') {
+    if (!message) return;
+
+    const modalEl = document.getElementById('notificationModal');
+    if (!modalEl) {
+        // Fallback: окна нет в разметке — хотя бы покажем сообщение пользователю.
+        console.warn('Модальное окно #notificationModal не найдено:', message);
+        return;
+    }
+
+    const cfg = NOTIFICATION_TYPES[type] || NOTIFICATION_TYPES.info;
+
+    const titleEl = document.getElementById('notification-modal-title');
+    if (titleEl) titleEl.textContent = cfg.title;
+
+    const iconEl = document.getElementById('notification-modal-icon');
+    if (iconEl) iconEl.className = `bi ${cfg.icon} ${cfg.color} me-2`;
+
+    const textEl = document.getElementById('notification-modal-text');
+    if (textEl) textEl.textContent = message;
+
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}

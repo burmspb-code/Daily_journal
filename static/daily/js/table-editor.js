@@ -21,6 +21,7 @@ import {
     renumberTableRows,
     checkIfTableIsEmpty,
     updateRowStatusBadge,
+    showNotification,
     getCookie
 } from './secondary-system-functions.js';
 import {
@@ -41,6 +42,7 @@ window.updateTopTaskCounter = updateTopTaskCounter;
 window.renumberTableRows = renumberTableRows;
 window.checkIfTableIsEmpty = checkIfTableIsEmpty;
 window.updateRowStatusBadge = updateRowStatusBadge;
+window.showNotification = showNotification;
 window.getCookie = getCookie;
 window.openEditModal = openEditModal;
 window.saveTaskChanges = saveTaskChanges;

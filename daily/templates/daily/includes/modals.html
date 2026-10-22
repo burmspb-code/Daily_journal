@@ -34,6 +34,30 @@
     </div>
 </div>
 
+<!-- Универсальное модальное окно уведомления (в стиле редактирования задачи) -->
+<div class="modal fade edit-task-modal-backdrop" id="notificationModal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content text-white shadow-lg edit-task-modal-content">
+
+            <div class="modal-header border-bottom border-light border-opacity-10 px-4 py-3">
+                <h5 class="modal-title fw-bold text-white fs-5" id="notificationModalLabel">
+                    <i class="bi bi-info-circle text-warning me-2" id="notification-modal-icon"></i><span id="notification-modal-title">Уведомление</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white opacity-50" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+
+            <div class="modal-body px-4 py-4">
+                <p class="mb-0 text-white-50" id="notification-modal-text"></p>
+            </div>
+
+            <div class="modal-footer border-top border-light border-opacity-10 px-4 py-3">
+                <button type="button" class="btn btn-sm btn-warning fw-bold text-dark px-4 shadow-sm" data-bs-dismiss="modal">Понятно</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
 <!-- Модальное окно подтверждения удаления -->
 <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

@@ -1,35 +1,5 @@
 // === Модуль для инлайн-управления статусом задачи прямо в таблице ===
-import { getCookie } from './secondary-system-functions.js';
-import { renderTaskStatusCell } from './secondary-system-functions.js';
-
-function showToast(message) {
-    if (!message) return;
-
-    let container = document.getElementById('task-toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'task-toast-container';
-        container.className = 'position-fixed bottom-0 end-0 p-3';
-        container.style.zIndex = '1090';
-        document.body.appendChild(container);
-    }
-
-    const toastEl = document.createElement('div');
-    toastEl.className = 'toast align-items-center text-bg-dark border-0';
-    toastEl.setAttribute('role', 'alert');
-    toastEl.innerHTML = `
-        <div class="d-flex">
-            <div class="toast-body">${message}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto"
-                    data-bs-dismiss="toast" aria-label="Закрыть"></button>
-        </div>
-    `;
-    container.appendChild(toastEl);
-
-    const bsToast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 5000 });
-    bsToast.show();
-    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
-}
+import { getCookie, renderTaskStatusCell, showNotification } from './secondary-system-functions.js';
 
 function updateReminderTime(cell, isoString) {
     if (!isoString) return;
@@ -110,7 +80,7 @@ function changeTaskStatus(taskId, newStatus, cell) {
     })
     .then(data => {
         if (data.success === false) {
-            showToast('Ошибка при изменении статуса: ' + (data.error || 'Неизвестная ошибка'));
+            showNotification('Ошибка при изменении статуса: ' + (data.error || 'Неизвестная ошибка'), 'error');
             return;
         }
 
@@ -123,10 +93,10 @@ function changeTaskStatus(taskId, newStatus, cell) {
             updateReminderTime(cell, data.reminder_at);
         }
 
-        showToast(data.message);
+        showNotification(data.message, 'success');
     })
     .catch(error => {
         console.error("Ошибка изменения статуса:", error);
-        showToast("Не удалось изменить статус. Подробности в консоли.");
+        showNotification("Не удалось изменить статус. Подробности в консоли.", 'error');
     });
 }
