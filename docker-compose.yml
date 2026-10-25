@@ -2,64 +2,48 @@ services:
   # =========================================================================
   # 1. СЛУЖБА REDIS (Брокер сообщений для Celery)
   # =========================================================================
-  # Разворачивается локально на вашем компьютере.
-  # Нужен для того, чтобы Django мог складывать туда фоновые задачи, а Celery — забирать.
   redis:
-    # Используем официальный легковесный образ Redis на базе Alpine Linux
     image: redis:7-alpine
-    # Учим Docker проверять, что Redis реально «проснулся» и готов к работе
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ] # Команда внутри контейнера, которая проверяет пульс
-      interval: 5s                       # Проверять каждые 5 секунд
-      timeout: 3s                        # Если ответа нет 3 секунды — проверка провалена
-      retries: 3                         # Делать 3 попытки, прежде чем признать контейнер «больным»
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
       start_period: 5s
-    # Логирование сервиса
     logging:
       driver: "json-file"
       options:
-        max-size: "10m" # Один файл лога не превысит 10 Мегабайт
-        max-file: "3"   # Docker будет хранить максимум 3 старых файла (итого 30 МБ)
+        max-size: "10m"
+        max-file: "3"
 
   # =========================================================================
   # 2. СЛУЖБА DJANGO (Веб-приложение)
   # =========================================================================
   web:
-    # Собираем образ на основе Dockerfile, который находится в текущей папке (.)
     build: .
-    working_dir: /app # Указываем Docker, что работать нужно внутри папки /app
-    # Команда запуска стандартного сервера разработки Django.
-    # Флаг 0.0.0.0:8000 обязателен, чтобы сайт открывался на вашем основном ПК.
-    command: python manage.py runserver 0.0.0.0:8000
-    # Маппинг портов: связываем порт 8000 вашего компьютера с портом 8000 контейнера.
-    # Ваш сайт будет доступен в браузере по адресу http://localhost:8000
-    ports:
-      - "8000:8000"
-    # Логирование сервиса.
+    working_dir: /app
+    command: >
+      sh -c "python manage.py collectstatic --noinput &&
+             python manage.py migrate &&
+             gunicorn --bind 0.0.0.0:8000 config.wsgi:application --workers 3"
+    expose:
+      - "8000"
     logging:
       driver: "json-file"
       options:
-        max-size: "10m" # Один файл лога не превысит 10 Мегабайт
-        max-file: "3"   # Docker будет хранить максимум 3 старых файла (итого 30 МБ)
-    # Монтирование папки (Volumes): связывает файлы на вашем ПК с файлами в контейнере.
-    # Благодаря этому код обновляется «на лету» без пересборки образа.
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - .:/app
-      - /app/.venv
-    # ПОДКЛЮЧЕНИЕ .ENV ФАЙЛА: Docker сам прочитает ваш файл .env и передаст
-    # все переменные (SECRET_KEY, DB_NAME, DB_USER и т.д.) прямо в Django.
+      - static_volume:/app/staticfiles
+      - media_volume:/app/mediafiles
     env_file:
       - .env
-    # Дополнительные переменные окружения, специфичные для Docker-сети
     environment:
-      # Redis работает в соседнем контейнере, поэтому подключаемся к нему по имени службы "redis"
       - CELERY_BROKER_URL=redis://redis:6379/0
       - DB_HOST=host.docker.internal
-    # Настройка DNS: связывает адрес host.docker.internal со шлюзом вашего ПК.
-    # Это позволяет Django выйти из контейнера и увидеть ваш SSH-туннель на порту 5433.
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # Указываем Docker не запускать сайт, пока не поднимется локальный контейнер Redis
     depends_on:
       redis:
         condition: service_healthy
@@ -67,24 +51,17 @@ services:
   # =========================================================================
   # 3. СЛУЖБА CELERY WORKER (Обработчик фоновых задач)
   # =========================================================================
-  # Этот контейнер слушает Redis, берет оттуда задачи и выполняет их в фоне.
   celery:
-    # Использует тот же Python-образ, что и Django (сборка происходит один раз)
     build: .
-    working_dir: /app # Указываем Docker, что работать нужно внутри папки /app
-    # Команда запуска воркера. Флаг "-A config" указывает Celery искать настройки в config/celery.py
-    command: poetry run watchmedo auto-restart --directory=. --pattern="*.py" --recursive -- celery -A config worker --loglevel=info
-    # Логирование сервиса.
+    working_dir: /app
+    command: celery -A config worker --loglevel=info
     logging:
       driver: "json-file"
       options:
-        max-size: "10m" # Один файл лога не превысит 10 Мегабайт
-        max-file: "3"   # Docker будет хранить максимум 3 старых файла (итого 30 МБ)
-    # Также монтируем код, чтобы Celery мгновенно подхватывал изменения в файлах tasks.py
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - .:/app
-      - /app/.venv
-    # Передаем те же самые доступы к базе данных из .env файла
     env_file:
       - .env
     environment:
@@ -99,22 +76,17 @@ services:
   # =========================================================================
   # 4. СЛУЖБА CELERY BEAT (Планировщик задач по расписанию)
   # =========================================================================
-  # Этот контейнер работает как будильник: он раз в минуту (или по расписанию)
-  # отправляет команду в Redis: "Пора запустить периодическую задачу!".
   celery-beat:
     build: .
-    working_dir: /app # Указываем Docker, что работать нужно внутри папки /app
-    # Команда запуска планировщика (beat) для проекта из папки config
-    command: poetry run watchmedo auto-restart --directory=. --pattern="*.py" --recursive -- celery -A config beat --loglevel=info
-    # Логирование сервиса.
+    working_dir: /app
+    command: celery -A config beat --loglevel=info
     logging:
       driver: "json-file"
       options:
-        max-size: "10m" # Один файл лога не превысит 10 Мегабайт
-        max-file: "3"   # Docker будет хранить максимум 3 старых файла (итого 30 МБ)
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - .:/app
-      - /app/.venv
     env_file:
       - .env
     environment:
@@ -126,3 +98,21 @@ services:
       redis:
         condition: service_healthy
 
+  # =========================================================================
+  # 5. СЛУЖБА NGINX (Веб-сервер и Reverse Proxy)
+  # =========================================================================
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - static_volume:/app/staticfiles
+      - media_volume:/app/mediafiles
+    depends_on:
+      - web
+
+# Блок перенесен на самый верхний уровень и больше не принадлежит секции services
+volumes:
+  static_volume:
+  media_volume:

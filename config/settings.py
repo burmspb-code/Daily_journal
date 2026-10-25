@@ -158,6 +158,9 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
+# КРИТИЧЕСКИ ВАЖНО ДЛЯ ПРОДАКШЕНА:
+# Папка, КУДА Django СБЕРЕТ всю статику проекта для веб-сервера Nginx
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Указываем Django использовать кастомную модель вместо встроенной
 AUTH_USER_MODEL = "users.CustomUser"
@@ -167,10 +170,19 @@ AUTH_USER_MODEL = "users.CustomUser"
 # Временно комментируем SMTP и включаем вывод в консоль:
 # EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
-# Кастомная функция для отправки почтовых рассылок через Yandex.cloud
-# Вся конфеденциальная информация для работы с почтой находится в
-# секретах Yandex.cloud, что повышает уровень безопасности
-MAIL_FUNCTION_URL = os.getenv("MAIL_FUNCTION_URL")
+# Говорим Django использовать стандартный протокол SMTP
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+# Указываем сервера Яндекса
+EMAIL_HOST = "smtp.yandex.ru"
+EMAIL_PORT = 465
+EMAIL_USE_SSL = True  # Яндекс строго требует шифрование SSL
+
+# Привязываем авторизацию к переменным из вашего .env
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")         # Ваш логин Яндекса (например, info@yoursite.ru)
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD") # Пароль приложения!
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
 # Email для получения уведомлений для администрирования ресурса
 EMAIL_ADMIN_NOTIFICATION = os.getenv("EMAIL_ADMIN_NOTIFICATION")
 

@@ -22,7 +22,8 @@ dependencies = [
     "drf-spectacular (>=0.30.0,<0.31.0)",
     "django-celery-beat (>=2.9.0,<3.0.0)",
     "djangorestframework-stubs (>=3.18.1,<4.0.0)",
-    "requests (>=2.34.2,<3.0.0)"
+    "requests (>=2.34.2,<3.0.0)",
+    "gunicorn (>=26.2.0,<27.0.0)"
 ]
 
 [tool.poetry]

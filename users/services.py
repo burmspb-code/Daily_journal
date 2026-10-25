@@ -22,6 +22,10 @@ from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+
 from users.constants import (
     ACTIVATION_RESEND_COOLDOWN_SECONDS,
     ACTIVATION_RESEND_DAILY_LIMIT,
@@ -180,49 +184,55 @@ def activate_user_by_token(uidb64: str, token: str) -> CustomUser:
 
 
 def send_password_reset_mail(request: HttpRequest, user: CustomUser) -> None:
-    """Отправляет письмо со ссылкой для сброса пароля.
+    """Отправляет письмо со ссылкой для сброса пароля через стандартный SMTP Django.
 
     Бросает `EmailActivationError` при любом сбое доставки.
     """
-    mail_url = getattr(settings, "MAIL_FUNCTION_URL", None)
-    if not mail_url:
-        logger.error("❌ MAIL_FUNCTION_URL не настроен в settings.py")
-        raise ImproperlyConfigured("MAIL_FUNCTION_URL не настроен в settings.py")
-
-    uid = urlsafe_base64_encode(force_bytes(user.pk))
-    token = default_token_generator.make_token(user)
-    payload = _build_password_reset_payload(request, user, uid, token)
-
-    clean_url = urlparse(mail_url).path if mail_url else ""
-    logger.info(f"📬 Отправляем ссылку сброса пароля на эндпоинт: {clean_url}")
-
     try:
-        response = requests.post(mail_url, json=payload, timeout=REQUEST_TIMEOUT)
+        # Генерируем uid и токен
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
 
-        logger.info(f"📥 Ответ почтового сервиса: Status={response.status_code}")
-        logger.debug(f"📥 Тело ответа Cloud Function: {response.text}")
+        # Формируем контекст для ссылки (учитываем глобальный алиас или users:)
+        # Если вы перенесли алиас в config/urls.py, имя будет просто 'password_reset_confirm'
+        # Если оставили внутри users, то 'users:password_reset_confirm'
+        url_name = "password_reset_confirm"
 
-    except requests.exceptions.Timeout as e:
-        logger.warning("⚠️ Почтовый сервис не ответил вовремя.")
-        raise EmailActivationError("Не удалось подтвердить доставку письма.") from e
+        protocol = "https" if request.is_secure() else "http"
+        domain = request.get_host()
 
-    except requests.exceptions.ConnectionError as e:
-        logger.error("💥 Почтовый сервис недоступен.")
-        raise EmailActivationError("Почтовый сервис временно недоступен.") from e
+        # Строим полноценную ссылку для сброса пароля
+        reset_link = f"{protocol}://{domain}/users/password-reset/confirm/{uid}/{token}/"
 
-    except ValueError as e:
-        logger.error(f"💥 Ошибка разбора ответа почтового сервиса: {e}")
-        raise EmailActivationError("Неверный формат ответа от сервиса.") from e
+        logger.info(f"📬 Сформирована ссылка для сброса: {reset_link}")
+
+        # Собираем контекст для шаблона письма
+        context = {
+            "user": user,
+            "reset_link": reset_link,
+        }
+
+        # Рендерим HTML-письмо (укажите ваш путь к шаблону письма)
+        html_message = render_to_string("users/password_reset_email.html", context)
+        # Создаем текстовую копию письма на случай, если почтовик клиента не поддерживает HTML
+        plain_message = strip_tags(html_message)
+
+        # Отправляем встроенным методом Django
+        logger.info(f"📧 Отправляем SMTP письмо на {user.email}...")
+        send_mail(
+            subject="Сброс пароля — Daily Journal",
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            html_message=html_message,
+            fail_silently=False,  # Чтобы Django честно бросал ошибку, если SMTP недоступен
+        )
 
     except Exception as e:
-        logger.error("💥 Непредвиденная ошибка при отправке письма сброса пароля", exc_info=True)
-        raise EmailActivationError("Произошла непредвиденная ошибка при отправке письма.") from e
+        logger.error("💥 Ошибка при отправке SMTP письма сброса пароля", exc_info=True)
+        raise EmailActivationError("Произошла ошибка при отправке письма через почтовый сервер.") from e
 
-    if response.status_code != 200:
-        logger.error(f"❌ Cloud Function вернула HTTP {response.status_code}.")
-        raise EmailActivationError(f"Сервис почты вернул HTTP {response.status_code}")
-
-    logger.info("✅ Письмо со ссылкой сброса пароля отправлено.")
+    logger.info("✅ Письмо со ссылкой сброса пароля успешно отправлено через SMTP.")
 
 
 def _build_password_reset_payload(request: HttpRequest, user: CustomUser, uidb64: str, token: str) -> dict:
