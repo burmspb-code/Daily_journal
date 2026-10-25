@@ -166,12 +166,82 @@ def activate_user_by_token(uidb64: str, token: str) -> CustomUser:
             reason=InvalidActivationToken.REASON_LINK_INVALID,
         )
 
+    if user.is_active:
+        raise InvalidActivationToken(
+            "Аккаунт уже активирован.",
+            reason=InvalidActivationToken.REASON_LINK_INVALID,
+        )
+
     # Переносим логику смены статусов в сервис
     user.is_active = True
-    user.email_status = "verified"
     user.save()
 
     return user
+
+
+def send_password_reset_mail(request: HttpRequest, user: CustomUser) -> None:
+    """Отправляет письмо со ссылкой для сброса пароля.
+
+    Бросает `EmailActivationError` при любом сбое доставки.
+    """
+    mail_url = getattr(settings, "MAIL_FUNCTION_URL", None)
+    if not mail_url:
+        logger.error("❌ MAIL_FUNCTION_URL не настроен в settings.py")
+        raise ImproperlyConfigured("MAIL_FUNCTION_URL не настроен в settings.py")
+
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    payload = _build_password_reset_payload(request, user, uid, token)
+
+    clean_url = urlparse(mail_url).path if mail_url else ""
+    logger.info(f"📬 Отправляем ссылку сброса пароля на эндпоинт: {clean_url}")
+
+    try:
+        response = requests.post(mail_url, json=payload, timeout=REQUEST_TIMEOUT)
+
+        logger.info(f"📥 Ответ почтового сервиса: Status={response.status_code}")
+        logger.debug(f"📥 Тело ответа Cloud Function: {response.text}")
+
+    except requests.exceptions.Timeout as e:
+        logger.warning("⚠️ Почтовый сервис не ответил вовремя.")
+        raise EmailActivationError("Не удалось подтвердить доставку письма.") from e
+
+    except requests.exceptions.ConnectionError as e:
+        logger.error("💥 Почтовый сервис недоступен.")
+        raise EmailActivationError("Почтовый сервис временно недоступен.") from e
+
+    except ValueError as e:
+        logger.error(f"💥 Ошибка разбора ответа почтового сервиса: {e}")
+        raise EmailActivationError("Неверный формат ответа от сервиса.") from e
+
+    except Exception as e:
+        logger.error("💥 Непредвиденная ошибка при отправке письма сброса пароля", exc_info=True)
+        raise EmailActivationError("Произошла непредвиденная ошибка при отправке письма.") from e
+
+    if response.status_code != 200:
+        logger.error(f"❌ Cloud Function вернула HTTP {response.status_code}.")
+        raise EmailActivationError(f"Сервис почты вернул HTTP {response.status_code}")
+
+    logger.info("✅ Письмо со ссылкой сброса пароля отправлено.")
+
+
+def _build_password_reset_payload(request: HttpRequest, user: CustomUser, uidb64: str, token: str) -> dict:
+    """Собирает payload письма сброса пароля для конкретного пользователя."""
+    relative_url = reverse("users:password_reset_confirm", kwargs={"uidb64": uidb64, "token": token})
+    scheme = "https" if request.is_secure() else "http"
+    activation_url = f"{scheme}://{request.get_host()}{relative_url}"
+
+    return {
+        "to_email": user.email,
+        "email_type": "password_reset",
+        "subject": "Сброс пароля",
+        "body_text": (
+            "Вы запросили сброс пароля.\n\n"
+            "Для установки нового пароля перейдите по ссылке:\n"
+            f"{activation_url}\n\n"
+            "Если вы не запрашивали сброс — просто проигнорируйте это письмо."
+        ),
+    }
 
 
 def _build_activation_payload(request: HttpRequest, user: CustomUser) -> dict:

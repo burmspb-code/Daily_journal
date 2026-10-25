@@ -7,9 +7,13 @@ services:
   redis:
     # Используем официальный легковесный образ Redis на базе Alpine Linux
     image: redis:7-alpine
-    # Пробрасываем порт Redis наружу. В коде к нему будем подключаться локально.
-    ports:
-      - "6379:6379"
+    # Учим Docker проверять, что Redis реально «проснулся» и готов к работе
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ] # Команда внутри контейнера, которая проверяет пульс
+      interval: 5s                       # Проверять каждые 5 секунд
+      timeout: 3s                        # Если ответа нет 3 секунды — проверка провалена
+      retries: 3                         # Делать 3 попытки, прежде чем признать контейнер «больным»
+      start_period: 5s
     # Логирование сервиса
     logging:
       driver: "json-file"
@@ -23,6 +27,7 @@ services:
   web:
     # Собираем образ на основе Dockerfile, который находится в текущей папке (.)
     build: .
+    working_dir: /app # Указываем Docker, что работать нужно внутри папки /app
     # Команда запуска стандартного сервера разработки Django.
     # Флаг 0.0.0.0:8000 обязателен, чтобы сайт открывался на вашем основном ПК.
     command: python manage.py runserver 0.0.0.0:8000
@@ -56,7 +61,8 @@ services:
       - "host.docker.internal:host-gateway"
     # Указываем Docker не запускать сайт, пока не поднимется локальный контейнер Redis
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
   # =========================================================================
   # 3. СЛУЖБА CELERY WORKER (Обработчик фоновых задач)
@@ -65,8 +71,9 @@ services:
   celery:
     # Использует тот же Python-образ, что и Django (сборка происходит один раз)
     build: .
+    working_dir: /app # Указываем Docker, что работать нужно внутри папки /app
     # Команда запуска воркера. Флаг "-A config" указывает Celery искать настройки в config/celery.py
-    command: celery -A config worker --loglevel=info
+    command: poetry run watchmedo auto-restart --directory=. --pattern="*.py" --recursive -- celery -A config worker --loglevel=info
     # Логирование сервиса.
     logging:
       driver: "json-file"
@@ -86,7 +93,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
   # =========================================================================
   # 4. СЛУЖБА CELERY BEAT (Планировщик задач по расписанию)
@@ -95,8 +103,9 @@ services:
   # отправляет команду в Redis: "Пора запустить периодическую задачу!".
   celery-beat:
     build: .
+    working_dir: /app # Указываем Docker, что работать нужно внутри папки /app
     # Команда запуска планировщика (beat) для проекта из папки config
-    command: celery -A config beat --loglevel=info
+    command: poetry run watchmedo auto-restart --directory=. --pattern="*.py" --recursive -- celery -A config beat --loglevel=info
     # Логирование сервиса.
     logging:
       driver: "json-file"
@@ -114,4 +123,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+

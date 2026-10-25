@@ -1,7 +1,6 @@
 """Представления для регистрации, проверки подлинности и управления профилем пользователя."""
 
 import logging
-from typing import ClassVar
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -37,6 +36,7 @@ from .services import (
     activate_user_by_token,
     register_inactive_user,
     resend_activation_email,
+    send_password_reset_mail,
 )
 
 User = get_user_model()
@@ -224,15 +224,14 @@ class UserTokenObtainPairView(TokenObtainPairView):
             # Simple JWT инициализирует сериализатор внутри super().post()
             # Мы можем воссоздать его с теми же данными, чтобы безопасно вытащить юзера
             serializer = self.get_serializer(data=request.data)
-            try:
-                serializer.is_valid(raise_exception=True)
-                user = (
-                    serializer.user
-                )  # Сериализатор Simple JWT сохраняет юзера в свойство .user
-                if user:
+
+            serializer.is_valid(raise_exception=True)
+            user = serializer.user  # Сериализатор Simple JWT сохраняет юзера в свойство .user
+            if user:
+                try:
                     update_last_login(None, user)
-            except Exception:
-                logger.exception("Ошибка при обновлении времени последнего входа пользователя")
+                except DatabaseError:
+                    logger.exception("Ошибка базы данных при обновлении времени последнего входа пользователя")
 
         return response
 
@@ -259,7 +258,7 @@ class UserRegisterAPIView(CreateAPIView):
 
     queryset = CustomUser.objects.all()
     serializer_class = UserRegisterSerializer
-    permission_classes: ClassVar[list] = [AllowAny]
+    permission_classes = [AllowAny]
 
     def perform_create(self, serializer):
         """
@@ -304,16 +303,23 @@ class UserRegisterAPIView(CreateAPIView):
 class UserVerifyEmailAPIView(APIView):
     """API-представление для подтверждения email пользователя по токену."""
 
-    permission_classes: ClassVar[list] = [AllowAny]
+    permission_classes = [AllowAny]
     serializer_class = EmailVerificationSerializer
 
-
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *_, **__):
         """Принимает токен активации и выполняет верификацию."""
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Ваша текущая логика активации (остается без изменений)
+        try:
+            # Вызываем единый сервис активации
+            activate_user_by_token(
+                uidb64=serializer.validated_data["uidb64"],
+                token=serializer.validated_data["token"],
+            )
+
+        except InvalidActivationToken as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(
             {"detail": "Аккаунт успешно активирован."}, status=status.HTTP_200_OK
@@ -356,7 +362,7 @@ class UserMeAPIView(RetrieveUpdateDestroyAPIView):
     """
 
     serializer_class = UserSerializer
-    permission_classes: ClassVar[list]= [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get_object(self):
         """Получаем текущего пользователя."""
@@ -372,9 +378,9 @@ class UserMeAPIView(RetrieveUpdateDestroyAPIView):
 class UserPasswordResetAPIView(APIView):
     """API-представление для инициации сброса пароля (отправка email)."""
 
-    permission_classes: ClassVar[list] = [AllowAny]
+    permission_classes = [AllowAny]
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *_, **__):
         """Принимает email и отправляет ссылку для восстановления пароля."""
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -382,19 +388,15 @@ class UserPasswordResetAPIView(APIView):
 
         try:
             user = User.objects.get(email=email)
-
-            # Генерируем uid и токен (стандартный безопасный механизм Django)
-            uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
-            token = default_token_generator.make_token(user)
-
-            # Здесь вызывается ваша функция отправки email (сделайте по аналогии с регистрацией)
-            # send_password_reset_email(user=user, uidb64=uidb64, token=token)
-            # Временный вывод, чтобы линтер не ругался и можно было проверить в консоли
-            print(f"Ссылка для сброса: /reset/{uidb64}/{token}/")
+            # Вызывается функция отправки email
+            send_password_reset_mail(request=request, user=user)
 
         except User.DoesNotExist:
             # Безопасность: не говорим хакеру, есть ли такой email в базе.
             # Всегда возвращаем 200 OK, чтобы избежать перебора (enumeration attack).
+            pass
+        except EmailActivationError:
+            logger.exception("Ошибка отправки письма сброса пароля")
             pass
 
         return Response(
@@ -409,9 +411,9 @@ class UserPasswordResetAPIView(APIView):
 class UserPasswordResetConfirmAPIView(APIView):
     """API-представление для установки нового пароля по токену."""
 
-    permission_classes: ClassVar[list] = [AllowAny]
+    permission_classes = [AllowAny]
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *_, **__):
         """Принимает токен и новый пароль, выполняя сброс."""
         serializer = PasswordResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

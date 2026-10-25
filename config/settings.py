@@ -190,9 +190,9 @@ PASSWORD_RESET_TIMEOUT = 24 * 60 * 60  # 86400 секунд
 
 # ==================== НАСТРОЙКИ CELERY И REDIS ================================
 
-# Celery читает эти переменные из окружения с приоритетом над значениями
-# ниже, поэтому docker-compose может переопределить адрес брокера.
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL") or "redis://redis:6379/0"
+# Приоритет отдается переменной из окружения Docker.
+# На случай локального запуска без Docker (редкий кейс) оставлен безопасный дефолт на localhost.
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL") or "redis://127.0.0.1:6379/0"
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND") or CELERY_BROKER_URL
 
 # Часовой пояс для планировщика Celery (должен совпадать с Django)
