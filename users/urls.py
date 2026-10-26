@@ -17,6 +17,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.views import TokenBlacklistView, TokenRefreshView
 
 from users.apps import UsersConfig
+from users.forms import CustomPasswordResetForm, CustomSetPasswordForm
 from users.views import (
     EmailConfirmationSentView,
     EmailConfirmView,
@@ -29,6 +30,7 @@ from users.views import (
     UserRegisterView,
     UserTokenObtainPairView,
     UserVerifyEmailAPIView,
+    WebPasswordResetView,
 )
 
 # Пространство имен для URL-адресов приложения
@@ -70,7 +72,7 @@ urlpatterns = [
     # Полный цикл сброса пароля через сайт (Все 4 обязательных шага Django)
     path(
         "password-reset/",
-        auth_views.PasswordResetView.as_view(template_name="users/password_reset.html"),
+        WebPasswordResetView.as_view(),
         name="password_reset",
     ),
     path(
@@ -83,7 +85,9 @@ urlpatterns = [
     path(
         "password-reset/confirm/<uidb64>/<token>/",
         auth_views.PasswordResetConfirmView.as_view(
-            template_name="users/password_reset_confirm.html"
+            template_name="users/password_reset_confirm.html",
+            success_url="/users/password-reset/complete/",
+            form_class=CustomSetPasswordForm
         ),
         name="password_reset_confirm",
     ),
@@ -102,7 +106,6 @@ urlpatterns = [
     # =========================================================================
     # REST API V1 (ДЛЯ МОБИЛЬНЫХ ПРИЛОЖЕНИЙ И ФРОНТЕНДА)
     # =========================================================================
-    # Аутентификация и сессии (JWT)
     path(
         "api/v1/auth/login/", UserTokenObtainPairView.as_view(), name="api_token_obtain"
     ),
@@ -115,10 +118,7 @@ urlpatterns = [
                 responses={
                     200: inline_serializer(
                         name="TokenRefreshResponse",
-                        fields={
-                            "access": serializers.CharField(),
-                            "refresh": serializers.CharField(required=False)
-                        }
+                        fields={"access": serializers.CharField(), "refresh": serializers.CharField(required=False)}
                     ),
                     401: inline_serializer(
                         name="TokenRefreshErrorResponse",
@@ -135,59 +135,28 @@ urlpatterns = [
         extend_schema_view(
             post=extend_schema(
                 summary="Выход из системы (Инвалидация токена)",
-                description=(
-                    "Принимает `refresh` токен и заносит его в черный список базы данных. "
-                    "После этого токен становится недействительным."
-                ),
+                description="Принимает `refresh` токен и заносит его в черный список базы данных.",
                 responses={
-                    200: inline_serializer(
-                        name="TokenBlacklistSuccessResponse",
-                        fields={} # Пустой JSON {} при успешном выходе
-                    ),
+                    200: inline_serializer(name="TokenBlacklistSuccessResponse", fields={}),
                     401: inline_serializer(
                         name="TokenBlacklistErrorResponse",
                         fields={"detail": serializers.CharField(default="Token is invalid or expired")}
                     )
                 },
-                examples=[
-                    OpenApiExample(
-                        name="Успешный выход",
-                        value={},
-                        response_only=True,
-                        status_codes=["200"],
-                    )
-                ],
+                examples=[OpenApiExample(name="Успешный выход", value={}, response_only=True, status_codes=["200"])],
                 tags=["Аутентификация"],
             )
         )(TokenBlacklistView.as_view()),
         name="api_token_blacklist",
     ),
-    # Регистрация и верификация через API
     path("api/v1/register/", UserRegisterAPIView.as_view(), name="api_register"),
-    path(
-        "api/v1/email-verify/",
-        UserVerifyEmailAPIView.as_view(),
-        name="api_email_verify",
-    ),
-    # Личный кабинет (Будет возвращать GET профиля и обрабатывать PATCH/PUT)
+    path("api/v1/email-verify/", UserVerifyEmailAPIView.as_view(), name="api_email_verify"),
     path("api/v1/me/", UserMeAPIView.as_view(), name="api_user_me"),
-    # Сброс пароля через API (Ожидают POST-запросы с JSON-данными)
-    path(
-        "api/v1/password-reset/",
-        UserPasswordResetAPIView.as_view(),
-        name="api_password_reset",
-    ),
-    path(
-        "api/v1/password-reset/confirm/",
-        UserPasswordResetConfirmAPIView.as_view(),
-        name="api_password_reset_confirm",
-    ),
-    # Схема API в формате OpenAPI
+    path("api/v1/password-reset/", UserPasswordResetAPIView.as_view(), name="api_password_reset"),
+    path("api/v1/password-reset/confirm/", UserPasswordResetConfirmAPIView.as_view(), name="api_password_reset_confirm"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    # Интерактивный интерфейс Swagger UI
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="docs"),
-    # Альтернативный интерфейс Redoc
-    path(
-        "api/docs/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"
-    ),
+    path("api/docs/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
 ]
+
+

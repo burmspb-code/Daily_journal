@@ -28,7 +28,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     POETRY_VERSION=2.2.1 \
     POETRY_HOME="/opt/poetry" \
-    POETRY_VIRTUALENVS_CREATE=false
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_NO_INTERACTION=1
 # Разбор переменных:
 # PYTHONDONTWRITEBYTECODE=1 : Запрещает Python генерировать файлы кэша .pyc на диске контейнера.
 # PYTHONUNBUFFERED=1 : Отключает буферизацию вывода. Логи (включая print() и ошибки) мгновенно попадают в консоль Docker.
@@ -44,7 +45,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # ВАЖНО: без проверки ниже сетевой сбой в curl превращался бы в «тихий» успех
 # (sh берет код возврата последнего команды в конвейере — python, читающего
 # пустой stdin), и сборка падала бы уже на шаге "poetry: not found").
-RUN curl -sSL https://install.python-poetry.org | python3 - \
+RUN curl -sSL https://install.python-poetry.org | python3 - --version $POETRY_VERSION \
     && test -x "$POETRY_HOME/bin/poetry" \
     && "$POETRY_HOME/bin/poetry" --version
 
@@ -67,7 +68,7 @@ COPY pyproject.toml poetry.lock* /app/
 # (там лежат ruff, pytest, pytest-django, factory-boy — они нужны,
 # чтобы прогонять тесты и линтер прямо внутри контейнера).
 # Флаг --no-root указывает не пытаться устанавливать сам текущий проект как пакет ( package-mode = false )
-RUN poetry install --no-interaction --no-ansi --no-root --with dev
+RUN poetry install --no-interaction --no-ansi --with dev
 # Разбор флагов:
 # --no-interaction : Запрещает Poetry задавать интерактивные вопросы в терминале.
 # --no-ansi : Отключает цветное форматирование логов во время сборки для чистоты вывода.
@@ -81,3 +82,6 @@ COPY . /app/
 # Примечание: Инструкцию CMD (команду по умолчанию) мы здесь намеренно НЕ пишем.
 # Вместо этого мы будем гибко задавать разные команды запуска для Django, Celery и Celery Beat
 # прямо внутри файла docker-compose.yml, используя один и тот же собранный образ.
+
+# Открываем порт для Gunicorn (внутри сети Docker)
+EXPOSE 8000
