@@ -1,0 +1,58 @@
+name: Build and Deploy CI/CD
+
+on:
+  push:
+    branches:
+      - main  # Или master, если ваша главная ветка называется master
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # ВАЖНО: GitHub требует, чтобы имена были в нижнем регистре (daily_journal)
+          tags: ghcr.io/burmspb-code/daily_journal:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_IP }}
+          username: ${{ secrets.VPS_USER }}
+          port: ${{ secrets.VPS_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Логинимся в GitHub Registry на сервере
+            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u burmspb-code --password-stdin
+            
+            # Переходим в папку проекта
+            cd /opt/daily_journal
+            
+            # Скачиваем новый собранный образ
+            docker compose pull
+            
+            # Перезапускаем контейнеры (с удалением старых)
+            docker compose up -d --remove-orphans
+            
+            # Очищаем старые версии образов, чтобы не закончилось место (7 ГБ!)
+            docker image prune -a -f
