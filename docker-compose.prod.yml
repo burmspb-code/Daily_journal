@@ -14,6 +14,7 @@ services:
         max-file: "3"
 
   web:
+    user: "appuser" # Явное указание пользователя
     image: ghcr.io/burmspb-code/daily_journal:latest
     restart: always
     command: >
@@ -42,6 +43,7 @@ services:
         condition: service_healthy
 
   celery:
+    user: "appuser" # Явное указание пользователя
     image: ghcr.io/burmspb-code/daily_journal:latest
     restart: always
     command: celery -A config worker --loglevel=info
@@ -62,6 +64,7 @@ services:
         condition: service_healthy
 
   celery-beat:
+    user: "appuser" # Явное указание пользователя
     image: ghcr.io/burmspb-code/daily_journal:latest
     restart: always
     command: celery -A config beat --loglevel=info

@@ -51,7 +51,7 @@ celerybeat-schedule*
 .gitattributes
 .github/
 docker-compose*.yml
-dockerfile
+Dockerfile
 Dockerfile
 .dockerignore
 README.md

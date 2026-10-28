@@ -31,28 +31,28 @@ jobs:
           tags: ghcr.io/burmspb-code/daily_journal:latest
 
   deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to VPS via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_IP }}
-          username: ${{ secrets.VPS_USER }}
-          port: ${{ secrets.VPS_PORT }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            # Логинимся в GitHub Registry на сервере
-            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u burmspb-code --password-stdin
-            
-            # Переходим в папку проекта
-            cd /opt/daily_journal
-            
-            # Скачиваем новый собранный образ
-            docker compose pull
-            
-            # Перезапускаем контейнеры (с удалением старых)
-            docker compose up -d --remove-orphans
-            
-            # Очищаем старые версии образов, чтобы не закончилось место (7 ГБ!)
-            docker image prune -a -f
+      needs: build-and-push
+      runs-on: ubuntu-latest
+      steps:
+        - name: Deploy to VPS via SSH
+          uses: appleboy/ssh-action@v1.0.3
+          with:
+            host: ${{ secrets.VPS_IP }}
+            username: ${{ secrets.VPS_USER }}
+            port: ${{ secrets.VPS_PORT }}
+            key: ${{ secrets.SSH_PRIVATE_KEY }}
+            script: |
+              # Логинимся в GitHub Registry на сервере
+              echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u burmspb-code --password-stdin
+              
+              # Переходим в папку проекта
+              cd /opt/daily_journal
+              
+              # Скачиваем новый собранный образ, используя именно prod-файл
+              docker compose -f docker-compose.prod.yml pull
+              
+              # Перезапускаем контейнеры (с удалением старых)
+              docker compose -f docker-compose.prod.yml up -d --remove-orphans
+              
+              # Очищаем старые версии образов, чтобы не закончилось место (7 ГБ!)
+              docker image prune -a -f
