@@ -85,3 +85,18 @@ COPY . /app/
 
 # Открываем порт для Gunicorn (внутри сети Docker)
 EXPOSE 8000
+
+# Создаем системного пользователя и группу
+RUN addgroup --system appgroup && adduser --system --group appuser
+
+# Меняем владельца папки /app на этого пользователя
+# Это важно, чтобы приложение могло писать логи или временные файлы, если нужно
+RUN chown -R appuser:appgroup /app
+
+# Даем нашему пользователю права на папку с Poetry
+RUN chown -R appuser:appgroup /opt/poetry
+
+# Переключаемся на этого пользователя
+USER appuser
+
+
