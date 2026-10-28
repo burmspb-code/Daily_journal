@@ -22,6 +22,10 @@ from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+
 from users.constants import (
     ACTIVATION_RESEND_COOLDOWN_SECONDS,
     ACTIVATION_RESEND_DAILY_LIMIT,
@@ -166,12 +170,88 @@ def activate_user_by_token(uidb64: str, token: str) -> CustomUser:
             reason=InvalidActivationToken.REASON_LINK_INVALID,
         )
 
+    if user.is_active:
+        raise InvalidActivationToken(
+            "Аккаунт уже активирован.",
+            reason=InvalidActivationToken.REASON_LINK_INVALID,
+        )
+
     # Переносим логику смены статусов в сервис
     user.is_active = True
-    user.email_status = "verified"
     user.save()
 
     return user
+
+
+def send_password_reset_mail(request: HttpRequest, user: CustomUser) -> None:
+    """Отправляет письмо со ссылкой для сброса пароля через стандартный SMTP Django.
+
+    Бросает `EmailActivationError` при любом сбое доставки.
+    """
+    try:
+        # Генерируем uid и токен
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+
+        # Формируем контекст для ссылки (учитываем глобальный алиас или users:)
+        # Если вы перенесли алиас в config/urls.py, имя будет просто 'password_reset_confirm'
+        # Если оставили внутри users, то 'users:password_reset_confirm'
+        url_name = "password_reset_confirm"
+
+        protocol = "https" if request.is_secure() else "http"
+        domain = request.get_host()
+
+        # Строим полноценную ссылку для сброса пароля
+        reset_link = f"{protocol}://{domain}/users/password-reset/confirm/{uid}/{token}/"
+
+        logger.info(f"📬 Сформирована ссылка для сброса: {reset_link}")
+
+        # Собираем контекст для шаблона письма
+        context = {
+            "user": user,
+            "reset_link": reset_link,
+        }
+
+        # Рендерим HTML-письмо (укажите ваш путь к шаблону письма)
+        html_message = render_to_string("users/password_reset_email.html", context)
+        # Создаем текстовую копию письма на случай, если почтовик клиента не поддерживает HTML
+        plain_message = strip_tags(html_message)
+
+        # Отправляем встроенным методом Django
+        logger.info(f"📧 Отправляем SMTP письмо на {user.email}...")
+        send_mail(
+            subject="Сброс пароля — Daily Journal",
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            html_message=html_message,
+            fail_silently=False,  # Чтобы Django честно бросал ошибку, если SMTP недоступен
+        )
+
+    except Exception as e:
+        logger.error("💥 Ошибка при отправке SMTP письма сброса пароля", exc_info=True)
+        raise EmailActivationError("Произошла ошибка при отправке письма через почтовый сервер.") from e
+
+    logger.info("✅ Письмо со ссылкой сброса пароля успешно отправлено через SMTP.")
+
+
+def _build_password_reset_payload(request: HttpRequest, user: CustomUser, uidb64: str, token: str) -> dict:
+    """Собирает payload письма сброса пароля для конкретного пользователя."""
+    relative_url = reverse("users:password_reset_confirm", kwargs={"uidb64": uidb64, "token": token})
+    scheme = "https" if request.is_secure() else "http"
+    activation_url = f"{scheme}://{request.get_host()}{relative_url}"
+
+    return {
+        "to_email": user.email,
+        "email_type": "password_reset",
+        "subject": "Сброс пароля",
+        "body_text": (
+            "Вы запросили сброс пароля.\n\n"
+            "Для установки нового пароля перейдите по ссылке:\n"
+            f"{activation_url}\n\n"
+            "Если вы не запрашивали сброс — просто проигнорируйте это письмо."
+        ),
+    }
 
 
 def _build_activation_payload(request: HttpRequest, user: CustomUser) -> dict:
