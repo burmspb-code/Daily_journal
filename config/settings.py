@@ -62,6 +62,21 @@ CSRF_TRUSTED_ORIGINS = [
     if origin.strip()
 ]
 
+# ======================== НАСТРОЙКИ HTTPS ==========================================
+# Nginx передаёт X-Forwarded-Proto, чтобы Django считал запрос защищённым.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Все HTTP-запросы перенаправляются на HTTPS. Nginx тоже делает редирект,
+# это дополнительная защита для прямых запросов к Gunicorn.
+SECURE_SSL_REDIRECT = True
+
+# Cookie сессии и CSRF передаются только по HTTPS.
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
+# HSTS для IP-адреса браузерами не применяется. Включим SECURE_HSTS_SECONDS
+# при переходе на домен, чтобы не сломать доступ по IP.
+
 # Application definition
 
 INSTALLED_APPS = [
