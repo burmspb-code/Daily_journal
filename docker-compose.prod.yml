@@ -67,6 +67,10 @@ services:
       - "80:80"
     volumes:
       - ./nginx:/etc/nginx/conf.d
+      # Webroot для ACME-проверки Let's Encrypt (выпуск и продление сертификата)
+      - ./certbot/www:/var/www/certbot
+      # Сертификаты Let's Encrypt; nginx читает их при включении HTTPS
+      - /etc/letsencrypt:/etc/letsencrypt:ro
       - static_volume:/app/staticfiles
       - media_volume:/app/mediafiles
     depends_on:
