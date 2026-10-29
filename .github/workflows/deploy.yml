@@ -34,6 +34,21 @@ jobs:
       needs: build-and-push
       runs-on: ubuntu-latest
       steps:
+        - name: Checkout Code
+          uses: actions/checkout@v4
+
+        - name: Sync compose and nginx config to VPS
+          uses: appleboy/scp-action@v0.1.7
+          with:
+            host: ${{ secrets.VPS_IP }}
+            username: ${{ secrets.VPS_USER }}
+            port: ${{ secrets.VPS_PORT }}
+            key: ${{ secrets.SSH_PRIVATE_KEY }}
+            source: "docker-compose.prod.yml,nginx/nginx.conf"
+            target: /opt/daily_journal
+            strip_components: 0
+            overwrite: true
+
         - name: Deploy to VPS via SSH
           uses: appleboy/ssh-action@v1.0.3
           with:
