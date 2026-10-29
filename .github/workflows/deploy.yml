@@ -34,6 +34,21 @@ jobs:
       needs: build-and-push
       runs-on: ubuntu-latest
       steps:
+        - name: Checkout Code
+          uses: actions/checkout@v4
+
+        - name: Sync compose and nginx config to VPS
+          uses: appleboy/scp-action@v0.1.7
+          with:
+            host: ${{ secrets.VPS_IP }}
+            username: ${{ secrets.VPS_USER }}
+            port: ${{ secrets.VPS_PORT }}
+            key: ${{ secrets.SSH_PRIVATE_KEY }}
+            source: "docker-compose.prod.yml,nginx/nginx.conf"
+            target: /opt/daily_journal
+            strip_components: 0
+            overwrite: true
+
         - name: Deploy to VPS via SSH
           uses: appleboy/ssh-action@v1.0.3
           with:
@@ -41,6 +56,7 @@ jobs:
             username: ${{ secrets.VPS_USER }}
             port: ${{ secrets.VPS_PORT }}
             key: ${{ secrets.SSH_PRIVATE_KEY }}
+            script_stop: true
             script: |
               # Логинимся в GitHub Registry на сервере
               echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u burmspb-code --password-stdin
@@ -53,6 +69,9 @@ jobs:
               
               # Перезапускаем контейнеры (с удалением старых)
               docker compose -f docker-compose.prod.yml up -d --remove-orphans
+              
+              # Применяем обновлённый конфиг nginx без простоя
+              docker compose -f docker-compose.prod.yml exec -T nginx nginx -s reload
               
               # Очищаем старые версии образов, чтобы не закончилось место (7 ГБ!)
               docker image prune -a -f
