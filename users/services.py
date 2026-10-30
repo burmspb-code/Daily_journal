@@ -8,23 +8,19 @@
 import logging
 from datetime import timedelta
 from typing import Callable
-from urllib.parse import urlparse
 
-import requests
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
-from django.core.exceptions import ImproperlyConfigured
+from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import F
 from django.http.request import HttpRequest
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
-
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
 from django.utils.html import strip_tags
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
 from users.constants import (
     ACTIVATION_RESEND_COOLDOWN_SECONDS,
@@ -35,9 +31,6 @@ from users.models import CustomUser
 from .exceptions import EmailActivationError  # Твое кастомное исключение
 
 logger = logging.getLogger(__name__)
-
-# Константа таймаута для HTTP-запроса
-REQUEST_TIMEOUT = 15
 
 
 class InvalidActivationToken(Exception):
@@ -53,16 +46,54 @@ class InvalidActivationToken(Exception):
         self.reason = reason
 
 
+def _send_email(
+    *,
+    subject: str,
+    message: str,
+    recipient: str,
+    html_message: str | None = None,
+    error_message: str = "Не удалось отправить письмо через почтовый сервер.",
+) -> None:
+    """Отправляет письмо через SMTP и превращает сбои в EmailActivationError.
+
+    ``send_mail`` с ``fail_silently=False`` бросает исключения SMTP, поэтому
+    представления получают единый тип ошибки и могут показать пользователю
+    понятное сообщение вместо страницы 500.
+    """
+    try:
+        sent = send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient],
+            html_message=html_message,
+            fail_silently=False,
+        )
+    except Exception as e:
+        logger.error("💥 Ошибка отправки SMTP-письма на %s", recipient, exc_info=True)
+        raise EmailActivationError(error_message) from e
+
+    if sent != 1:
+        logger.error(
+            "❌ SMTP-сервер принял %s писем вместо одного для %s",
+            sent,
+            recipient,
+        )
+        raise EmailActivationError(error_message)
+
+    logger.info("✅ Письмо отправлено на %s", recipient)
+
+
 def register_inactive_user(request: HttpRequest, save_callback: Callable[[], CustomUser]) -> CustomUser:
     """
     Регистрирует пользователя как неактивного и отправляет письмо активации
-    через Cloud Function в Yandex Cloud.
-    """
-    mail_url = getattr(settings, "MAIL_FUNCTION_URL", None)
-    if not mail_url:
-        logger.warning("❌ MAIL_FUNCTION_URL не настроен в settings.py")
-        raise ImproperlyConfigured("MAIL_FUNCTION_URL не настроен в settings.py")
+    через SMTP.
 
+    Аккаунт при любом сбое отправки остаётся в БД в статусе is_active=False:
+    удалять его нельзя, так как письмо могло уже уйти, и ссылка из него
+    должна остаться рабочей. Неактивные аккаунты чистит отдельная плановая
+    задача по возрасту записи, а не этот сервис.
+    """
     # ШАГ 1: Быстрая и изолированная транзакция БД. Закрывается мгновенно!
     with transaction.atomic():
         logger.info("💾 Сохраняем пользователя в БД...")
@@ -71,76 +102,23 @@ def register_inactive_user(request: HttpRequest, save_callback: Callable[[], Cus
         user.save()
         logger.info(f"✅ Пользователь {user.email} успешно сохранен (is_active=False).")
 
-    # ШАГ 2: Подготовка данных (уже вне транзакции, соединение с БД свободно)
-    uid = urlsafe_base64_encode(force_bytes(user.pk))
-    token = default_token_generator.make_token(user)
+    # ШАГ 2: Подготовка письма уже вне транзакции, соединение с БД свободно.
+    payload = _build_activation_payload(request, user)
 
-    relative_url = reverse("users:email_confirm", kwargs={"uidb64": uid, "token": token})
-    scheme = "https" if request.is_secure() else "http"
-    host = request.get_host()
-    activation_url = f"{scheme}://{host}{relative_url}"
-
-    subject = "Подтверждение регистрации"
-    message = f"Спасибо за регистрацию!\n\nДля активации аккаунта перейдите по ссылке:\n{activation_url}"
-
-    payload = {
-        "to_email": user.email,
-        "email_type": "registration",
-        "subject": subject,
-        "body_text": message,
-    }
-
-    clean_url = urlparse(mail_url).path if mail_url else ""
-    logger.info(f"📬 Отправляем запрос на эндпоинт вне транзакции БД: {clean_url}")
-
-    # ШАГ 3: Сетевой запрос. Соединение с БД свободно, поэтому к почтовому
-    # сервису мы обращаемся вне transaction.atomic.
-    # Аккаунт при любом сбое остаётся в БД в статусе is_active=False:
-    # удалять его нельзя, так как письмо могло уже уйти, и ссылка из него
-    # должна остаться рабочей. Неактивные аккаунты чистит отдельная
-    # плановая задача по возрасту записи, а не этот сервис.
+    # ШАГ 3: Отправка через SMTP. Аккаунт остаётся неактивным при ошибке.
     try:
-        response = requests.post(mail_url, json=payload, timeout=REQUEST_TIMEOUT)
-
-        logger.info(f"📥 Получен ответ от почтового сервиса: Status={response.status_code}")
-        logger.debug(f"📥 Тело ответа Cloud Function: {response.text}")
-
-    except requests.exceptions.Timeout as e:
-        # Письмо могло уйти: ответ не дошёл из-за таймаута. Аккаунт сохранён.
-        logger.warning("⚠️ Почтовый сервис не ответил вовремя. Аккаунт сохранён.")
-        raise EmailActivationError(
-            "Не удалось подтвердить доставку письма. Аккаунт создан, но пока "
-            "не активирован — проверьте почту или запросите новую ссылку."
-        ) from e
-
-    except requests.exceptions.ConnectionError as e:
-        logger.error("💥 Почтовый сервис недоступен. Аккаунт сохранён неактивным.")
-        raise EmailActivationError(
-            "Почтовый сервис временно недоступен. Аккаунт создан, но пока "
-            "не активирован — попробуйте позже или запросите новую ссылку."
-        ) from e
-
-    except ValueError as e:
-        logger.error(f"💥 Ошибка разбора ответа почтового сервиса: {e}")
-        raise EmailActivationError("Неверный формат ответа от сервиса.") from e
-
-    except Exception as e:
-        logger.error("💥 Непредвиденная ошибка в сервисе регистрации", exc_info=True)
-        raise EmailActivationError(
-            "Произошла непредвиденная ошибка при отправке письма. "
-            "Аккаунт создан, но пока не активирован."
-        ) from e
-
-    if response.status_code != 200:
-        # Сервис ответил отказом. Аккаунт остаётся неактивным: возможно,
-        # письмо всё же ушло, а удаление обрушило бы ссылку из него.
-        logger.error(
-            f"❌ Cloud Function вернула HTTP {response.status_code}. "
-            "Аккаунт сохранён неактивным."
+        _send_email(
+            subject=payload["subject"],
+            message=payload["body_text"],
+            recipient=user.email,
+            error_message=(
+                "Не удалось отправить письмо активации. Аккаунт создан, но пока "
+                "не активирован — запросите новую ссылку."
+            ),
         )
-        raise EmailActivationError(
-            f"Сервис почты вернул HTTP {response.status_code}: {response.text}"
-        )
+    except EmailActivationError:
+        logger.error("💥 Не удалось отправить письмо активации для %s", user.email)
+        raise
 
     logger.info("✅ Письмо успешно отправлено!")
     return user
@@ -286,57 +264,18 @@ def _build_activation_payload(request: HttpRequest, user: CustomUser) -> dict:
 
 
 def _send_activation_mail(request: HttpRequest, user: CustomUser) -> None:
-    """Отправляет письмо со ссылкой активации.
-
-    Бросает `EmailActivationError` при любом сбое доставки. Аккаунт при этом
-    не трогается: он остаётся неактивным, и пользователь сможет запросить
-    ссылку повторно.
+    """Отправляет письмо со ссылкой активации через SMTP.
 
     Raises:
         EmailActivationError: Если письмо не удалось отправить.
     """
-    mail_url = getattr(settings, "MAIL_FUNCTION_URL", None)
-    if not mail_url:
-        logger.error("❌ MAIL_FUNCTION_URL не настроен в settings.py")
-        raise ImproperlyConfigured("MAIL_FUNCTION_URL не настроен в settings.py")
-
     payload = _build_activation_payload(request, user)
-
-    clean_url = urlparse(mail_url).path
-    logger.info(f"📬 Отправляем ссылку активации на эндпоинт: {clean_url}")
-
-    try:
-        response = requests.post(mail_url, json=payload, timeout=REQUEST_TIMEOUT)
-
-        logger.info(f"📥 Ответ почтового сервиса: Status={response.status_code}")
-        logger.debug(f"📥 Тело ответа Cloud Function: {response.text}")
-
-    except requests.exceptions.Timeout as e:
-        logger.warning("⚠️ Почтовый сервис не ответил вовремя.")
-        raise EmailActivationError("Не удалось подтвердить доставку письма.") from e
-
-    except requests.exceptions.ConnectionError as e:
-        logger.error("💥 Почтовый сервис недоступен.")
-        raise EmailActivationError(
-            "Почтовый сервис временно недоступен."
-        ) from e
-
-    except ValueError as e:
-        logger.error(f"💥 Ошибка разбора ответа почтового сервиса: {e}")
-        raise EmailActivationError("Неверный формат ответа от сервиса.") from e
-
-    except Exception as e:
-        logger.error("💥 Непредвиденная ошибка при отправке письма", exc_info=True)
-        raise EmailActivationError(
-            "Произошла непредвиденная ошибка при отправке письма."
-        ) from e
-
-    if response.status_code != 200:
-        logger.error(f"❌ Cloud Function вернула HTTP {response.status_code}.")
-        raise EmailActivationError(
-            f"Сервис почты вернул HTTP {response.status_code}"
-        )
-
+    _send_email(
+        subject=payload["subject"],
+        message=payload["body_text"],
+        recipient=user.email,
+        error_message="Не удалось отправить письмо активации.",
+    )
     logger.info("✅ Письмо со ссылкой активации отправлено.")
 
 

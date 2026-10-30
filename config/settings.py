@@ -180,12 +180,11 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # Указываем Django использовать кастомную модель вместо встроенной
 AUTH_USER_MODEL = "users.CustomUser"
 
-# ================== НАСТРОЙКИ отправки почтовых рассылок =======================
+# Настройка таймаутов для исходящей почты
+EMAIL_TIMEOUT = 15
 
-# Временно комментируем SMTP и включаем вывод в консоль:
-# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-
-# Говорим Django использовать стандартный протокол SMTP
+# Почта переведена на SMTP, MAIL_FUNCTION_URL больше не используется
+# MAIL_FUNCTION_URL = ...
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
 # Указываем сервера Яндекса
