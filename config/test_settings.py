@@ -34,4 +34,4 @@ CELERY_TASK_EAGER_PROPAGATES = True
 
 # Адрес Cloud Function для писем. В тестах реальных запросов нет (requests.post
 # мокается), но сервисы проверяют наличие настройки до его вызова.
-MAIL_FUNCTION_URL = "http://mail.test/activation"
+# MAIL_FUNCTION_URL = "http://mail.test/activation"
