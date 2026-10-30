@@ -19,22 +19,14 @@ REQUEST_TIMEOUT = 15
 def send_email_notification(self, attempt_id: int, to_email: str,
                             task_name: str, deadline: str,
                             is_late: bool = False) -> None:
-    """Асинхронная задача отправки email-уведомления через Cloud Function.
-
-    Загружает запись NotificationAttempt по ID, выполняет HTTP-запрос к
-    облачной функции отправки писем, фиксирует результат в БД.
-
-    Повторяет попытку с экспоненциальной задержкой только при временных сбоях
-    (сетевые ошибки, 429 и 5xx). Остальные коды считаются терминальными:
-    повтор не изменит результат, поэтому попытка фиксируется как failed.
+    """Асинхронная задача отправки email-уведомления через SMTP.
 
     Args:
-        attempt_id: ID записи NotificationAttempt (создаётся оркестратором).
+        attempt_id: ID записи NotificationAttempt.
         to_email: Email получателя.
-        task_name: Название задачи для текста письма.
-        deadline: Дедлайн задачи (строка).
-        is_late: True, если напоминание доставляется с опозданием (простом
-            сервера); в текст добавляется пометка «Пропущенное напоминание».
+        task_name: Название задачи.
+        deadline: Дедлайн задачи.
+        is_late: True, если напоминание доставляется с опозданием.
     """
     try:
         attempt = NotificationAttempt.objects.get(id=attempt_id)
@@ -42,86 +34,41 @@ def send_email_notification(self, attempt_id: int, to_email: str,
         logger.error(f"❌ NotificationAttempt ID {attempt_id} не существует")
         return
 
-    mail_url = getattr(settings, "MAIL_FUNCTION_URL", None)
-
-    if not mail_url:
-        attempt.status = NotificationAttempt.STATUS_FAILED
-        attempt.error_message = "MAIL_FUNCTION_URL не настроен в settings.py"
-        attempt.save(update_fields=["status", "error_message"])
-        logger.error("❌ MAIL_FUNCTION_URL не настроен в settings.py")
-        return
-
-    payload = {
-        "to_email": to_email,
-        "email_type": "reminder",
-        "task_name": task_name,
-        "deadline": deadline,
-        "is_late": is_late,
-    }
-
     logger.info(f"📬 Отправляем email: {task_name} → {to_email}")
 
     try:
         attempt.attempts += 1
         attempt.save(update_fields=["attempts"])
 
-        response = requests.post(mail_url, json=payload, timeout=REQUEST_TIMEOUT)
-
-        if response.status_code != 200:
-            raise NotificationError(
-                message=f"Сервис почты вернул HTTP {response.status_code}: {response.text}",
-                details={
-                    "status_code": response.status_code,
-                    "response_text": response.text,
-                },
-            )
-
-    except (requests.exceptions.Timeout,
-            requests.exceptions.ConnectionError) as e:
-        attempt.status = NotificationAttempt.STATUS_FAILED
-        attempt.error_message = f"Сетевая ошибка: {e}"
-        attempt.save(update_fields=["status", "error_message"])
-
-        logger.warning(
-            f"⚠️ Сетевая ошибка email (попытка {attempt.attempts}/3): {e}"
+        header = "⏰ Пропущенное напоминание" if is_late else "⏰ Время выполнить задачу!"
+        message = (
+            f"{header}\n\n"
+            f"Задача: {task_name}\n"
+            f"Дедлайн: {deadline}"
         )
-        countdown = self.default_retry_delay * (2 ** self.request.retries)
-        raise self.retry(exc=e, countdown=countdown) from e
 
-    except NotificationError as e:
-        attempt.status = NotificationAttempt.STATUS_FAILED
-        attempt.error_message = str(e)
-        attempt.save(update_fields=["status", "error_message"])
-
-        status_code = e.details.get("status_code")
-
-        # Повторяем только при временных сбоях сервиса, а не при ошибках запроса.
-        if status_code in RETRYABLE_STATUS_CODES:
-            logger.warning(
-                f"⚠️ Сервис почты вернул {status_code} "
-                f"(попытка {attempt.attempts}/3). Перезапуск: {e}"
-            )
-            countdown = self.default_retry_delay * (2 ** self.request.retries)
-            raise self.retry(exc=e, countdown=countdown) from e
-
-        logger.error(
-            f"❌ Неустранимая ошибка сервиса почты. HTTP {status_code}: {e}"
+        send_mail(
+            subject="Напоминание о задаче — Daily Journal",
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[to_email],
+            fail_silently=False,
         )
 
     except Exception as e:
         attempt.status = NotificationAttempt.STATUS_FAILED
-        attempt.error_message = f"Непредвиденная ошибка: {e}"
+        attempt.error_message = f"Ошибка отправки SMTP: {e}"
         attempt.save(update_fields=["status", "error_message"])
 
-        logger.error(f"❌ Фатальная ошибка отправки email: {e}", exc_info=True)
-        raise
+        logger.warning(
+            f"⚠️ Ошибка email (попытка {attempt.attempts}/3): {e}"
+        )
+        countdown = self.default_retry_delay * (2 ** self.request.retries)
+        raise self.retry(exc=e, countdown=countdown) from e
 
     else:
         attempt.status = NotificationAttempt.STATUS_SENT
         attempt.sent_at = timezone.now()
-        # Поле NOT NULL (blank=True без null=True): очищаем пустой строкой,
-        # а не None, иначе PostgreSQL падает на IntegrityError и попытка
-        # остаётся pending, хотя письмо уже доставлено.
         attempt.error_message = ""
         attempt.save(update_fields=["status", "sent_at", "error_message"])
 
