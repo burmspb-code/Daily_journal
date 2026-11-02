@@ -602,3 +602,106 @@ tr:has(.task-reminder-cell .add-reminder-icon) .task-periodicity-cell:hover .bi-
     outline: 2px solid #fbc02d;
     outline-offset: -2px;
 }
+
+/* ==========================================================================
+   11. ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ (МОДАЛЬНОЕ ОКНО)
+   ========================================================================== */
+
+#editProfileModal .modal-content {
+    background-color: rgba(28, 34, 43, 0.98) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 14px !important;
+}
+
+#editProfileModal .modal-body {
+    max-height: calc(100vh - 230px);
+    overflow-y: auto;
+}
+
+#editProfileModal .form-label {
+    color: rgba(255, 255, 255, 0.62) !important;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 0.45rem;
+}
+
+#editProfileModal .form-control,
+#editProfileModal .form-select {
+    background-color: rgba(18, 22, 28, 0.65) !important;
+    color: #fff !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 8px !important;
+    padding: 0.55rem 0.85rem !important;
+    font-size: 0.85rem !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease !important;
+}
+
+#editProfileModal .form-control::placeholder {
+    color: rgba(255, 255, 255, 0.3) !important;
+}
+
+#editProfileModal .form-control:focus,
+#editProfileModal .form-select:focus {
+    background-color: rgba(14, 17, 22, 0.85) !important;
+    border-color: rgba(255, 193, 7, 0.5) !important;
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.1) !important;
+    color: #fff !important;
+}
+
+#editProfileModal input[type="file"].form-control {
+    padding: 0.4rem 0.55rem !important;
+}
+
+#editProfileModal input[type="file"]::file-selector-button {
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: #2b3440;
+    background-image: none;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    padding: 0.35rem 0.7rem;
+    margin-right: 0.7rem;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+#editProfileModal input[type="file"]::file-selector-button:hover {
+    background-color: rgba(255, 193, 7, 0.2);
+    color: #ffc107;
+}
+
+#editProfileModal .form-check-input {
+    background-color: rgba(18, 22, 28, 0.65);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+#editProfileModal .form-check-input:checked {
+    background-color: #ffc107;
+    border-color: #ffc107;
+}
+
+#editProfileModal .form-check-input:focus {
+    border-color: rgba(255, 193, 7, 0.5);
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.12);
+}
+
+#editProfileModal .form-check-label {
+    color: rgba(255, 255, 255, 0.75) !important;
+}
+
+#editProfileModal .form-text {
+    color: rgba(255, 255, 255, 0.38) !important;
+    font-size: 0.72rem;
+}
+
+#editProfileModal .invalid-feedback {
+    color: #ff9b9b !important;
+}
+
+#editProfileModal .alert-danger {
+    background-color: rgba(220, 53, 69, 0.12) !important;
+    border-color: rgba(220, 53, 69, 0.3) !important;
+    color: #ffb3b3 !important;
+}

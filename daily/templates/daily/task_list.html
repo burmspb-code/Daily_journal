@@ -3,11 +3,6 @@
 
 {% block title %}Список задач | Daily Journal{% endblock %}
 
-{% block extra_css %}
-    {% load static %}
-    <link rel="stylesheet" href="{% static 'daily/css/tasks.css' %}">
-{% endblock %}
-
 {% block content %}
     <!-- 1. ГЛАВНЫЙ ФИКСИРОВАННЫЙ ОБЕРТОЧНЫЙ КОНТЕЙНЕР -->
     <!-- h-100 и overflow-hidden теперь работают идеально благодаря новому base.html -->
