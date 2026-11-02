@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model, views as auth_views
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import update_last_login
 from django.contrib.auth.tokens import default_token_generator
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils.encoding import force_bytes
@@ -121,19 +121,41 @@ class ResendActivationView(FormView):
 
 
 class UserProfileUpdateView(LoginRequiredMixin, UpdateView):
-    """Представление для редактирования профиля авторизованного пользователя."""
+    """Представление для редактирования профиля в модальном окне.
+
+    GET с заголовком ``X-Requested-With`` отдаёт только поля формы: их
+    вставляет в модальное окно profile.js. Обычный GET перенаправляет на
+    список задач, чтобы не показывать «голый» фрагмент как отдельную страницу.
+    AJAX-POST отвечает JSON, обычный POST — редиректом.
+    """
 
     model = CustomUser
     form_class = UserProfileForm
-    template_name = "users/profile.html"
+    template_name = "users/partials/profile_form.html"
     success_url = reverse_lazy("users:profile")
 
     def get_object(self, queryset=None):
         return self.request.user
 
+    def get(self, request, *args, **kwargs):
+        if request.headers.get("x-requested-with") != "XMLHttpRequest":
+            return redirect("daily:task_list")
+        return super().get(request, *args, **kwargs)
+
     def form_valid(self, form):
+        self.object = form.save()
+        if self.request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse({"success": True})
         messages.success(self.request, "Профиль успешно обновлен.")
-        return super().form_valid(form)
+        return HttpResponseRedirect(self.get_success_url())
+
+    def form_invalid(self, form):
+        if self.request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse(
+                {"success": False, "errors": form.errors.get_json_data()},
+                status=400,
+            )
+        return super().form_invalid(form)
 
 
 class WebPasswordResetView(auth_views.PasswordResetView):

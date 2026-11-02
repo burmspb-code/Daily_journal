@@ -410,3 +410,73 @@ def test_superuser_gets_extended_limits():
 
     assert plan.max_tasks == 500
     assert plan.max_bookmarks == 50
+
+
+# =============================================================================
+# ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ (МОДАЛЬНОЕ ОКНО)
+# =============================================================================
+
+
+@pytest.mark.django_db
+def test_profile_modal_get_returns_only_form_fields(client):
+    """AJAX-запрос отдаёт фрагмент формы, а не целую HTML-страницу."""
+    client.force_login(make_user())
+
+    response = client.get(
+        reverse("users:profile"),
+        HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        secure=True,
+    )
+
+    assert response.status_code == 200
+    template_names = [template.name for template in response.templates]
+    assert "users/partials/profile_form.html" in template_names
+    assert b"<form" not in response.content
+    assert b'id="id_phone_number"' in response.content
+
+
+@pytest.mark.django_db
+def test_profile_ajax_update_saves_and_returns_json(client):
+    user = make_user()
+    client.force_login(user)
+
+    response = client.post(
+        reverse("users:profile"),
+        {"email_notifications": "on"},
+        HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        secure=True,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"success": True}
+
+    user.refresh_from_db()
+    assert user.email_notifications is True
+
+
+@pytest.mark.django_db
+def test_profile_ajax_invalid_update_returns_json_errors(client):
+    client.force_login(make_user())
+
+    response = client.post(
+        reverse("users:profile"),
+        {"tg_chat_id": "not-a-number"},
+        HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        secure=True,
+    )
+
+    assert response.status_code == 400
+    data = response.json()
+    assert data["success"] is False
+    assert "tg_chat_id" in data["errors"]
+
+
+@pytest.mark.django_db
+def test_profile_page_without_ajax_redirects_to_tasks(client):
+    """Прямой заход на /users/profile/ не должен показывать «голый» фрагмент."""
+    client.force_login(make_user())
+
+    response = client.get(reverse("users:profile"), secure=True)
+
+    assert response.status_code == 302
+    assert response.url == reverse("daily:task_list")

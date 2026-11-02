@@ -19,30 +19,55 @@ document.addEventListener('DOMContentLoaded', function() {
     const profileModal = document.getElementById('editProfileModal');
     const profileFormContainer = document.getElementById('profile-form-container');
     const profileForm = document.getElementById('edit-profile-form');
-    
-    if (profileModal) {
+
+    if (profileModal && profileFormContainer) {
         profileModal.addEventListener('show.bs.modal', function() {
-            // Загружаем форму через AJAX
-            fetch("/users/profile/")
-                .then(response => response.text())
+            profileFormContainer.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-warning" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                </div>`;
+
+            // Загружаем только поля формы, а не целую страницу
+            fetch('/users/profile/', {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(response => {
+                    if (response.redirected && response.url.includes('/users/login/')) {
+                        window.location.href = response.url;
+                        throw new Error('redirected');
+                    }
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    return response.text();
+                })
                 .then(html => {
                     profileFormContainer.innerHTML = html;
                 })
                 .catch(error => {
-                    profileFormContainer.innerHTML = '<div class="alert alert-danger">Ошибка загрузки формы</div>';
+                    if (error.message === 'redirected') {
+                        return;
+                    }
+                    profileFormContainer.innerHTML = `
+                        <div class="alert alert-danger mb-0">
+                            Не удалось загрузить форму профиля. Обновите страницу и попробуйте снова.
+                        </div>`;
                 });
         });
     }
-    
+
     // Обработка отправки формы
     if (profileForm) {
         profileForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             const formData = new FormData(this);
-            const csrftoken = getCookie('csrftoken');
-            
-            fetch("/users/profile/", {
+            const csrftoken = getCookie('csrftoken') ||
+                this.querySelector('[name=csrfmiddlewaretoken]')?.value;
+
+            fetch('/users/profile/', {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -50,31 +75,51 @@ document.addEventListener('DOMContentLoaded', function() {
                     'X-CSRFToken': csrftoken
                 }
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Закрываем модальное окно
-                    const modal = bootstrap.Modal.getInstance(profileModal);
-                    modal.hide();
-                    // Перезагружаем страницу для обновления данных
-                    location.reload();
-                } else {
-                    // Показываем ошибки
-                    let errorHtml = '<div class="alert alert-danger">';
-                    for (const [field, errors] of Object.entries(data.errors)) {
-                        errorHtml += `<div><strong>${field}:</strong> ${Array.isArray(errors) ? errors.join(', ') : errors}</div>`;
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const modal = bootstrap.Modal.getInstance(profileModal);
+                        if (modal) {
+                            modal.hide();
+                        }
+                        location.reload();
+                        return;
                     }
-                    errorHtml += '</div>';
-                    profileFormContainer.innerHTML = errorHtml + profileFormContainer.innerHTML;
-                }
-            })
-            .catch(error => {
-                if (typeof window.showNotification === 'function') {
-                    window.showNotification('Ошибка при сохранении профиля', 'error');
-                } else {
-                    console.error('Ошибка при сохранении профиля:', error);
-                }
-            });
+
+                    // Показываем ошибки, не стирая уже введённые значения
+                    const oldAlert = profileFormContainer.querySelector('.profile-save-errors');
+                    if (oldAlert) {
+                        oldAlert.remove();
+                    }
+
+                    const alert = document.createElement('div');
+                    alert.className = 'alert alert-danger mb-3 profile-save-errors';
+
+                    const errors = data.errors || {};
+                    const entries = Object.entries(errors);
+                    if (!entries.length) {
+                        alert.textContent = 'Не удалось сохранить профиль. Проверьте введённые данные.';
+                    } else {
+                        for (const [field, fieldErrors] of entries) {
+                            const messages = (Array.isArray(fieldErrors) ? fieldErrors : [fieldErrors])
+                                .map(error => typeof error === 'string' ? error : (error.message || ''))
+                                .filter(Boolean)
+                                .join(', ');
+                            const row = document.createElement('div');
+                            row.textContent = `${field}: ${messages}`;
+                            alert.appendChild(row);
+                        }
+                    }
+
+                    profileFormContainer.prepend(alert);
+                })
+                .catch(error => {
+                    if (typeof window.showNotification === 'function') {
+                        window.showNotification('Ошибка при сохранении профиля', 'error');
+                    } else {
+                        console.error('Ошибка при сохранении профиля:', error);
+                    }
+                });
         });
     }
 });

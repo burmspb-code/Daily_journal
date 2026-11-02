@@ -135,15 +135,17 @@ class UserProfileForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Автоматически добавляем Bootstrap-класс ко всем полям
-        for _field_name, field in self.fields.items():
-            field.widget.attrs.update({"class": "form-control"})
+        # Автоматически добавляем Bootstrap-класс ко всем полям. Чекбоксам
+        # нужен form-check-input, иначе Bootstrap рисует их без оформления.
+        for field in self.fields.values():
+            if isinstance(field.widget, forms.CheckboxInput):
+                field.widget.attrs["class"] = "form-check-input"
+            elif isinstance(field.widget, forms.Select):
+                field.widget.attrs["class"] = "form-select"
+            else:
+                field.widget.attrs["class"] = "form-control"
 
         self.fields["phone_number"].widget.attrs.update({"autocomplete": "tel"})
-
-        # Убираем form-control у чекбоксов, так как они используют form-check-input
-        self.fields["email_notifications"].widget.attrs.pop('class', None)
-        self.fields["telegram_notifications"].widget.attrs.pop('class', None)
 
         # Если у пользователя нет tg_chat_id, отключаем чекбокс telegram_notifications
         if not self.instance or not self.instance.tg_chat_id:
