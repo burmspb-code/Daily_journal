@@ -130,6 +130,71 @@ poetry run celery -A config beat --loglevel=info
 
 ---
 
+## 🔐 TLS-сертификат и автопродление
+
+### Принцип
+
+TLS — инфраструктурная задача, а не часть Django-приложения:
+
+- сертификаты, приватные ключи и `/etc/letsencrypt` хранятся только на сервере и никогда не коммитятся;
+- выпуск и продление выполняет `certbot` на хосте;
+- nginx и webroot для ACME-проверки описаны в репозитории;
+- Django не управляет сертификатами и не требует root-прав.
+
+Такой подход не позволяет деплою приложения случайно сломать HTTPS, а конфигурация остаётся воспроизводимой.
+
+### Текущая схема
+
+- nginx принимает HTTP/HTTPS;
+- ACME-проверка: `/.well-known/acme-challenge/` отдаётся из `./certbot/www`;
+- сертификаты монтируются в nginx из `/etc/letsencrypt` (read-only);
+- продление: `snap.certbot.renew.timer`;
+- после успешного продления вызывается inline `renew_hook`:
+  `/usr/local/bin/reload-nginx-cert.sh`;
+- hook перезагружает nginx внутри контейнера:
+  `docker compose -f /opt/daily_journal/docker-compose.prod.yml exec -T nginx nginx -s reload`.
+
+Сейчас используется короткоживущий сертификат Let's Encrypt на IP. После перехода на домен имя сертификата и `server_name` нужно заменить на домен.
+
+### Проверка
+
+```bash
+certbot certificates
+systemctl list-timers --all | grep -i certbot
+certbot renew --dry-run
+ls -l /usr/local/bin/reload-nginx-cert.sh
+```
+
+Ожидаемо:
+
+- `certbot certificates` показывает действующий сертификат и дату окончания;
+- таймер `snap.certbot.renew.timer` активен;
+- `--dry-run` завершается успешно;
+- hook существует, исполняемый и перезагружает контейнерный nginx.
+
+### Пересборка сервера
+
+Сертификаты и приватные ключи не хранятся в git. При пересборке VPS нужно:
+
+1. Установить certbot (snap).
+2. Выпустить сертификат с webroot `/opt/daily_journal/certbot/www`.
+3. Создать `/usr/local/bin/reload-nginx-cert.sh` и выдать `chmod +x`.
+4. Включить `snap.certbot.renew.timer`.
+5. Проверить `certbot renew --dry-run`.
+
+### Мониторинг
+
+Для короткоживущего IP-сертификата (около 6 дней) желательно внешнее оповещение, если до истечения осталось меньше 3 дней. Для доменного сертификата порог можно увеличить. Дополнительно помогает регулярный `certbot renew --dry-run` и проверка даты сертификата на `:443`.
+
+### Что не делать
+
+- не коммитить `/etc/letsencrypt`, приватные ключи и `.env`;
+- не запускать certbot внутри контейнера Django;
+- не давать контейнеру certbot доступ к Docker socket без необходимости;
+- не дублировать reload: если inline `renew_hook` уже настроен, дополнительный hook в `renewal-hooks/deploy/` не нужен.
+
+---
+
 ## 📂 Архитектура проекта
 
 ```text
