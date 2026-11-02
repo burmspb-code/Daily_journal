@@ -211,8 +211,8 @@ class CustomPasswordResetForm(PasswordResetForm):
         html_email_template_name=None,
         extra_email_context=None,
     ):
-        """Отключаем отправку через SMTP.
+        """Отключаем стандартную отправку письма Django.
 
-        Письмо отправляется через Cloud Function в WebPasswordResetView.
+        Письмо отправляется через send_password_reset_mail в WebPasswordResetView.
         """
         return

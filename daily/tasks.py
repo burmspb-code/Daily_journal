@@ -4,6 +4,7 @@ import logging
 import requests
 from celery import shared_task
 from django.conf import settings
+from django.core.mail import send_mail
 from django.utils import timezone
 
 from daily.exceptions import RETRYABLE_STATUS_CODES, NotificationError
@@ -19,7 +20,7 @@ REQUEST_TIMEOUT = 15
 def send_email_notification(self, attempt_id: int, to_email: str,
                             task_name: str, deadline: str,
                             is_late: bool = False) -> None:
-    """Асинхронная задача отправки email-уведомления через SMTP.
+    """Асинхронная задача отправки email-уведомления через настроенный backend.
 
     Args:
         attempt_id: ID записи NotificationAttempt.
@@ -57,7 +58,7 @@ def send_email_notification(self, attempt_id: int, to_email: str,
 
     except Exception as e:
         attempt.status = NotificationAttempt.STATUS_FAILED
-        attempt.error_message = f"Ошибка отправки SMTP: {e}"
+        attempt.error_message = f"Ошибка отправки email: {e}"
         attempt.save(update_fields=["status", "error_message"])
 
         logger.warning(

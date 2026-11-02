@@ -107,7 +107,16 @@ class ResendActivationView(FormView):
 
     def form_valid(self, form):
         email = form.cleaned_data["email"]
-        resend_activation_email(self.request, email)
+        try:
+            resend_activation_email(self.request, email)
+        except EmailActivationError as e:
+            # Сбой почтового сервиса не должен превращаться в 500: показываем
+            # пользователю понятное сообщение и остаёмся на странице отправки.
+            messages.error(
+                self.request,
+                f"{e} Попробуйте ещё раз через несколько минут.",
+            )
+            return self.render_to_response(self.get_context_data(form=form))
         return super().form_valid(form)
 
 
@@ -128,7 +137,7 @@ class UserProfileUpdateView(LoginRequiredMixin, UpdateView):
 
 
 class WebPasswordResetView(auth_views.PasswordResetView):
-    """Кастомный PasswordResetView, использующий Cloud Function вместо SMTP."""
+    """Кастомный PasswordResetView, использующий send_password_reset_mail."""
 
     template_name = "users/password_reset.html"
     form_class = CustomPasswordResetForm

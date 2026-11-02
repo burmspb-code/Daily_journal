@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 # Словари с лимитами для каждого тарифного плана
 TARIFF_LIMITS = {
     "BASE": {
@@ -20,3 +22,7 @@ ACTIVATION_RESEND_COOLDOWN_SECONDS = 60
 
 # Максимум попыток отправки ссылки активации на один аккаунт за сутки.
 ACTIVATION_RESEND_DAILY_LIMIT = 5
+
+# Окно, в котором действует суточный лимит. Если с последней отправки прошло
+# больше этого времени, счётчик отправок начинается заново.
+ACTIVATION_RESEND_WINDOW = timedelta(days=1)
