@@ -3,7 +3,7 @@
     {% if field.field.widget.input_type == 'checkbox' %}
         <div class="form-check">
             {{ field.as_widget }}
-            <label for="{{ field.id_for_label }}" class="form-check-label fw-semibold text-secondary small">
+            <label for="{{ field.id_for_label }}" class="form-check-label fw-semibold text-white-50 small">
                 {{ field.label }}
             </label>
             {% if field.errors %}
@@ -16,7 +16,7 @@
             {% endif %}
         </div>
     {% else %}
-        <label for="{{ field.id_for_label }}" class="form-label fw-semibold text-secondary small">
+        <label for="{{ field.id_for_label }}" class="form-label fw-semibold text-white-50 small">
             {{ field.label }}
         </label>
         {{ field.as_widget }}

@@ -1,8 +1,9 @@
 <!-- Модальное окно редактирования профиля пользователя -->
 <div class="modal fade edit-profile-modal-backdrop" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content text-white shadow-lg edit-task-modal-content">
-            <form method="post" enctype="multipart/form-data" id="edit-profile-form">
+            <form method="post" action="{% url 'users:profile' %}" enctype="multipart/form-data" id="edit-profile-form">
+                {% csrf_token %}
                 <div class="modal-header border-bottom border-light border-opacity-10 px-4 py-3">
                     <h5 class="modal-title fw-bold text-white fs-5" id="editProfileModalLabel">
                         Редактирование профиля
