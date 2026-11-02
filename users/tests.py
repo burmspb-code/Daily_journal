@@ -4,13 +4,13 @@
 письма и расчёт лимитов тарифных планов.
 """
 
+import json
 from datetime import timedelta
 from unittest import mock
 
 import pytest
-import requests
 from django.contrib.auth.tokens import default_token_generator
-from django.test import RequestFactory
+from django.test import RequestFactory, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.encoding import force_bytes
@@ -19,6 +19,7 @@ from django.utils.http import urlsafe_base64_encode
 from users.constants import (
     ACTIVATION_RESEND_COOLDOWN_SECONDS,
     ACTIVATION_RESEND_DAILY_LIMIT,
+    ACTIVATION_RESEND_WINDOW,
 )
 from users.models import CustomUser
 from users.services import (
@@ -26,6 +27,7 @@ from users.services import (
     InvalidActivationToken,
     _can_resend_activation,
     activate_user_by_token,
+    mark_activation_sent,
     register_inactive_user,
     resend_activation_email,
 )
@@ -49,11 +51,9 @@ def activation_uid(user):
 
 
 @pytest.mark.django_db
-@mock.patch("users.services.requests.post")
-def test_register_inactive_user_saves_account_and_sends_activation(mock_post):
+@mock.patch("users.services.send_mail", return_value=1)
+def test_register_inactive_user_saves_account_and_sends_activation(mock_send_mail):
     """Успешная регистрация: аккаунт создан неактивным, письмо отправлено."""
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.text = "ok"
     request = RequestFactory().post("/users/register/")
 
     user = register_inactive_user(
@@ -64,19 +64,37 @@ def test_register_inactive_user_saves_account_and_sends_activation(mock_post):
     assert user.is_active is False
     assert CustomUser.objects.filter(email="newbie@example.com").exists()
 
-    payload = mock_post.call_args.kwargs["json"]
-    assert payload["to_email"] == "newbie@example.com"
-    assert payload["email_type"] == "registration"
-    assert "email-confirm" in payload["body_text"]
+    mock_send_mail.assert_called_once()
+    kwargs = mock_send_mail.call_args.kwargs
+    assert kwargs["recipient_list"] == ["newbie@example.com"]
+    assert "email-confirm" in kwargs["message"]
+    assert kwargs["fail_silently"] is False
+
+
+@pytest.mark.django_db
+@mock.patch("users.services.send_mail", return_value=1)
+def test_register_marks_activation_as_sent(_mock_send_mail):
+    """После регистрации кулдаун повторной отправки уже действует."""
+    request = RequestFactory().post("/users/register/")
+
+    user = register_inactive_user(
+        request,
+        save_callback=lambda: make_user("sent", "sent@example.com"),
+    )
+
+    user.refresh_from_db()
+    assert user.last_activation_sent_at is not None
+    assert user.activation_emails_sent_today == 1
+    assert _can_resend_activation(user) is False
 
 
 @pytest.mark.django_db
 @mock.patch(
-    "users.services.requests.post",
-    side_effect=requests.exceptions.ConnectionError("mail service is down"),
+    "users.services.send_mail",
+    side_effect=OSError("Network is unreachable"),
 )
-def test_register_keeps_account_inactive_when_mail_service_unavailable(_mock_post):
-    """Сбой почтового сервиса не удаляет аккаунт и не активирует его."""
+def test_register_keeps_account_inactive_when_email_service_unavailable(_mock_send_mail):
+    """Сбой почтового сервиса не удаляет аккаунт, не активирует его и не тратит лимит."""
     request = RequestFactory().post("/users/register/")
 
     with pytest.raises(EmailActivationError):
@@ -87,14 +105,14 @@ def test_register_keeps_account_inactive_when_mail_service_unavailable(_mock_pos
 
     created = CustomUser.objects.get(email="unlucky@example.com")
     assert created.is_active is False
+    assert created.last_activation_sent_at is None
+    assert created.activation_emails_sent_today == 0
 
 
 @pytest.mark.django_db
-@mock.patch("users.services.requests.post")
-def test_register_raises_on_non_200_response(mock_post):
-    """HTTP-отказ почтовой функции считается ошибкой доставки."""
-    mock_post.return_value.status_code = 503
-    mock_post.return_value.text = "Service Unavailable"
+@mock.patch("users.services.send_mail", return_value=0)
+def test_register_raises_when_email_service_sends_nothing(_mock_send_mail):
+    """Если бэкенд не принял ни одного письма, это считается ошибкой доставки."""
     request = RequestFactory().post("/users/register/")
 
     with pytest.raises(EmailActivationError):
@@ -105,12 +123,9 @@ def test_register_raises_on_non_200_response(mock_post):
 
 
 @pytest.mark.django_db
-@mock.patch("users.services.requests.post")
-def test_register_view_creates_inactive_user(mock_post, client):
+@mock.patch("users.services.send_mail", return_value=1)
+def test_register_view_creates_inactive_user(mock_send_mail, client):
     """Сквозной сценарий регистрации через веб-форму."""
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.text = "ok"
-
     response = client.post(
         reverse("users:register"),
         {
@@ -121,11 +136,15 @@ def test_register_view_creates_inactive_user(mock_post, client):
             "password1": PASSWORD,
             "password2": PASSWORD,
         },
+        secure=True,
     )
 
     assert response.status_code == 302
     assert response.url == reverse("users:email_confirmation_sent")
-    assert CustomUser.objects.get(username="webuser").is_active is False
+    created = CustomUser.objects.get(username="webuser")
+    assert created.is_active is False
+    assert created.last_activation_sent_at is not None
+    mock_send_mail.assert_called_once()
 
 
 # =============================================================================
@@ -200,10 +219,64 @@ def test_resend_is_blocked_by_daily_limit():
 
 
 @pytest.mark.django_db
-@mock.patch("users.services.requests.post")
-def test_resend_activation_sends_mail_and_updates_counters(mock_post):
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.text = "ok"
+def test_resend_is_allowed_after_daily_window():
+    """Через сутки после последней отправки лимит снова действует с нуля."""
+    user = make_user(is_active=False)
+    user.last_activation_sent_at = timezone.now() - ACTIVATION_RESEND_WINDOW - timedelta(seconds=1)
+    user.activation_emails_sent_today = ACTIVATION_RESEND_DAILY_LIMIT
+    user.save(update_fields=["last_activation_sent_at", "activation_emails_sent_today"])
+
+    assert _can_resend_activation(user) is True
+
+
+@pytest.mark.django_db
+def test_mark_activation_sent_increments_counter_within_window():
+    """Внутри суток счётчик растёт, а не сбрасывается."""
+    user = make_user(is_active=False)
+    user.last_activation_sent_at = timezone.now() - timedelta(hours=1)
+    user.activation_emails_sent_today = 2
+    user.save(update_fields=["last_activation_sent_at", "activation_emails_sent_today"])
+
+    mark_activation_sent(user)
+
+    user.refresh_from_db()
+    assert user.activation_emails_sent_today == 3
+
+
+@pytest.mark.django_db
+def test_mark_activation_sent_resets_counter_after_daily_window():
+    """Если прошло больше суток, счётчик начинается заново с единицы."""
+    user = make_user(is_active=False)
+    user.last_activation_sent_at = timezone.now() - ACTIVATION_RESEND_WINDOW - timedelta(minutes=1)
+    user.activation_emails_sent_today = ACTIVATION_RESEND_DAILY_LIMIT
+    user.save(update_fields=["last_activation_sent_at", "activation_emails_sent_today"])
+
+    mark_activation_sent(user)
+
+    user.refresh_from_db()
+    assert user.activation_emails_sent_today == 1
+
+
+@pytest.mark.django_db
+@mock.patch("users.services.send_mail", return_value=1)
+def test_resend_activation_starts_new_window_after_day(_mock_send_mail):
+    """Ресенд после суток молчания снова разрешён и обнуляет счётчик."""
+    user = make_user(is_active=False)
+    user.last_activation_sent_at = timezone.now() - ACTIVATION_RESEND_WINDOW - timedelta(minutes=1)
+    user.activation_emails_sent_today = ACTIVATION_RESEND_DAILY_LIMIT
+    user.save(update_fields=["last_activation_sent_at", "activation_emails_sent_today"])
+    request = RequestFactory().post("/users/resend-activation/")
+
+    assert resend_activation_email(request, user.email) is True
+
+    user.refresh_from_db()
+    assert user.activation_emails_sent_today == 1
+    assert user.last_activation_sent_at > timezone.now() - timedelta(seconds=5)
+
+
+@pytest.mark.django_db
+@mock.patch("users.services.send_mail", return_value=1)
+def test_resend_activation_sends_mail_and_updates_counters(mock_send_mail):
     user = make_user(is_active=False)
     request = RequestFactory().post("/users/resend-activation/")
 
@@ -212,19 +285,91 @@ def test_resend_activation_sends_mail_and_updates_counters(mock_post):
     user.refresh_from_db()
     assert user.last_activation_sent_at is not None
     assert user.activation_emails_sent_today == 1
-    mock_post.assert_called_once()
+    mock_send_mail.assert_called_once()
+    assert mock_send_mail.call_args.kwargs["recipient_list"] == [user.email]
 
 
 @pytest.mark.django_db
-@mock.patch("users.services.requests.post")
-def test_resend_activation_is_silent_for_unknown_and_active_accounts(mock_post):
+@mock.patch("users.services.send_mail", return_value=1)
+def test_resend_activation_is_silent_for_unknown_and_active_accounts(mock_send_mail):
     """Ответ не раскрывает, существует ли адрес: письма просто не отправляются."""
     active_user = make_user(is_active=True)
     request = RequestFactory().post("/users/resend-activation/")
 
     assert resend_activation_email(request, "nobody@example.com") is False
     assert resend_activation_email(request, active_user.email) is False
-    mock_post.assert_not_called()
+    mock_send_mail.assert_not_called()
+
+
+@pytest.mark.django_db
+@mock.patch("users.services.send_mail", return_value=1)
+def test_resend_view_redirects_on_success(mock_send_mail, client):
+    """Успешная повторная отправка ведёт на страницу «письмо отправлено»."""
+    user = make_user(is_active=False)
+
+    response = client.post(
+        reverse("users:resend_activation"),
+        {"email": user.email},
+        secure=True,
+    )
+
+    assert response.status_code == 302
+    assert response.url == reverse("users:email_confirmation_sent")
+    mock_send_mail.assert_called_once()
+
+
+@pytest.mark.django_db
+@mock.patch(
+    "users.services.send_mail",
+    side_effect=OSError("Network is unreachable"),
+)
+def test_resend_view_shows_error_instead_of_500_on_email_service_failure(
+    _mock_send_mail, client
+):
+    """Сбой почтового сервиса при повторной отправке даёт ошибку, а не HTTP 500."""
+    user = make_user(is_active=False)
+
+    response = client.post(
+        reverse("users:resend_activation"),
+        {"email": user.email},
+        secure=True,
+    )
+
+    assert response.status_code == 200
+    assert response.context["form"].is_bound
+    assert "Не удалось отправить письмо активации" in response.content.decode()
+
+    user.refresh_from_db()
+    assert user.last_activation_sent_at is None
+    assert user.activation_emails_sent_today == 0
+
+
+@pytest.mark.django_db
+@override_settings(
+    EMAIL_BACKEND="anymail.backends.brevo.EmailBackend",
+    ANYMAIL={"BREVO_API_KEY": "test-key"},
+    DEFAULT_FROM_EMAIL="mib.dev@yandex.ru",
+)
+@mock.patch("requests.Session.request")
+def test_resend_activation_uses_brevo_https_api(mock_request):
+    """Письмо уходит в Brevo по HTTPS, а не через заблокированный SMTP."""
+    mock_request.return_value.status_code = 201
+    mock_request.return_value.json.return_value = {"messageId": "<test@brevo>"}
+
+    user = make_user(is_active=False)
+    request = RequestFactory().post("/users/resend-activation/")
+
+    assert resend_activation_email(request, user.email) is True
+
+    call = mock_request.call_args.kwargs
+    assert call["url"] == "https://api.brevo.com/v3/smtp/email"
+    assert call["method"] == "POST"
+    assert call["headers"]["api-key"] == "test-key"
+
+    payload = json.loads(call["data"])
+    assert payload["sender"] == {"email": "mib.dev@yandex.ru"}
+    assert payload["to"] == [{"email": user.email}]
+    assert "email-confirm" in payload["textContent"]
 
 
 # =============================================================================

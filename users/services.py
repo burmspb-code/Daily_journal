@@ -13,7 +13,7 @@ from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import transaction
-from django.db.models import F
+from django.db.models import Case, F, Value, When
 from django.http.request import HttpRequest
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -25,6 +25,7 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from users.constants import (
     ACTIVATION_RESEND_COOLDOWN_SECONDS,
     ACTIVATION_RESEND_DAILY_LIMIT,
+    ACTIVATION_RESEND_WINDOW,
 )
 from users.models import CustomUser
 
@@ -54,11 +55,11 @@ def _send_email(
     html_message: str | None = None,
     error_message: str = "Не удалось отправить письмо через почтовый сервер.",
 ) -> None:
-    """Отправляет письмо через SMTP и превращает сбои в EmailActivationError.
+    """Отправляет письмо через настроенный email-backend (сейчас Brevo API).
 
-    ``send_mail`` с ``fail_silently=False`` бросает исключения SMTP, поэтому
-    представления получают единый тип ошибки и могут показать пользователю
-    понятное сообщение вместо страницы 500.
+    ``send_mail`` с ``fail_silently=False`` бросает исключения почтового
+    провайдера, поэтому представления получают единый тип ошибки и могут
+    показать пользователю понятное сообщение вместо страницы 500.
     """
     try:
         sent = send_mail(
@@ -70,12 +71,12 @@ def _send_email(
             fail_silently=False,
         )
     except Exception as e:
-        logger.error("💥 Ошибка отправки SMTP-письма на %s", recipient, exc_info=True)
+        logger.error("💥 Ошибка отправки письма на %s", recipient, exc_info=True)
         raise EmailActivationError(error_message) from e
 
     if sent != 1:
         logger.error(
-            "❌ SMTP-сервер принял %s писем вместо одного для %s",
+            "❌ Почтовый сервис принял %s писем вместо одного для %s",
             sent,
             recipient,
         )
@@ -87,7 +88,7 @@ def _send_email(
 def register_inactive_user(request: HttpRequest, save_callback: Callable[[], CustomUser]) -> CustomUser:
     """
     Регистрирует пользователя как неактивного и отправляет письмо активации
-    через SMTP.
+    через настроенный email-backend.
 
     Аккаунт при любом сбое отправки остаётся в БД в статусе is_active=False:
     удалять его нельзя, так как письмо могло уже уйти, и ссылка из него
@@ -105,7 +106,7 @@ def register_inactive_user(request: HttpRequest, save_callback: Callable[[], Cus
     # ШАГ 2: Подготовка письма уже вне транзакции, соединение с БД свободно.
     payload = _build_activation_payload(request, user)
 
-    # ШАГ 3: Отправка через SMTP. Аккаунт остаётся неактивным при ошибке.
+    # ШАГ 3: Отправка через email-backend. Аккаунт остаётся неактивным при ошибке.
     try:
         _send_email(
             subject=payload["subject"],
@@ -119,6 +120,10 @@ def register_inactive_user(request: HttpRequest, save_callback: Callable[[], Cus
     except EmailActivationError:
         logger.error("💥 Не удалось отправить письмо активации для %s", user.email)
         raise
+
+    # Фиксируем факт отправки, чтобы кулдаун и суточный лимит повторных
+    # запросов учитывали письмо, отправленное при регистрации.
+    mark_activation_sent(user)
 
     logger.info("✅ Письмо успешно отправлено!")
     return user
@@ -162,7 +167,7 @@ def activate_user_by_token(uidb64: str, token: str) -> CustomUser:
 
 
 def send_password_reset_mail(request: HttpRequest, user: CustomUser) -> None:
-    """Отправляет письмо со ссылкой для сброса пароля через стандартный SMTP Django.
+    """Отправляет письмо со ссылкой для сброса пароля через стандартный email-backend Django.
 
     Бросает `EmailActivationError` при любом сбое доставки.
     """
@@ -196,21 +201,21 @@ def send_password_reset_mail(request: HttpRequest, user: CustomUser) -> None:
         plain_message = strip_tags(html_message)
 
         # Отправляем встроенным методом Django
-        logger.info(f"📧 Отправляем SMTP письмо на {user.email}...")
+        logger.info(f"📧 Отправляем письмо на {user.email}...")
         send_mail(
             subject="Сброс пароля — Daily Journal",
             message=plain_message,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
             html_message=html_message,
-            fail_silently=False,  # Чтобы Django честно бросал ошибку, если SMTP недоступен
+            fail_silently=False,  # Чтобы Django честно бросал ошибку, если сервис недоступен
         )
 
     except Exception as e:
-        logger.error("💥 Ошибка при отправке SMTP письма сброса пароля", exc_info=True)
-        raise EmailActivationError("Произошла ошибка при отправке письма через почтовый сервер.") from e
+        logger.error("💥 Ошибка при отправке письма сброса пароля", exc_info=True)
+        raise EmailActivationError("Произошла ошибка при отправке письма через почтовый сервис.") from e
 
-    logger.info("✅ Письмо со ссылкой сброса пароля успешно отправлено через SMTP.")
+    logger.info("✅ Письмо со ссылкой сброса пароля успешно отправлено.")
 
 
 def _build_password_reset_payload(request: HttpRequest, user: CustomUser, uidb64: str, token: str) -> dict:
@@ -264,7 +269,7 @@ def _build_activation_payload(request: HttpRequest, user: CustomUser) -> dict:
 
 
 def _send_activation_mail(request: HttpRequest, user: CustomUser) -> None:
-    """Отправляет письмо со ссылкой активации через SMTP.
+    """Отправляет письмо со ссылкой активации через настроенный email-backend.
 
     Raises:
         EmailActivationError: Если письмо не удалось отправить.
@@ -296,21 +301,19 @@ def _can_resend_activation(user: CustomUser) -> bool:
         return True
 
     now = timezone.now()
-    cooldown_passed = (
-        now - user.last_activation_sent_at
-        >= timedelta(seconds=ACTIVATION_RESEND_COOLDOWN_SECONDS)
-    )
-    daily_limit_passed = (
-        user.last_activation_sent_at >= now - timedelta(days=1)
-        and user.activation_emails_sent_today >= ACTIVATION_RESEND_DAILY_LIMIT
-    )
+    elapsed = now - user.last_activation_sent_at
 
-    if not cooldown_passed:
-        return False
-    if daily_limit_passed:
+    # С момента последней отправки прошло больше суток — началось новое
+    # окно, лимит и кулдаун прошлых суток больше не действуют.
+    if elapsed >= ACTIVATION_RESEND_WINDOW:
+        return True
+
+    # Внутри суточного окна сначала проверяем кулдаун, затем количество
+    # отправок: он не должен превышать суточный лимит.
+    if elapsed < timedelta(seconds=ACTIVATION_RESEND_COOLDOWN_SECONDS):
         return False
 
-    return True
+    return user.activation_emails_sent_today < ACTIVATION_RESEND_DAILY_LIMIT
 
 
 def resend_activation_email(request: HttpRequest, email: str) -> bool:
@@ -344,21 +347,43 @@ def resend_activation_email(request: HttpRequest, email: str) -> bool:
     _send_activation_mail(request, user)
 
     # Фиксируем время отправки атомарно, чтобы параллельные запросы
-    # не прошли проверку частоты одновременно
-    CustomUser.objects.filter(pk=user.pk).update(
-        last_activation_sent_at=timezone.now(),
-        activation_emails_sent_today=F("activation_emails_sent_today") + 1,
-    )
+    # не прошли проверку частоты одновременно.
+    mark_activation_sent(user)
     return True
 
 
 def mark_activation_sent(user: CustomUser) -> None:
     """Запоминает факт отправки ссылки активации при регистрации.
 
+    Обновляет и запись в БД, и переданный экземпляр пользователя, чтобы
+    вызывающий код видел актуальные значения без дополнительного запроса.
+
     Args:
         user: Пользователь, которому только что отправлено письмо.
     """
+    sent_at = timezone.now()
+    window_start = sent_at - ACTIVATION_RESEND_WINDOW
+
+    # CASE читает старое значение last_activation_sent_at: если прошло больше
+    # суток (или отправки ещё не было), начинаем счёт заново с единицы.
+    # Счётчик присваивается первым, чтобы порядок SET не влиял на результат
+    # в СУБД, которые вычисляют выражения слева направо (например, MySQL).
     CustomUser.objects.filter(pk=user.pk).update(
-        last_activation_sent_at=timezone.now(),
-        activation_emails_sent_today=F("activation_emails_sent_today") + 1,
+        activation_emails_sent_today=Case(
+            When(last_activation_sent_at__isnull=True, then=Value(1)),
+            When(last_activation_sent_at__lte=window_start, then=Value(1)),
+            default=F("activation_emails_sent_today") + 1,
+        ),
+        last_activation_sent_at=sent_at,
     )
+
+    # Синхронизируем экземпляр в памяти, чтобы вызывающий код видел
+    # актуальные значения без дополнительного запроса.
+    new_window = (
+        user.last_activation_sent_at is None
+        or user.last_activation_sent_at <= window_start
+    )
+    user.activation_emails_sent_today = (
+        1 if new_window else (user.activation_emails_sent_today or 0) + 1
+    )
+    user.last_activation_sent_at = sent_at
