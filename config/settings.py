@@ -183,11 +183,19 @@ AUTH_USER_MODEL = "users.CustomUser"
 # Настройка таймаутов для исходящей почты
 EMAIL_TIMEOUT = 15
 
-# Почта переведена на SMTP, MAIL_FUNCTION_URL больше не используется
-# MAIL_FUNCTION_URL = ...
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# Отправка писем через HTTPS API Brevo (порт 443): SMTP-порты 465/587
+# на VPS заблокированы провайдером. Backend django-anymail сохраняет
+# привычный интерфейс send_mail, поэтому остальной код менять не нужно.
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "anymail.backends.brevo.EmailBackend",
+)
+ANYMAIL = {
+    "BREVO_API_KEY": os.getenv("BREVO_API_KEY", ""),
+}
 
-# Указываем сервера Яндекса
+# SMTP Яндекса оставлен как резервный вариант: он начнёт использоваться,
+# если в окружении явно задать EMAIL_BACKEND для SMTP.
 EMAIL_HOST = "smtp.yandex.ru"
 EMAIL_PORT = 465
 EMAIL_USE_SSL = True  # Яндекс строго требует шифрование SSL
@@ -195,7 +203,13 @@ EMAIL_USE_SSL = True  # Яндекс строго требует шифрова�
 # Привязываем авторизацию к переменным из вашего .env
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")         # Ваш логин Яндекса (например, info@yoursite.ru)
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD") # Пароль приложения!
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# Адрес отправителя должен быть подтверждён в Brevo (Senders & Domains).
+DEFAULT_FROM_EMAIL = (
+    os.getenv("DEFAULT_FROM_EMAIL")
+    or EMAIL_HOST_USER
+    or "mib.dev@yandex.ru"
+)
 
 # Email для получения уведомлений для администрирования ресурса
 EMAIL_ADMIN_NOTIFICATION = os.getenv("EMAIL_ADMIN_NOTIFICATION")
