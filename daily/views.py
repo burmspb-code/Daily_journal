@@ -1,12 +1,11 @@
 import json
 import logging
-from typing import ClassVar
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, render
-from django.urls import reverse, reverse_lazy
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.functional import cached_property
@@ -107,7 +106,7 @@ class TaskCreateView(LoginRequiredMixin, View):
     и возвращает HTML-строку задачи для мгновенного добавления в таблицу.
     """
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *_, **__):
         user = request.user
 
         # СНАЧАЛА читаем и валидируем JSON из тела запроса
@@ -160,7 +159,7 @@ class TaskCreateView(LoginRequiredMixin, View):
             "bookmark": bookmark_id,
         }
 
-        # Инициализируем форму (передаем user для внутренней фильтрации querysets)
+        # Инициализируем форму (передаем user для внутренней фильтрации queryset)
         form = TaskForm(data=form_data, user=request.user)
 
         if form.is_valid():
@@ -177,7 +176,7 @@ class TaskCreateView(LoginRequiredMixin, View):
             )
 
         # Обработка ошибок валидации формы Django
-        errors = ", ".join([f"{v[0]}" for k, v in form.errors.items()])
+        errors = ", ".join(str(v) for v in form.errors.values())
         return JsonResponse(
             {"status": "error", "message": errors or "Ошибка валидации"}, status=400
         )
@@ -192,7 +191,7 @@ class TaskUpdateView(LoginRequiredMixin, View):
     def handle_no_permission(self):
         return JsonResponse({"error": "Пользователь не авторизован"}, status=401)
 
-    def get(self, request, task_id, *args, **kwargs):
+    def get(self, request, task_id, *_, **__):
         """
         Срабатывает при вызове кнопки 'Редактировать' через hx-get.
         Генерирует HTML-код формы, где все инпуты и селекты уже заполнены значениями из БД.
@@ -210,7 +209,7 @@ class TaskUpdateView(LoginRequiredMixin, View):
             {"edit_form": form, "task": task}
         )
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *_, **__):
         """
         Срабатывает при отправке формы модального окна (кнопка 'Сохранить изменения').
         """
@@ -346,7 +345,7 @@ class UpdateTaskPeriodicityView(LoginRequiredMixin, View):
     Ожидает POST-запрос с 'task_id' (или 'id'), 'periodicity_value' и 'periodicity_unit'.
     """
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *_, **__):
         # Безопасно поддерживаем оба варианта именования ID для защиты от опечаток в JS
         task_id = request.POST.get("task_id") or request.POST.get("id")
         p_value_raw = request.POST.get("periodicity_value")
@@ -402,7 +401,7 @@ class UpdateTaskStatusView(LoginRequiredMixin, View):
     общий сервис complete_task.
     """
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *_, **__):
         # Безопасно поддерживаем оба варианта именования ID для защиты от опечаток в JS
         task_id = request.POST.get("task_id") or request.POST.get("id")
         new_status = request.POST.get("status_flag")
@@ -500,7 +499,7 @@ class TaskDeleteView(LoginRequiredMixin, DeleteView):
         """
         return None
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *_, **__):
         """
         Переопределяем точку входа POST-запроса для обработки списка ID.
         """
@@ -593,12 +592,10 @@ class BookmarkUpdateWebResponseView(APIView):
     Аутентификация по сессии браузера + обязательная CSRF-защита.
     """
 
-    permission_classes: ClassVar[list] = [IsAuthenticated]
-    authentication_classes: ClassVar[list] = [
-        SessionAuthentication
-    ]  # Завязано на вошедшего в браузер юзера
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = (SessionAuthentication,) # Завязано на вошедшего в браузер юзера
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *_, **__):
         bookmark_id = request.data.get("id")
 
         # Находим закладку строго для текущего пользователя сайта
@@ -630,8 +627,10 @@ class BookmarkDeleteView(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
 
     model = Bookmark
     context_object_name = "bookmark"
-    success_url = reverse_lazy("daily:task_list")
     success_message = "Закладка успешно удалена"
+
+    def get_success_url(self):
+        return reverse("daily:task_list")
 
     def get_object(self, queryset=None):
         """
@@ -666,8 +665,8 @@ class TaskListAPIView(ListAPIView):
     """
 
     serializer_class = TaskSerializer
-    permission_classes: ClassVar[list] = [IsAuthenticated]
-    authentication_classes: ClassVar[list] = [SessionAuthentication]
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = (SessionAuthentication,)
     pagination_class = TaskListAPIViewPagination
 
     @cached_property
@@ -729,7 +728,7 @@ class TaskListAPIView(ListAPIView):
             )
         },
     )
-    def list(self, request, *args, **kwargs):
+    def list(self, request, *_, **__):
         """Формирует структурированный JSON-ответ со списком задач и метаданных."""
         # Логирование для диагностики
         logger.info(
@@ -794,10 +793,8 @@ class BookmarkUpdateExternalApiView(RetrieveUpdateDestroyAPIView):
     """
 
     serializer_class = BookmarkUpdateSerializer
-    permission_classes: ClassVar[list] = [IsAuthenticated]
-    authentication_classes: ClassVar[list] = [
-        JWTAuthentication
-    ]  # Защита токеном, а не сессией браузера
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = (JWTAuthentication,) # Защита токеном, а не сессией браузера
 
     def get_queryset(self):
         return Bookmark.objects.filter(owner=self.request.user)
@@ -811,10 +808,8 @@ class TaskUpdateExternalApiView(RetrieveUpdateDestroyAPIView):
     """
 
     serializer_class = TaskUpdateSerializer
-    permission_classes: ClassVar[list] = [IsAuthenticated]
-    authentication_classes: ClassVar[list] = [
-        JWTAuthentication
-    ]  # Защита токеном, а не сессией браузера
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = (JWTAuthentication,) # Защита токеном, а не сессией браузера
 
     def get_queryset(self):
         return Task.objects.filter(owner=self.request.user)
@@ -861,8 +856,8 @@ class BookmarkListCreateAPIView(ListCreateAPIView):
     """
 
     serializer_class = BookmarkSerializer
-    permission_classes: ClassVar[list] = [IsAuthenticated]
-    authentication_classes: ClassVar[list] = [JWTAuthentication]
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = (JWTAuthentication,)
 
     def get_queryset(self):
         """Фильтруем список под текущего пользователя."""

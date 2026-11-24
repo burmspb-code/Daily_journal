@@ -1,5 +1,6 @@
 import html
 import logging
+import smtplib
 
 import requests
 from celery import shared_task
@@ -20,14 +21,24 @@ REQUEST_TIMEOUT = 15
 def send_email_notification(self, attempt_id: int, to_email: str,
                             task_name: str, deadline: str,
                             is_late: bool = False) -> None:
-    """Асинхронная задача отправки email-уведомления через настроенный backend.
+    """Асинхронная задача отправки email-уведомления через настроенный Django email backend.
+
+    Загружает запись NotificationAttempt по ID, отправляет письмо через
+    настроенный почтовый бэкенд Django (send_mail) и фиксирует результат в БД.
+
+    Повторяет попытку с экспоненциальной задержкой только при временных сбоях
+    (сетевые таймауты, разрывы соединения и временные коды ошибок SMTP 4xx).
+    Постоянные ошибки (например, ошибка авторизации или отклонение писем 5xx)
+    считаются терминальными: повтор не изменит результат, поэтому попытка
+    фиксируется как failed.
 
     Args:
-        attempt_id: ID записи NotificationAttempt.
+        attempt_id: ID записи NotificationAttempt (создаётся оркестратором).
         to_email: Email получателя.
-        task_name: Название задачи.
-        deadline: Дедлайн задачи.
-        is_late: True, если напоминание доставляется с опозданием.
+        task_name: Название задачи для текста письма.
+        deadline: Дедлайн задачи (строка).
+        is_late: True, если напоминание доставляется с опозданием (простоем
+            сервера); в текст добавляется пометка «Пропущенное напоминание».
     """
     try:
         attempt = NotificationAttempt.objects.get(id=attempt_id)
@@ -35,41 +46,119 @@ def send_email_notification(self, attempt_id: int, to_email: str,
         logger.error(f"❌ NotificationAttempt ID {attempt_id} не существует")
         return
 
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None) or getattr(
+        settings, "EMAIL_HOST_USER", None
+    )
+
+    if not from_email:
+        attempt.status = NotificationAttempt.STATUS_FAILED
+        attempt.error_message = "DEFAULT_FROM_EMAIL / EMAIL_HOST_USER не настроены в settings.py"
+        attempt.save(update_fields=["status", "error_message"])
+        logger.error("❌ DEFAULT_FROM_EMAIL / EMAIL_HOST_USER не настроены в settings.py")
+        return
+
+    if is_late:
+        subject = "Пропущенное напоминание о задаче — Daily Journal"
+        header = "⚠️ Пропущенное напоминание! Время выполнить задачу:"
+    else:
+        subject = "Напоминание о задаче — Daily Journal"
+        header = "⏰ Время выполнить задачу!"
+
+    message = (
+        f"{header}\n\n"
+        f"Задача: {task_name}\n"
+        f"Дедлайн: {deadline}"
+    )
+
     logger.info(f"📬 Отправляем email: {task_name} → {to_email}")
 
     try:
         attempt.attempts += 1
         attempt.save(update_fields=["attempts"])
 
-        header = "⏰ Пропущенное напоминание" if is_late else "⏰ Время выполнить задачу!"
-        message = (
-            f"{header}\n\n"
-            f"Задача: {task_name}\n"
-            f"Дедлайн: {deadline}"
-        )
-
         send_mail(
-            subject="Напоминание о задаче — Daily Journal",
+            subject=subject,
             message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=from_email,
             recipient_list=[to_email],
             fail_silently=False,
         )
 
-    except Exception as e:
+    except (TimeoutError, ConnectionError, smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError) as e:
         attempt.status = NotificationAttempt.STATUS_FAILED
-        attempt.error_message = f"Ошибка отправки email: {e}"
+        attempt.error_message = f"Сетевая ошибка SMTP: {e}"
         attempt.save(update_fields=["status", "error_message"])
 
         logger.warning(
-            f"⚠️ Ошибка email (попытка {attempt.attempts}/3): {e}"
+            f"⚠️ Сетевая ошибка email (попытка {attempt.attempts}/3): {e}"
         )
         countdown = self.default_retry_delay * (2 ** self.request.retries)
         raise self.retry(exc=e, countdown=countdown) from e
 
+    except smtplib.SMTPAuthenticationError as e:
+        # Неверный логин или пароль приложения — повторять бессмысленно
+        attempt.status = NotificationAttempt.STATUS_FAILED
+        attempt.error_message = f"Ошибка авторизации SMTP ({e.smtp_code}): {e.smtp_error}"
+        attempt.save(update_fields=["status", "error_message"])
+
+        logger.error(f"❌ Неустранимая ошибка авторизации SMTP: {e}")
+
+    except smtplib.SMTPRecipientsRefused as e:
+        attempt.status = NotificationAttempt.STATUS_FAILED
+        attempt.error_message = f"Получатель отклонён SMTP: {e.recipients}"
+        attempt.save(update_fields=["status", "error_message"])
+
+        recipient_codes = [code for code, _ in e.recipients.values()]
+        if recipient_codes and all(400 <= code < 500 for code in recipient_codes):
+            logger.warning(
+                f"⚠️ SMTP временно отклонил получателя "
+                f"(попытка {attempt.attempts}/3): {e.recipients}"
+            )
+            countdown = self.default_retry_delay * (2 ** self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        logger.error(f"❌ Неустранимая ошибка SMTP: получатель отклонён: {e.recipients}")
+
+    except smtplib.SMTPResponseException as e:
+        attempt.status = NotificationAttempt.STATUS_FAILED
+        attempt.error_message = f"SMTP вернул код {e.smtp_code}: {e.smtp_error}"
+        attempt.save(update_fields=["status", "error_message"])
+
+        # Коды 4xx (например, 421, 451) — временные сбои/лимиты, повторяем
+        if 400 <= e.smtp_code < 500:
+            logger.warning(
+                f"⚠️ SMTP вернул временный код {e.smtp_code} "
+                f"(попытка {attempt.attempts}/3). Перезапуск: {e}"
+            )
+            countdown = self.default_retry_delay * (2 ** self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Коды 5xx (несуществующий ящик, спам-блок и т.д.) — терминальные
+        logger.error(
+            f"❌ Неустранимая ошибка SMTP. Код {e.smtp_code}: {e}"
+        )
+
+    except smtplib.SMTPException as e:
+        attempt.status = NotificationAttempt.STATUS_FAILED
+        attempt.error_message = f"Ошибка SMTP: {e}"
+        attempt.save(update_fields=["status", "error_message"])
+
+        logger.error(f"❌ Неустранимая ошибка SMTP: {e}", exc_info=True)
+
+    except Exception as e:
+        attempt.status = NotificationAttempt.STATUS_FAILED
+        attempt.error_message = f"Непредвиденная ошибка: {e}"
+        attempt.save(update_fields=["status", "error_message"])
+
+        logger.error(f"❌ Фатальная ошибка отправки email: {e}", exc_info=True)
+        raise
+
     else:
         attempt.status = NotificationAttempt.STATUS_SENT
         attempt.sent_at = timezone.now()
+        # Поле NOT NULL (blank=True без null=True): очищаем пустой строкой,
+        # а не None, иначе PostgreSQL падает на IntegrityError и попытка
+        # остаётся pending, хотя письмо уже доставлено.
         attempt.error_message = ""
         attempt.save(update_fields=["status", "sent_at", "error_message"])
 
