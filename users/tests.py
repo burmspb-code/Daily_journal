@@ -4,13 +4,13 @@
 письма и расчёт лимитов тарифных планов.
 """
 
-import json
 from datetime import timedelta
 from unittest import mock
 
 import pytest
 from django.contrib.auth.tokens import default_token_generator
-from django.test import RequestFactory, override_settings
+from django.core import mail
+from django.test import RequestFactory
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.encoding import force_bytes
@@ -345,31 +345,16 @@ def test_resend_view_shows_error_instead_of_500_on_email_service_failure(
 
 
 @pytest.mark.django_db
-@override_settings(
-    EMAIL_BACKEND="anymail.backends.brevo.EmailBackend",
-    ANYMAIL={"BREVO_API_KEY": "test-key"},
-    DEFAULT_FROM_EMAIL="mib.dev@yandex.ru",
-)
-@mock.patch("requests.Session.request")
-def test_resend_activation_uses_brevo_https_api(mock_request):
-    """Письмо уходит в Brevo по HTTPS, а не через заблокированный SMTP."""
-    mock_request.return_value.status_code = 201
-    mock_request.return_value.json.return_value = {"messageId": "<test@brevo>"}
-
+def test_resend_activation_uses_django_email_backend():
+    """Письмо активации уходит через настроенный Django EmailBackend."""
     user = make_user(is_active=False)
     request = RequestFactory().post("/users/resend-activation/")
 
     assert resend_activation_email(request, user.email) is True
 
-    call = mock_request.call_args.kwargs
-    assert call["url"] == "https://api.brevo.com/v3/smtp/email"
-    assert call["method"] == "POST"
-    assert call["headers"]["api-key"] == "test-key"
-
-    payload = json.loads(call["data"])
-    assert payload["sender"] == {"email": "mib.dev@yandex.ru"}
-    assert payload["to"] == [{"email": user.email}]
-    assert "email-confirm" in payload["textContent"]
+    assert len(mail.outbox) == 1
+    assert mail.outbox[0].to == [user.email]
+    assert "email-confirm" in mail.outbox[0].body
 
 
 # =============================================================================
