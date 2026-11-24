@@ -9,7 +9,7 @@ from django.contrib.auth.models import update_last_login
 from django.contrib.auth.tokens import default_token_generator
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import redirect, render
-from django.urls import reverse, reverse_lazy
+from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.views.generic import CreateView, FormView, TemplateView, UpdateView, View
@@ -54,7 +54,9 @@ class UserRegisterView(CreateView):
     model = CustomUser
     form_class = CustomUserCreateForm
     template_name = "users/register.html"
-    success_url = reverse_lazy("users:email_confirmation_sent")
+
+    def get_success_url(self):
+        return reverse("users:email_confirmation_sent")
 
     def get_context_data(self, **kwargs):
         """Добавляет класс is-invalid к полям с ошибками после валидации."""
@@ -69,7 +71,7 @@ class UserRegisterView(CreateView):
         """
         try:
             register_inactive_user(self.request, save_callback=form.save)
-            return redirect(self.success_url)
+            return redirect(self.get_success_url())
         except EmailActivationError as e:
             messages.error(
                 self.request,
@@ -103,7 +105,9 @@ class ResendActivationView(FormView):
 
     template_name = "users/resend_activation.html"
     form_class = ResendActivationForm
-    success_url = reverse_lazy("users:email_confirmation_sent")
+
+    def get_success_url(self):
+        return reverse("users:email_confirmation_sent")
 
     def form_valid(self, form):
         email = form.cleaned_data["email"]
@@ -132,7 +136,9 @@ class UserProfileUpdateView(LoginRequiredMixin, UpdateView):
     model = CustomUser
     form_class = UserProfileForm
     template_name = "users/partials/profile_form.html"
-    success_url = reverse_lazy("users:profile")
+
+    def get_success_url(self):
+        return reverse("users:profile")
 
     def get_object(self, queryset=None):
         return self.request.user
@@ -163,7 +169,9 @@ class WebPasswordResetView(auth_views.PasswordResetView):
 
     template_name = "users/password_reset.html"
     form_class = CustomPasswordResetForm
-    success_url = reverse_lazy("users:password_reset_done")
+
+    def get_success_url(self):
+        return reverse("users:password_reset_done")
 
     def form_valid(self, form):
         email = form.cleaned_data["email"]
@@ -205,7 +213,7 @@ class UserRegisterAPIView(CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = UserRegisterSerializer
 
-    def create(self, request, *args, **kwargs):
+    def create(self, request, *_, **__):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -261,7 +269,7 @@ class UserTokenObtainPairView(SimpleJWTTokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = TokenObtainPairSerializer
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request, *_, **__):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         update_last_login(None, serializer.user)

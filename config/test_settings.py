@@ -18,6 +18,10 @@ from .settings import *  # noqa: F403
 DEBUG = False
 ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 
+# Тестовый клиент ходит по http; без этого SecurityMiddleware редиректит
+# все запросы на https и ломает проверки status_code в тестах.
+SECURE_SSL_REDIRECT = False
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",

@@ -825,16 +825,17 @@ class NotificationTaskPayloadTests:
             "get",
             lambda **kwargs: attempt,
         )
-        monkeypatch.setattr(tasks_module.settings, "MAIL_FUNCTION_URL", "http://mail.test")
-        post = Mock(return_value=Mock(status_code=200, text="ok"))
-        monkeypatch.setattr(tasks_module.requests, "post", post)
+        monkeypatch.setattr(tasks_module.settings, "DEFAULT_FROM_EMAIL", "mib.dev@yandex.ru")
+        send_mail_mock = Mock(return_value=1)
+        monkeypatch.setattr(tasks_module, "send_mail", send_mail_mock)
 
         tasks_module.send_email_notification.run(
             1, "u@example.com", "Задача", "2026-01-01 10:00", is_late=True
         )
 
-        _, kwargs = post.call_args
-        assert kwargs["json"]["is_late"] is True
+        _, kwargs = send_mail_mock.call_args
+        assert kwargs["recipient_list"] == ["u@example.com"]
+        assert "Пропущенное напоминание" in kwargs["message"]
 
     def test_telegram_message_marks_missed_reminder(self, monkeypatch):
         from daily import tasks as tasks_module
@@ -907,11 +908,11 @@ class NotificationTaskPayloadTests:
             error_message="предыдущая ошибка",
         )
 
-        monkeypatch.setattr(tasks_module.settings, "MAIL_FUNCTION_URL", "http://mail.test")
+        monkeypatch.setattr(tasks_module.settings, "DEFAULT_FROM_EMAIL", "mib.dev@yandex.ru")
         monkeypatch.setattr(
-            tasks_module.requests,
-            "post",
-            Mock(return_value=Mock(status_code=200, text="ok")),
+            tasks_module,
+            "send_mail",
+            Mock(return_value=1),
         )
 
         tasks_module.send_email_notification.run(
